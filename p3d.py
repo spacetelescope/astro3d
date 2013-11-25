@@ -7,7 +7,7 @@ import numpy as np
 from scipy.interpolate import Rbf
 from scipy.interpolate import RectBivariateSpline
 import texture
-
+import braille
 
 def readspreadsheets():
     sdict = {}
@@ -130,19 +130,24 @@ def make_masks(idict):
     """from the summed component images, generate the effective mask regions
     for each component"""
     # sum gas and filaments
-    gas = (idict['gas'] + idict['filaments']) > 100
-    dust = idict['dust'] > 15
-    dustgas = idict['dustgas'] > 35
+    gas = (idict['gas'] + idict['filaments']) 
+    dust = idict['dust']
+    dustgas = idict['dustgas']
     dustgas[830:] = 0
+    mgas = gas > 35
+    mdust = dust >15
+    mdustgas = dustgas >35
     # where gas overlays dust, set dustgas to 1
-    dustgas[gas & dust] = 1
-    # where gas overlays dust, or dustgas, set it to 0
-    gas[gas & dust] = 0
-    gas[gas & dustgas] = 0
+    # mdustgas[gas < dust] = 1
+    # where gas less than dust, or dustgas, set it to 0
+    mgas[gas < dust] = 0
+    mgas[gas < dustgas] = 0
     # same for dust 
-    dust[dust & dustgas] = 0
+    mdust[mdustgas] = 0
+    mdust[gas > dust] = 0
+    mdustgas[gas > dustgas] = 0
     # none of these should overlap now
-    return {'gas':gas, 'dust':dust, 'dustgas':dustgas}
+    return {'gas':mgas, 'dust':mdust, 'dustgas':mdustgas}
     
 def make_3d(idt=None,intensity=False):
     offset = 52
@@ -163,13 +168,15 @@ def make_3d(idt=None,intensity=False):
     print(shape)
     gashexgrid = texture.hex_grid(shape,7)
     gastex = texture.dots("linear",shape,7,1,gashexgrid)
-    dusttex = texture.lines("linear",shape,5*3, 5*5, 0.7, 0)
+    # dusttex = texture.lines("linear",shape,5*3, 5*5, 0.7, 0)
+    dusthexgrid = texture.hex_grid(shape,2*2*5) ##
+    dusttex = texture.dots("linear",shape,7,3,dusthexgrid)
     dustgashexgrid = texture.hex_grid(shape,2*5)
     dustgastex = texture.dots('linear',shape,7,3,dustgashexgrid)
     im = masks['gas']*gastex + masks['dust']*dusttex + masks['dustgas']*dustgastex
     if intensity:
         iim = masks['gas']*igas + masks['dust']*idust + masks['dustgas']*idustgas
-        im = im + iim/iim.max() * 100
+        im = im + iim/iim.max() * 50
     # now add stars
     stars = idict['stars']
     x = stars['x'] * 10 + offset
@@ -185,4 +192,55 @@ def make_3d(idt=None,intensity=False):
         nostar_subim = nostar_im[ys-mag:ys-mag+size,xs-mag:xs-mag+size]
         subim[star>0] = star[star>0] + ifactor*nostar_subim[star>0].max()
     return im
+    
+def make_texture_legend(blabel=False):
+    """generate a texture legend image with optional braille legends
+    
+    Make texture regions 40 mm square, leaving room for labels
+    """
+    ysize = 1100
+    xsize = int(1100*110./180)
+    im = np.zeros((ysize, xsize))
+    texture_shape = (180,180)
+    gashexgrid = texture.hex_grid(texture_shape,7)
+    gastex = texture.dots("linear",texture_shape,7,1,gashexgrid)
+    # dusttex = texture.lines("linear",texture_shape,5*3, 5*5, 0.7, 0)
+    dusttexhexgrid = texture.hex_grid(texture_shape,2*2*5) ##
+    dusttex = texture.dots("linear",texture_shape,7,3,gashexgrid)
+    dustgashexgrid = texture.hex_grid(texture_shape,2*5)
+    dustgastex = texture.dots('linear',texture_shape,7,3,dustgashexgrid)
+    # now set regions of final image to individual textures
+    offset = 15*5 # margin at left and betwen
+    header = 150
+    im[header:header+180, offset:offset+180] = gastex
+    im[header+180+offset:header+180+offset+180, offset:offset+180] = dusttex
+    im[header+(180+offset)*2:header+(180+offset)*2+180, offset:offset+180] = dustgastex
+    # add a star
+    star = texture.make_star(20, 10)
+    size = len(star)
+    halfsize = int(size/2)
+    im[header+(180+offset)*3+90-halfsize:header+(180+offset)*3+90-halfsize+size,
+       offset+90-halfsize:offset+90-halfsize+size] = star
+    lstart = 280
+    lheight = 50
+    header = header + 50
+    if blabel:
+        hlim = braille.make_label([32,32,29,27,9,0,60,11,26,3,0,32, 5, 17, 61])[::-1] 
+        print(hlim.max())
+        im[65:65+50,offset:offset+hlim.shape[1]] = hlim 
+        gaslim = braille.make_label([27,1,14])[::-1]  
+        im[header:header+lheight,lstart:lstart+gaslim.shape[1]] = gaslim 
+        dustlim = braille.make_label([25,37,12])[::-1] 
+        im[header+180+offset:header+180+offset+lheight,lstart:lstart+dustlim.shape[1]] =  dustlim
+        dustgaslim1 = braille.make_label([25,37,12,0,47,0,27,1,14])[::-1] 
+        dustgaslim2 = braille.make_label([36,3,20,43])[::-1]   
+        im[header-25+(180+offset)*2:header-25+(180+offset)*2+lheight,
+              lstart:lstart+dustgaslim1.shape[1]] = dustgaslim1  
+        im[header+25+(180+offset)*2:header+25+(180+offset)*2+lheight,
+              lstart:lstart+dustgaslim2.shape[1]] = dustgaslim2  
+             
+        slim = braille.make_label([12,28])[::-1]  
+        im[header+(180+offset)*3:header+(180+offset)*3+lheight,lstart:lstart+slim.shape[1]] = slim
+    return im
+    
     
