@@ -1,5 +1,3 @@
-Ad hoc code to produce textured 3 dimensional images for a 3-d printer.
+Code for a basic GUI and engine to create stl models from images of galaxies.
 
-General process is to generate an image to be rendered as surface, and then use
-a commercial PC program called photo2mesh to turn it into an STL file for a
-makerbot replicator 2 printer.
+Documentation is sparse as of now, and will be updated in the coming days.
