@@ -47,25 +47,14 @@ class StarScene(QGraphicsScene):
 
 class RegionStarScene(QGraphicsScene):
 
-	def __init__(self, parent, pixmap, name, points=None, shape=None):
+	def __init__(self, parent, pixmap, name):
 		super(RegionStarScene, self).__init__(parent)
 		self.name = name
 		self.item = QGraphicsPixmapItem(pixmap)
 		self.addItem(self.item)
 		self.points = []
-		if points:
-			self.points = points
-			for point in points:
-				p = QGraphicsEllipseItem(point.x(), point.y(), 10, 10)
-				p.setPen(QPen(QColor(0, 255, 0)))
-				self.addItem(p)
-		self.shape = shape
-		if shape != None:
-			self.display_shape = QGraphicsPolygonItem(self.shape)
-			self.display_shape.setPen(QPen(QColor(0, 100, 200)))
-			self.addItem(self.display_shape)
-		else:
-			self.display_shape = None
+		self.shape = None
+		self.display_shape = None
 
 	def mousePressEvent(self, event):
 		p = event.scenePos()
@@ -75,7 +64,7 @@ class RegionStarScene(QGraphicsScene):
 		self.addItem(e)
 		if len(self.points) >= 3:
 			self.shape = QPolygonF(self.points)
-			if self.display_shape != None:
+			if self.display_shape is not None:
 				self.removeItem(self.display_shape)
 			self.display_shape = QGraphicsPolygonItem(self.shape)
 			self.display_shape.setPen(QPen(QColor(0, 100, 200)))
