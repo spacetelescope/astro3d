@@ -9,31 +9,43 @@ import qimage2ndarray as q2a
 import photutils.utils as putils
 from PIL import Image
 
-from astroWidgets import *
-from astroObjects import *
-from star_scenes import *
+from astroObjects import File, Region, MergedRegion
+from star_scenes import StarScene, RegionStarScene, ClusterStarScene
 from wizard import ThreeDModelWizard
 from img2stl import imageprep
 
-class AstroProject(QMainWindow):
+class AstroGUI(QMainWindow):
 	"""
 	This program allows the user to upload any .fits image file and subsequently convert the image 
 	into an stl file, which can then be printed with a 3D printer.
 
-	TODO: Regions - 
-		TODO: Region Panel
-			-change region color
-	TODO: Stars -
-		TODO: Automatically find stars
-		TODO: Manually touch up star autofind
-		TODO: Allow loading of star locations
-	*TODO: File I/O - 
-		- Load Stars
-		- Save Stars (ASCII Table)
-		*-Save all as zip file
+	This class is the Main Window. It can have a menu bar and it displays the image. All other code
+	is initialized from this class. The methods contained in this class primarily exist to interface
+	between different objects, specifically by storing changes made by the wizard and the MainPanel 
+	(below) in File and Region objects. Furthermore it applies changes made from the wizard to the
+	Image, thus changing the image display.
 	"""
 
 	def __init__(self, argv=None):
+		"""
+		Arguments:
+			argv - passed in when the program is started from the command line. Used to run the debug 
+					script. See run_auto_login_script method for details.
+		Variables:
+			self.transformation - provides the transformation (linear, log, or sqrt) applied to the 
+									image before it is displayed. Applied for visualization and display
+									purposes only.
+			self.regions - a list of all regions the user has created
+			self.files & self.curr - initially it seemed necessary to allow the user to upload multiple
+										images and use them in the creation of a model. To this end,
+										self.files is the list of images uploaded, while self.curr is
+										a pointer to the currently selected (displayed) image. However,
+										the engine does not require multiple images to work, so this 
+										functionality may be unnecessary.
+			self.widget - initialized in self.createWidgets, this is the MainPanel, which displays the
+							image.
+
+		"""
 		super(AstroProject, self).__init__()
 		self.filename = None # Unnecessary?
 		self.curr = None # Do we need to handle multiple pics?
@@ -44,7 +56,7 @@ class AstroProject(QMainWindow):
 		self.createWidgets()
 		self.resize(840, 860)
 		self.setWindowTitle('3D Star Field Creator')
-		if argv and (argv[0] in ('debug', '-debug', '--debug')):
+		if argv and argv[0] == 'debug':
 			print 'running script'
 			self.run_auto_login_script(argv[1:]) # FOR DEBUG PURPOSES ONLY
 			wizard = ThreeDModelWizard(self, True)
@@ -65,25 +77,27 @@ class AstroProject(QMainWindow):
 			else:
 				target.addAction(action)
 	def createWidgets(self):
+		"""
+		Creates the File, Image, and Region menus. With the creation of the wizard, these menus serve no purpose.
+		"""
 		self.widget = MainPanel(self)
 		self.setCentralWidget(self.widget)
-		self.regionDlg = None
 
-		fileLoadAction = self.createAction("&Load", self.fileLoad, None, "Load another image file")
-		fileSaveAction = self.createAction("&Save", self.fileSave, None, "Save all data in new directory")
-		fileQuitAction = self.createAction("&Exit", QCoreApplication.instance().quit, None, "Exit the session")
+		fileLoadAction = self.createAction("&Load", self.fileLoad, "Load another image file")
+		fileSaveAction = self.createAction("&Save", self.fileSave, "Save all data in new directory")
+		fileQuitAction = self.createAction("&Exit", QCoreApplication.instance().quit, "Exit the session")
 		fileMenu = self.menuBar().addMenu("&File")
 		self.addActions(fileMenu, (fileLoadAction, fileSaveAction, None, fileQuitAction))
 
-		imageLinearTransform = self.createAction("Linear", self.setTransformation, "Linear")
-		imageLogTransform = self.createAction("Log", self.setTransformation, "Logarithmic")
-		imageSqrtTransform = self.createAction("Sqrt", self.setTransformation, "Sqrt")
+		imageLinearTransform = self.createAction("Linear", lambda: self.setTransformation("Linear"))
+		imageLogTransform = self.createAction("Log", lambda: self.setTransformation("Logarithmic"))
+		imageSqrtTransform = self.createAction("Sqrt", lambda: self.setTransformation("Sqrt"))
 		self.imageMenu = self.menuBar().addMenu("&Image")
 		self.addActions(self.imageMenu, (imageLinearTransform, imageLogTransform, imageSqrtTransform))
 		
-		regionDrawAction = self.createAction("Draw Region", self.drawRegion, None, "Indicate a region on the image")
-		regionSaveRegionAction = self.createAction("Save Region", self.saveRegion, None, "Save the currently displayed region")
-		regionClearAction = self.createAction("Clear Region", self.clearRegion, None, "Clear the current region")
+		regionDrawAction = self.createAction("Draw Region", self.drawRegion, "Indicate a region on the image")
+		regionSaveRegionAction = self.createAction("Save Region", self.saveRegion, "Save the currently displayed region")
+		regionClearAction = self.createAction("Clear Region", self.clearRegion, "Clear the current region")
 		self.regionMenu = self.menuBar().addMenu("Region")
 		self.addActions(self.regionMenu, (regionDrawAction, regionSaveRegionAction, regionClearAction))
 
@@ -91,23 +105,28 @@ class AstroProject(QMainWindow):
 			action.setEnabled(False)
 		for action in self.regionMenu.actions():
 			action.setEnabled(False)
-	def createAction(self, text, slot=None, data=None, tip=None, checkable=False):
-		"""Creates an action that can be assigned to a button or menu"""
+	def createAction(self, text, slot=None, tip=None, checkable=False):
+		"""Creates an action with given text, slot (method), tooltip, and checkable."""
 		action = QAction(text, self)
 		if tip != None:
 			action.setToolTip(tip)
 			action.setStatusTip(tip)
 		if slot != None:
 			action.triggered.connect(slot)
-		if data != None:
-			action.setData(data)
 		if checkable:
 			action.setCheckable(True)
 		return action
 
 	# Basic Actions
 	def fileLoad(self):
-		"""Loads and displays a .fits image file. Saves it as a File object"""
+		"""
+		Launches the QFileDialog to obtain a filename to load. Uses fits.getdata to obtain the numpy
+		array. Uses makeqimage to create a QImage from the numpy array. With QPixmap.fromImage, it
+		then creates a QPixmap, which is passed to the MainPanel (self.widget). A File object is
+		also created to store information. An action that allows the user to change the current image
+		(in the case where multiple images are uploaded) is created, while several other actions are
+		enabled.
+		"""
 		path = QFileInfo(self.filename).path() \
 			if self.filename != None else "."
 		fname = QFileDialog.getOpenFileName(self, "3D Model Creator - Load Image", \
@@ -124,12 +143,13 @@ class AstroProject(QMainWindow):
 		pic = self.widget.addImage(image)
 		self.files.append(File(name, data, pic))
 		self.curr = self.files[len(self.files) - 1]
-		action = self.createAction(name, self.changeImage, len(self.files) - 1, None)
+		action = self.createAction(name, lambda: self.changeImage(len(self.files) - 1), None)
 		self.imageMenu.addAction(action)
 		self.regionMenu.actions()[0].setEnabled(True)
 		for action in self.imageMenu.actions():
 			action.setEnabled(True)
 	def fileSave(self):
+		"""Used for debug purposes"""
 		# get path
 		path = QFileInfo(self.filename).path() \
 			if self.filename != None else "."
@@ -148,16 +168,17 @@ class AstroProject(QMainWindow):
 
 	# Region Editing
 	def clearRegion(self):
-		"""Clears a region and deletes it if it has already been saved"""
-		"""TODO: delete warning"""
+		"""Interfaces between wizard and MainPanel. Clears a region that is currently being drawn."""
 		self.widget.clear_region()
 	def deleteRegion(self, region):
+		"""Deletes a previously drawn region, removing it from self.regions and from the screen."""
 		if not isinstance(region, Region):
 			map(self.deleteRegion, region)
 		else:
 			self.hideRegion(region)
 			self.regions.remove(region)
 	def showRegion(self, region):
+		"""Displays the hidden region(s) passed in as the region parameter."""
 		if not isinstance(region, Region):
 			region = filter(lambda reg: reg.visible == False, region)
 			map(self.showRegion, region)
@@ -165,6 +186,7 @@ class AstroProject(QMainWindow):
 			self.widget.display_region(region)
 			region.visible = True
 	def hideRegion(self, region):
+		"""Hides the displayed region(s) passed in as the region parameter."""
 		if not isinstance(region, Region):
 			region = filter(lambda reg: reg.visible, region)
 			map(self.hideRegion, region)
@@ -172,16 +194,30 @@ class AstroProject(QMainWindow):
 			self.widget.hide_region(region)
 			region.visible = False
 	def drawRegion(self, name):
-		"""Switches to the interactive region drawing scene and obtains the name of the region to draw"""
-		"""TODO: Handle duplicate regions"""
+		"""
+		Tells the MainPanel to switch to the interactive region drawing QGraphicsScene. Takes the 
+		parameter name, which denotes the name of the region to be drawn. Also enables some actions
+		in the regionMenu, which can be deleted. Regions with the same name, however, will cause 
+		errors, but this would probably be better handled in the wizard, which is where the name is 
+		obtained.
+		"""
 		self.widget.region_drawer(name)
 		self.regionMenu.actions()[1].setEnabled(True)
 		self.regionMenu.actions()[2].setEnabled(True)
 	def get_region(self, name):
+		"""
+		Since I used a list to store the regions, it was necessary to create this method. A better 
+		solution would be to make self.regions a dictionary, and make the necessary changes.
+		"""
 		for reg in self.regions:
 			if reg.name == name:
 				return reg
 	def mergeRegions(self, name, list_of_regions): # No support for merged regions
+		"""
+		Merges several regions together into a MergedRegion object. As of now, this ability does not 
+		work. I am not sure that the capability to merge regions is necessary, but have left the 
+		relevant methods in place. See astroObjects.MergedRegion for more information.
+		"""
 		self.hideRegion(list_of_regions)
 		map(self.regions.remove, list_of_regions)
 		region = MergedRegion(list_of_regions)
@@ -189,20 +225,27 @@ class AstroProject(QMainWindow):
 		self.regions.append(region)
 		self.showRegion(region)
 	def splitRegion(self, region): # No support for merged regions
+		"""Splits a MergedRegion into component regions. See above."""
 		self.hideRegion(region)
 		self.regions.remove(region)
 		originals = region.originals
 		self.regions += originals
 		self.showRegion(originals)
 	def saveRegion(self):
-		"""Saves a region as a Region object (not to file). Exits the region drawing view."""
+		"""
+		Obtains the name (string) and region (QPolygonF) from the MainPanel, and in turn creates a 
+		Region object, which is added to self.regions. The GUI does not have a way to assign different 
+		regions as the spiralarms, disk, and stars to be eliminated, so I have been manually editing 
+		this method to assign the regions. NGC3344 has 3 spiralarms while NGC1566 has 2, so some 
+		changes need to be ensure the correct regions are assigned.
+		"""
 		name, region = self.widget.save_region()
 		reg = Region(name, region)
 		self.regions.append(reg)
-		if len(self.regions) < 3:
+		if len(self.regions) < 3: # 3 for NGC1566, 4 for NGC3344
 			self.curr.spiralarms.append(reg)
 			print 'Spiral'
-		elif len(self.regions) == 3:
+		elif len(self.regions) == 3: # 3 for NGC1566, 4 for NGC3344
 			self.curr.disk = reg
 			print 'Disk'
 		else:
@@ -213,14 +256,23 @@ class AstroProject(QMainWindow):
 		self.showRegion(reg)
 	
 	# Image Transformations
-	def changeImage(self):
-		"""Allows the user to select which image to view"""
-		action = self.sender()
-		index = action.data().toInt()[0]
+	def changeImage(self, index):
+		"""
+		Every time an image is loaded, an action is created in the imageMenu connected to this method, 
+		with index value increasing from 0 in the order images are loaded. This allows the user to select
+		a different image using the imageMenu. If multiple image capability were to be retained, it may 
+		make sense to maintain this capability separate from the wizard, thereby enabling the user to 
+		switch between images at any time.
+		"""
 		self.curr = self.files[index]
 		self.widget.setImage()
 	def setTransformation(self, trans=None):
-		"""Sets the current image transformation and updates all images with it."""
+		"""
+		Uses methods from photutils.utils to scale image intensity values, which allows better 
+		viusalization of the images. As of now, users can select between linear, logarithmic, and 
+		square root transforms. It is important to note that the scaling is for display purposes only 
+		and has no effect on the engine.
+		"""
 		if trans is None:
 			action = self.sender()
 			trans = action.data().toString()
@@ -239,19 +291,32 @@ class AstroProject(QMainWindow):
 		for f in self.files:
 			self.remake_image(f)
 		self.widget.setImage()
-	def remake_image(self, f):
-		"""A helper method. Recreates the stored pixmap when a transformation has been applied to the data."""
+	def remake_image(self, _file):
+		"""
+		Any time a change is made to the image being displayed, remake_image can be called to recreate
+		the relevant pixmap and change the image display.
+		"""
 		pic = QPixmap()
-		pic = pic.fromImage(makeqimage(f.data, self.transformation, self.widget.size))
-		f.image = pic
+		pic = pic.fromImage(makeqimage(_file.data, self.transformation, self.widget.size))
+		_file.image = pic
 	
 	def resizeImage(self, _file, width, height):
+		"""
+		Uses PIL (or Pillow) to resize an array to the given dimensions. The width and height are 
+		given by the user in the wizard's ImageResizePage. See wizard.ThreeDModelWizard.ImageResizePage 
+		for more information.
+		"""
 		image = Image.fromarray(_file.data)
 		image = image.resize((width, height))
 		_file.data = np.array(image, dtype=np.float64)
 		self.remake_image(_file)
 		self.widget.setImage()
 	def find_clusters(self):
+		"""
+		Retrieves locations of star clusters using imageprep.find_peaks, then displays them on the 
+		screen for the user to see using the ClusterStarScene. This action is similar to 
+		matplotlib.pyplot.scatter.
+		"""
 		image = self.curr.data
 		scale = self.curr.scale()
 		peaks = imageprep.find_peaks(np.flipud(image))
@@ -261,6 +326,10 @@ class AstroProject(QMainWindow):
 		coords = np.dstack((xcen, ycen)).reshape((-1, 2))
 		self.widget.cluster_find(coords)
 	def save_clusters(self):
+		"""
+		Removes clusters identified by the user as other objects (foreground stars, center of galaxy
+		etc.), then saves the 15 brightest star clusters to the File object.
+		"""
 		toremove = self.widget.save_clusters()
 		self.curr.clusters.remove_rows([i for i in toremove])
 		self.curr.clusters = self.curr.clusters[:15]
@@ -275,7 +344,7 @@ class AstroProject(QMainWindow):
 		pic = self.widget.addImage(image)
 		self.files.append(File(name, data, pic))
 		self.curr = self.files[len(self.files) - 1]
-		action = self.createAction(name, self.changeImage, len(self.files) - 1, None)
+		action = self.createAction(name, lambda: self.changeImage(len(self.files) - 1), None)
 		self.imageMenu.addAction(action)
 		self.regionMenu.actions()[0].setEnabled(True)
 		for action in self.imageMenu.actions():
@@ -305,9 +374,10 @@ class AstroProject(QMainWindow):
 
 class MainPanel(QWidget):
 	"""
-	The central widget for AstroProject. It contains all other (visual) widgets and will display
-	images, lists, etc. interchangeably. It contains a single main scene that can display the current 
-	picture, and little else. Other more complex visual scenes get the current picture, etc. from the main
+	The central widget for AstroGUI. Contains a QGraphicsView which can show several QGraphicsScenes.
+	The primary purpose of this widget is to interface between the AstroGUI and the QGraphicsScenes in 
+	order to enable viewing images, drawing regions, and finding star clusters. In addition to its 
+	QGraphicsView, it also contains a non-interactive main_scene, along with a pointer to the current 
 	scene.
 	"""
 	def __init__(self, parent):
@@ -331,45 +401,53 @@ class MainPanel(QWidget):
 		self.show()
 
 	def addImage(self, pixmap):
-		"""Takes in a QPixmap and adds the picture to the main scene as a QPixmapGraphicsItem"""
+		"""Takes in a QPixmap and adds the picture to the main scene as a QPixmapGraphicsItem."""
 		return self.main_scene.addImg(pixmap)
 
 	def setImage(self):
-		"""Sets the current image to a previously loaded image"""
+		"""Sets the current image to AstroGUI's currently selected image."""
 		self.main_scene.addImg(self.parent.curr.image)
 		self.update_scene(self.main_scene)
 
-	def region_drawer(self, name, points=None, region=None):
-		"""Sets the scene to an interactive drawing scene, allowing the user to draw regions"""
+	def region_drawer(self, name):
+		"""Sets the scene to an interactive drawing scene, allowing the user to draw regions."""
 		draw_scene = RegionStarScene(self, self.parent.curr.image, name, points, region)
 		self.update_scene(draw_scene)
 
 	def cluster_find(self, points):
+		"""Sets the scene to an interactive cluster-finding scene, allowing the user to find clusters."""
 		cluster_scene = ClusterStarScene(self, self.parent.curr.image, points)
 		self.update_scene(cluster_scene)
 
 	def save_region(self):
-		"""Sets the scene to the non-interactive main scene. Passes region information to parent to save"""
+		"""
+		Sets the scene to the non-interactive main scene. Passes region information to AstroGUI 
+		to save.
+		"""
 		name, region = self.current_scene.getRegion()
 		self.update_scene(self.main_scene)
 		return name, region
 
 	def save_clusters(self):
+		"""
+		Sets the scene to the non-interactive main scene. Passes a list of indices to remove to 
+		AstroGUI to save.
+		"""
 		toremove = self.current_scene.toremove
 		self.update_scene(self.main_scene)
 		return toremove
 
 	def clear_region(self):
-		"""Clears the currently displayed region"""
+		"""Clears the currently displayed region."""
 		self.current_scene.clear()
 
 	def display_region(self, region):
-		"""Shows a region on top of the non-interactive main scene"""
+		"""Shows a region on top of the non-interactive main scene."""
 		self.main_scene.addReg(region)
 		self.update_scene(self.main_scene)
 
 	def hide_region(self, region):
-		"""Hides a region from the non-interactive main scene"""
+		"""Hides a region from the non-interactive main scene."""
 		self.main_scene.delReg(region)
 		self.update_scene(self.main_scene)
 
@@ -395,7 +473,7 @@ def makeqimage(nparray, transformation=None, size=None):
 
 def main(argv):
 	app = QApplication(argv)
-	window = AstroProject(argv[1:])
+	window = AstroGUI(argv[1:])
 	sys.exit(app.exec_())
 
 if __name__ == '__main__':
