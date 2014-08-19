@@ -16,12 +16,12 @@ from img2stl import imageprep
 
 class AstroGUI(QMainWindow):
 	"""
-	This program allows the user to upload any .fits image file and subsequently convert the image 
+	This program allows the user to upload any .fits image file and subsequently convert the image
 	into an stl file, which can then be printed with a 3D printer.
 
 	This class is the Main Window. It can have a menu bar and it displays the image. All other code
 	is initialized from this class. The methods contained in this class primarily exist to interface
-	between different objects, specifically by storing changes made by the wizard and the MainPanel 
+	between different objects, specifically by storing changes made by the wizard and the MainPanel
 	(below) in File and Region objects. Furthermore it applies changes made from the wizard to the
 	Image, thus changing the image display.
 	"""
@@ -29,10 +29,10 @@ class AstroGUI(QMainWindow):
 	def __init__(self, argv=None):
 		"""
 		Inputs:
-			argv - passed in when the program is started from the command line. Used to run the debug 
+			argv - passed in when the program is started from the command line. Used to run the debug
 					script. See run_auto_login_script method for details.
 		Variables:
-			self.transformation - provides the transformation (linear, log, or sqrt) applied to the 
+			self.transformation - provides the transformation (linear, log, or sqrt) applied to the
 									image before it is displayed. Applied for visualization and display
 									purposes only.
 			self.regions - a list of all regions the user has created
@@ -40,7 +40,7 @@ class AstroGUI(QMainWindow):
 										images and use them in the creation of a model. To this end,
 										self.files is the list of images uploaded, while self.curr is
 										a pointer to the currently selected (displayed) image. However,
-										the engine does not require multiple images to work, so this 
+										the engine does not require multiple images to work, so this
 										functionality may be unnecessary.
 			self.widget - initialized in self.createWidgets, this is the MainPanel, which displays the
 							image.
@@ -64,7 +64,7 @@ class AstroGUI(QMainWindow):
 		else:
 			wizard = ThreeDModelWizard(self)
 			self.show()
-			
+
 
 	# GUI Creation
 	def addActions(self, target, actions):
@@ -94,7 +94,7 @@ class AstroGUI(QMainWindow):
 		imageSqrtTransform = self.createAction("Sqrt", lambda: self.setTransformation("Sqrt"))
 		self.imageMenu = self.menuBar().addMenu("&Image")
 		self.addActions(self.imageMenu, (imageLinearTransform, imageLogTransform, imageSqrtTransform))
-		
+
 		regionDrawAction = self.createAction("Draw Region", self.drawRegion, "Indicate a region on the image")
 		regionSaveRegionAction = self.createAction("Save Region", self.saveRegion, "Save the currently displayed region")
 		regionClearAction = self.createAction("Clear Region", self.clearRegion, "Clear the current region")
@@ -205,10 +205,10 @@ class AstroGUI(QMainWindow):
 	def drawRegion(self, name):
 		"""
 		Input: String name
-		Purpose: Tells the MainPanel to switch to the interactive region drawing QGraphicsScene. Takes 
-					the parameter name, which denotes the name of the region to be drawn. Also enables 
-					some actionsin the regionMenu, which can be deleted. Regions with the same name, 
-					however, will cause errors, but this would probably be better handled in the wizard, 
+		Purpose: Tells the MainPanel to switch to the interactive region drawing QGraphicsScene. Takes
+					the parameter name, which denotes the name of the region to be drawn. Also enables
+					some actionsin the regionMenu, which can be deleted. Regions with the same name,
+					however, will cause errors, but this would probably be better handled in the wizard,
 					which is where the name is obtained.
 		"""
 		self.widget.region_drawer(name)
@@ -218,7 +218,7 @@ class AstroGUI(QMainWindow):
 		"""
 		Input: String name
 		Output: Region reg
-		Purpose: Since I used a list to store the regions, it was necessary to create this method. A 
+		Purpose: Since I used a list to store the regions, it was necessary to create this method. A
 					better solution would be to make self.regions a dictionary.
 		"""
 		for reg in self.regions:
@@ -226,8 +226,8 @@ class AstroGUI(QMainWindow):
 				return reg
 	def mergeRegions(self, name, list_of_regions): # No support for merged regions
 		"""
-		Merges several regions together into a MergedRegion object. As of now, this ability does not 
-		work. I am not sure that the capability to merge regions is necessary, but have left the 
+		Merges several regions together into a MergedRegion object. As of now, this ability does not
+		work. I am not sure that the capability to merge regions is necessary, but have left the
 		relevant methods in place. See astroObjects.MergedRegion for more information.
 		"""
 		self.hideRegion(list_of_regions)
@@ -245,10 +245,10 @@ class AstroGUI(QMainWindow):
 		self.showRegion(originals)
 	def saveRegion(self):
 		"""
-		Obtains the name (string) and region (QPolygonF) from the MainPanel, and in turn creates a 
-		Region object, which is added to self.regions. The GUI does not have a way to assign different 
-		regions as the spiralarms, disk, and stars to be eliminated, so I have been manually editing 
-		this method to assign the regions. NGC3344 has 3 spiralarms while NGC1566 has 2, so some 
+		Obtains the name (string) and region (QPolygonF) from the MainPanel, and in turn creates a
+		Region object, which is added to self.regions. The GUI does not have a way to assign different
+		regions as the spiralarms, disk, and stars to be eliminated, so I have been manually editing
+		this method to assign the regions. NGC3344 has 3 spiralarms while NGC1566 has 2, so some
 		changes need to be ensure the correct regions are assigned.
 		"""
 		name, region = self.widget.save_region()
@@ -266,16 +266,16 @@ class AstroGUI(QMainWindow):
 		self.regionMenu.actions()[1].setEnabled(False)
 		self.regionMenu.actions()[2].setEnabled(False)
 		self.showRegion(reg)
-	
+
 	# Image Transformations
 	def changeImage(self, index):
 		"""
 		Input: int index
-		Purpose: Every time an image is loaded, an action is created in the imageMenu connected to this 
-					method, with index value increasing from 0 in the order images are loaded. This 
-					allows the user to selecta different image using the imageMenu. If multiple image 
-					capability were to be retained, it may make sense to maintain this capability 
-					separate from the wizard, thereby enabling the user to switch between images at any 
+		Purpose: Every time an image is loaded, an action is created in the imageMenu connected to this
+					method, with index value increasing from 0 in the order images are loaded. This
+					allows the user to selecta different image using the imageMenu. If multiple image
+					capability were to be retained, it may make sense to maintain this capability
+					separate from the wizard, thereby enabling the user to switch between images at any
 					time.
 		"""
 		self.curr = self.files[index]
@@ -283,9 +283,9 @@ class AstroGUI(QMainWindow):
 	def setTransformation(self, trans=None):
 		"""
 		Input: String trans
-		Purpose: Uses methods from photutils.utils to scale image intensity values, which allows better 
-					viusalization of the images. As of now, users can select between linear, 
-					logarithmic, and square root transforms. It is important to note that the scaling 
+		Purpose: Uses methods from photutils.utils to scale image intensity values, which allows better
+					viusalization of the images. As of now, users can select between linear,
+					logarithmic, and square root transforms. It is important to note that the scaling
 					is for display purposes only and has no effect on the engine.
 		"""
 		if trans is None:
@@ -300,7 +300,7 @@ class AstroGUI(QMainWindow):
 		self.update_all()
 	def update_all(self): # Necessary to support multiple images
 		"""
-		A simple helper method. Applies the remake_image method to all images when a 
+		A simple helper method. Applies the remake_image method to all images when a
 		transformation has been applied to all of them.
 		"""
 		for f in self.files:
@@ -309,18 +309,18 @@ class AstroGUI(QMainWindow):
 	def remake_image(self, _file):
 		"""
 		Input: File _file
-		Purpose: Any time a change is made to the image being displayed, remake_image can be called to 
+		Purpose: Any time a change is made to the image being displayed, remake_image can be called to
 					recreatethe relevant pixmap and change the image display.
 		"""
 		pic = QPixmap()
 		pic = pic.fromImage(makeqimage(_file.data, self.transformation, self.widget.size))
 		_file.image = pic
-	
+
 	def resizeImage(self, _file, width, height):
 		"""
 		Input: File _file, int width, int height
-		Purpose: Uses PIL (or Pillow) to resize an array to the given dimensions. The width and height 
-					are given by the user in the wizard's ImageResizePage. See 
+		Purpose: Uses PIL (or Pillow) to resize an array to the given dimensions. The width and height
+					are given by the user in the wizard's ImageResizePage. See
 					wizard.ThreeDModelWizard.ImageResizePage for more information.
 		"""
 		image = Image.fromarray(_file.data)
@@ -330,8 +330,8 @@ class AstroGUI(QMainWindow):
 		self.widget.setImage()
 	def find_clusters(self):
 		"""
-		Retrieves locations of star clusters using imageprep.find_peaks, then displays them on the 
-		screen for the user to see using the ClusterStarScene. This action is similar to 
+		Retrieves locations of star clusters using imageprep.find_peaks, then displays them on the
+		screen for the user to see using the ClusterStarScene. This action is similar to
 		matplotlib.pyplot.scatter.
 		"""
 		image = self.curr.data
@@ -392,9 +392,9 @@ class AstroGUI(QMainWindow):
 class MainPanel(QWidget):
 	"""
 	The central widget for AstroGUI. Contains a QGraphicsView which can show several QGraphicsScenes.
-	The primary purpose of this widget is to interface between the AstroGUI and the QGraphicsScenes in 
-	order to enable viewing images, drawing regions, and finding star clusters. In addition to its 
-	QGraphicsView, it also contains a non-interactive main_scene, along with a pointer to the current 
+	The primary purpose of this widget is to interface between the AstroGUI and the QGraphicsScenes in
+	order to enable viewing images, drawing regions, and finding star clusters. In addition to its
+	QGraphicsView, it also contains a non-interactive main_scene, along with a pointer to the current
 	scene.
 	"""
 	def __init__(self, parent):
@@ -421,7 +421,7 @@ class MainPanel(QWidget):
 		"""
 		Input: QPixmap pixmap
 		Output: QPixmap scaledPixmap
-		Purpose: Adds the given pixmap to the display. Returns a scaled version for storage in the 
+		Purpose: Adds the given pixmap to the display. Returns a scaled version for storage in the
 					appropriate File object.
 		"""
 		return self.main_scene.addImg(pixmap)
@@ -442,8 +442,8 @@ class MainPanel(QWidget):
 	def cluster_find(self, points):
 		"""
 		Input: np.ndarray points
-		Purpose: Highlights the locations of clusters given by points to allow the user to remove 
-					'invalid' clusters, such as foreground stars, etc. using the interactive 
+		Purpose: Highlights the locations of clusters given by points to allow the user to remove
+					'invalid' clusters, such as foreground stars, etc. using the interactive
 					ClusterStarScene.
 		"""
 		cluster_scene = ClusterStarScene(self, self.parent.curr.image, points)
@@ -452,7 +452,7 @@ class MainPanel(QWidget):
 	def save_region(self):
 		"""
 		Output: String name, QPolygonF region.
-		Purpose: Sets the scene to the non-interactive main scene. Passes region information to 
+		Purpose: Sets the scene to the non-interactive main scene. Passes region information to
 					AstroGUI to save.
 		"""
 		name, region = self.current_scene.getRegion()
@@ -462,7 +462,7 @@ class MainPanel(QWidget):
 	def save_clusters(self):
 		"""
 		Output: list toremove
-		Purpose: Sets the scene to the non-interactive main scene. Passes a list of indices to remove 
+		Purpose: Sets the scene to the non-interactive main scene. Passes a list of indices to remove
 					from the astropy Table that contains the cluster information.
 		"""
 		toremove = self.current_scene.toremove
@@ -522,6 +522,3 @@ def main(argv):
 
 if __name__ == '__main__':
 	main(sys.argv)
-
-		
-
