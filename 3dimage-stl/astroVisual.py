@@ -28,7 +28,7 @@ class AstroGUI(QMainWindow):
 
 	def __init__(self, argv=None):
 		"""
-		Arguments:
+		Inputs:
 			argv - passed in when the program is started from the command line. Used to run the debug 
 					script. See run_auto_login_script method for details.
 		Variables:
@@ -46,7 +46,7 @@ class AstroGUI(QMainWindow):
 							image.
 
 		"""
-		super(AstroProject, self).__init__()
+		super(AstroGUI, self).__init__()
 		self.filename = None # Unnecessary?
 		self.curr = None # Do we need to handle multiple pics?
 		self.transformation = lambda img: putils.scale_linear(img, percent=99)
@@ -171,14 +171,20 @@ class AstroGUI(QMainWindow):
 		"""Interfaces between wizard and MainPanel. Clears a region that is currently being drawn."""
 		self.widget.clear_region()
 	def deleteRegion(self, region):
-		"""Deletes a previously drawn region, removing it from self.regions and from the screen."""
+		"""
+		Input: Region region
+		Purpose: Deletes a previously drawn region, removing it from self.regions and from the screen.
+		"""
 		if not isinstance(region, Region):
 			map(self.deleteRegion, region)
 		else:
 			self.hideRegion(region)
 			self.regions.remove(region)
 	def showRegion(self, region):
-		"""Displays the hidden region(s) passed in as the region parameter."""
+		"""
+		Input: Region region
+		Purpose: Displays the hidden region(s) passed in as the region parameter.
+		"""
 		if not isinstance(region, Region):
 			region = filter(lambda reg: reg.visible == False, region)
 			map(self.showRegion, region)
@@ -186,7 +192,10 @@ class AstroGUI(QMainWindow):
 			self.widget.display_region(region)
 			region.visible = True
 	def hideRegion(self, region):
-		"""Hides the displayed region(s) passed in as the region parameter."""
+		"""
+		Input: Region region
+		Output: Hides the displayed region(s) passed in as the region parameter.
+		"""
 		if not isinstance(region, Region):
 			region = filter(lambda reg: reg.visible, region)
 			map(self.hideRegion, region)
@@ -195,19 +204,22 @@ class AstroGUI(QMainWindow):
 			region.visible = False
 	def drawRegion(self, name):
 		"""
-		Tells the MainPanel to switch to the interactive region drawing QGraphicsScene. Takes the 
-		parameter name, which denotes the name of the region to be drawn. Also enables some actions
-		in the regionMenu, which can be deleted. Regions with the same name, however, will cause 
-		errors, but this would probably be better handled in the wizard, which is where the name is 
-		obtained.
+		Input: String name
+		Purpose: Tells the MainPanel to switch to the interactive region drawing QGraphicsScene. Takes 
+					the parameter name, which denotes the name of the region to be drawn. Also enables 
+					some actionsin the regionMenu, which can be deleted. Regions with the same name, 
+					however, will cause errors, but this would probably be better handled in the wizard, 
+					which is where the name is obtained.
 		"""
 		self.widget.region_drawer(name)
 		self.regionMenu.actions()[1].setEnabled(True)
 		self.regionMenu.actions()[2].setEnabled(True)
 	def get_region(self, name):
 		"""
-		Since I used a list to store the regions, it was necessary to create this method. A better 
-		solution would be to make self.regions a dictionary, and make the necessary changes.
+		Input: String name
+		Output: Region reg
+		Purpose: Since I used a list to store the regions, it was necessary to create this method. A 
+					better solution would be to make self.regions a dictionary.
 		"""
 		for reg in self.regions:
 			if reg.name == name:
@@ -258,20 +270,23 @@ class AstroGUI(QMainWindow):
 	# Image Transformations
 	def changeImage(self, index):
 		"""
-		Every time an image is loaded, an action is created in the imageMenu connected to this method, 
-		with index value increasing from 0 in the order images are loaded. This allows the user to select
-		a different image using the imageMenu. If multiple image capability were to be retained, it may 
-		make sense to maintain this capability separate from the wizard, thereby enabling the user to 
-		switch between images at any time.
+		Input: int index
+		Purpose: Every time an image is loaded, an action is created in the imageMenu connected to this 
+					method, with index value increasing from 0 in the order images are loaded. This 
+					allows the user to selecta different image using the imageMenu. If multiple image 
+					capability were to be retained, it may make sense to maintain this capability 
+					separate from the wizard, thereby enabling the user to switch between images at any 
+					time.
 		"""
 		self.curr = self.files[index]
 		self.widget.setImage()
 	def setTransformation(self, trans=None):
 		"""
-		Uses methods from photutils.utils to scale image intensity values, which allows better 
-		viusalization of the images. As of now, users can select between linear, logarithmic, and 
-		square root transforms. It is important to note that the scaling is for display purposes only 
-		and has no effect on the engine.
+		Input: String trans
+		Purpose: Uses methods from photutils.utils to scale image intensity values, which allows better 
+					viusalization of the images. As of now, users can select between linear, 
+					logarithmic, and square root transforms. It is important to note that the scaling 
+					is for display purposes only and has no effect on the engine.
 		"""
 		if trans is None:
 			action = self.sender()
@@ -293,8 +308,9 @@ class AstroGUI(QMainWindow):
 		self.widget.setImage()
 	def remake_image(self, _file):
 		"""
-		Any time a change is made to the image being displayed, remake_image can be called to recreate
-		the relevant pixmap and change the image display.
+		Input: File _file
+		Purpose: Any time a change is made to the image being displayed, remake_image can be called to 
+					recreatethe relevant pixmap and change the image display.
 		"""
 		pic = QPixmap()
 		pic = pic.fromImage(makeqimage(_file.data, self.transformation, self.widget.size))
@@ -302,9 +318,10 @@ class AstroGUI(QMainWindow):
 	
 	def resizeImage(self, _file, width, height):
 		"""
-		Uses PIL (or Pillow) to resize an array to the given dimensions. The width and height are 
-		given by the user in the wizard's ImageResizePage. See wizard.ThreeDModelWizard.ImageResizePage 
-		for more information.
+		Input: File _file, int width, int height
+		Purpose: Uses PIL (or Pillow) to resize an array to the given dimensions. The width and height 
+					are given by the user in the wizard's ImageResizePage. See 
+					wizard.ThreeDModelWizard.ImageResizePage for more information.
 		"""
 		image = Image.fromarray(_file.data)
 		image = image.resize((width, height))
@@ -401,7 +418,12 @@ class MainPanel(QWidget):
 		self.show()
 
 	def addImage(self, pixmap):
-		"""Takes in a QPixmap and adds the picture to the main scene as a QPixmapGraphicsItem."""
+		"""
+		Input: QPixmap pixmap
+		Output: QPixmap scaledPixmap
+		Purpose: Adds the given pixmap to the display. Returns a scaled version for storage in the 
+					appropriate File object.
+		"""
 		return self.main_scene.addImg(pixmap)
 
 	def setImage(self):
@@ -410,19 +432,28 @@ class MainPanel(QWidget):
 		self.update_scene(self.main_scene)
 
 	def region_drawer(self, name):
-		"""Sets the scene to an interactive drawing scene, allowing the user to draw regions."""
-		draw_scene = RegionStarScene(self, self.parent.curr.image, name, points, region)
+		"""
+		Input: String name
+		Purpose: Sets the scene to an interactive drawing scene, allowing the user to draw regions.
+		"""
+		draw_scene = RegionStarScene(self, self.parent.curr.image, name)
 		self.update_scene(draw_scene)
 
 	def cluster_find(self, points):
-		"""Sets the scene to an interactive cluster-finding scene, allowing the user to find clusters."""
+		"""
+		Input: np.ndarray points
+		Purpose: Highlights the locations of clusters given by points to allow the user to remove 
+					'invalid' clusters, such as foreground stars, etc. using the interactive 
+					ClusterStarScene.
+		"""
 		cluster_scene = ClusterStarScene(self, self.parent.curr.image, points)
 		self.update_scene(cluster_scene)
 
 	def save_region(self):
 		"""
-		Sets the scene to the non-interactive main scene. Passes region information to AstroGUI 
-		to save.
+		Output: String name, QPolygonF region.
+		Purpose: Sets the scene to the non-interactive main scene. Passes region information to 
+					AstroGUI to save.
 		"""
 		name, region = self.current_scene.getRegion()
 		self.update_scene(self.main_scene)
@@ -430,8 +461,9 @@ class MainPanel(QWidget):
 
 	def save_clusters(self):
 		"""
-		Sets the scene to the non-interactive main scene. Passes a list of indices to remove to 
-		AstroGUI to save.
+		Output: list toremove
+		Purpose: Sets the scene to the non-interactive main scene. Passes a list of indices to remove 
+					from the astropy Table that contains the cluster information.
 		"""
 		toremove = self.current_scene.toremove
 		self.update_scene(self.main_scene)
@@ -442,27 +474,37 @@ class MainPanel(QWidget):
 		self.current_scene.clear()
 
 	def display_region(self, region):
-		"""Shows a region on top of the non-interactive main scene."""
+		"""
+		Input: Region region
+		Purpose: Shows a region on top of the non-interactive main scene.
+		"""
 		self.main_scene.addReg(region)
 		self.update_scene(self.main_scene)
 
 	def hide_region(self, region):
-		"""Hides a region from the non-interactive main scene."""
+		"""
+		Input: Region region
+		Purpose: Hides a region from the non-interactive main scene.
+		"""
 		self.main_scene.delReg(region)
 		self.update_scene(self.main_scene)
 
 	def update_scene(self, scene):
-		"""A simple helper method. Sets the current scene to the input and changes the view."""
+		"""
+		Input: QGraphicsScene scene
+		Purpose: A simple helper method. Sets the current scene to the input and changes the view.
+		"""
 		self.current_scene = scene
 		self.view.setScene(self.current_scene)
 
 def makeqimage(nparray, transformation=None, size=None):
 	"""
-	Takes in an nparray and returns a qimage.
-	Performs various transformations (linear, log, sqrt, etc.) on the image.
-	Clips and scales pixel values so only a certain range is shown.
-	Scales and inverts the image.
-	All transformations are nondestructive (performed on a copy of the input array).
+	Input: np.ndarray nparray, function transformation, QSize size
+	Output: QImage qimage
+	Purpose: Performs various transformations (linear, log, sqrt, etc.) on the image.
+				Clips and scales pixel values between 0 and 255.
+				Scales and inverts the image.
+				All transformations are nondestructive (performed on a copy of the input array).
 	"""
 	npimage = nparray.copy()
 	npimage[npimage < 0] = 0
