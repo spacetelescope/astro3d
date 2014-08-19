@@ -44,26 +44,6 @@ class File(object):
 			in self.spiralarms])
 		disk = imageprep.region_mask(self.data, self.disk, True)
 
-		# Debug start
-		from photutils.utils import scale_sqrt
-		import matplotlib.pyplot as plt
-		image = self.data.copy()
-		image = scale_sqrt(image, percent=99)
-		image[spiralmask] = 0
-		plt.imshow(image, cmap='Greys', origin='lower')
-		plt.show()
-
-		image[disk] = 0
-		plt.imshow(image, cmap='Greys', origin='lower')
-		plt.show()
-
-		for reg in self.stars:
-			m = imageprep.region_mask(self.data, reg, True)
-			image[m] = 0
-		plt.imshow(image, cmap='Greys', origin='lower')
-		plt.show()
-		# Debug end"""
-
 		model = imageprep.make_model(self.data, spiralmask, disk, self.clusters, 
 							self.height, self.stars)
 		print 'Creating mesh'
