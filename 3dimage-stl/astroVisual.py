@@ -510,7 +510,9 @@ def makeqimage(nparray, transformation=None, size=None):
 	npimage[npimage < 0] = 0
 	npimage = transformation(npimage)
 	npimage = q2a._normalize255(npimage, True)
-	qimage = q2a.gray2qimage(npimage, (0, 255), size)
+	qimage = q2a.gray2qimage(npimage, (0, 255))
+	qimage = qimage.scaled(size, Qt.KeepAspectRatio)
+	qimage = qimage.mirrored(False, True)
 	return qimage
 
 def main(argv):
