@@ -24,6 +24,16 @@ class ThreeDModelWizard(QWizard):
 		This page allows the user to save the 15 brightest star clusters to be marked in the model.
 	7. Make Model Page:
 		This page allows the user to construct and save the model as an STL file.
+
+	Additional Pages:
+		Options page -
+			There needs to be a page in the wizard where the user can specify what kind of model 
+			he or she wants. Examples would be the full galaxy back/front model, a 'half' galaxy 
+			model that might be flat on the back (like the intensity + texture maps from NGC602), 
+			a simple texture map without intensity, or any other type of model.
+		Rotate Page -
+			If the image actually needs to be rotated, then there should be some page that can 
+			accomplish this.
 	"""
 
 	def __init__(self, parent, debug=False):
@@ -44,7 +54,7 @@ class ThreeDModelWizard(QWizard):
 			self.addPage(self.IntensityScalePage(self.parent))
 			self.addPage(self.RegionPage(self.parent))
 			self.addPage(self.IdentifyPeakPage(self.parent))
-		self.addPage(self.MakeModelPage(self.parent, debug))
+		self.addPage(self.MakeModelPage(self.parent))
 		self.setWindowTitle("Create a 3D Model of a Galaxy")
 		self.setVisible(True)
 
@@ -264,13 +274,36 @@ class ThreeDModelWizard(QWizard):
 
 	class RegionPage(QWizardPage):
 
+		"""
+		A subclass of QWizardPage. Sets the display to the interactive RegionStarScene. Allows the 
+		user to draw, save, clear, hide, show, merge, split, and delete regions.
+		"""
+
 		def __init__(self, grandparent):
+			"""
+			Inputs:
+				grandparent - the parent of the instantiating class, in this case AstroGUI.
+			Variables:
+				Note: GUI components are instantiated in initUI() and createRegionList()
+				self.grandparent - same as input grandparent.
+				self.draw - QPushButton that activates the RegionStarScene.
+				self.save - QPushButton that saves a region.
+				self.clear - QPushButton that clears a region that is being drawn, but does not exit 
+								the RegionStarScene.
+				self.reg_list - QListWidget that lists all previously drawn regions.
+				self.show_ - QPushButton that shows a hidden region.
+				self.hide - QPushButton that hides a displayed region.
+				self.merge - QPushButton that merges selected regions.
+				self.split - QPushButton that splits a merged region.
+				self.delete - QPushButton that deletes a selected region.
+			"""
 			super(ThreeDModelWizard.RegionPage, self).__init__()
 			self.grandparent = grandparent
 			self.setTitle("Region Draw/Edit Page")
 			self.initUI()
 
 		def initUI(self):
+			"""Creates all buttons and adds them to the QWizardPage in the proper layout."""
 			self.draw = QPushButton("Draw Region")
 			self.save = QPushButton("Save Region")
 			self.clear = QPushButton("Clear Region")
@@ -296,6 +329,13 @@ class ThreeDModelWizard(QWizard):
 			self.setLayout(vbox)
 		
 		def drawRegion(self):
+			"""
+			Starts in interactive RegionStarScene. Also enables save and clear buttons, while 
+			disabling the draw button.
+			Note: there is currently no safeguard for regions being given the same name. As of now 
+			this would cause errors in several places. The simplest solution would be to make sure 
+			in this method that two regions are not given duplicate names.
+			"""
 			name, ok = QInputDialog.getText(self, 'Region Creator', 'Enter the name of this region:')
 			if ok:
 				self.grandparent.drawRegion(name)
@@ -304,6 +344,12 @@ class ThreeDModelWizard(QWizard):
 				self.clear.setEnabled(True)
 
 		def saveRegion(self):
+			"""
+			Tells AstroGUI to save the currently drawn region. Also disables save and clear buttons, 
+			while enabling the draw button.
+			Note: This should raise an error if the user clicks on fewer than three points, as 
+			no polygon will have been constructed for AstroGUI to save.
+			"""
 			self.grandparent.saveRegion()
 			self.draw.setEnabled(True)
 			self.save.setEnabled(False)
@@ -311,10 +357,15 @@ class ThreeDModelWizard(QWizard):
 			self.add_items()
 
 		def clearRegion(self):
+			"""Tells AstroGUI to clear the currently drawn region, without exiting the RegionStarScene."""
 			self.grandparent.clearRegion()
-			# Exit from drawscript?
 
 		def createRegionList(self):
+			"""
+			Output: QHBoxLayout hbox
+			Purpose: Creates the region list, along with a number of buttons for various region 
+						operations.
+			"""
 			self.reg_list = QListWidget()
 			self.add_items()
 			self.reg_list.setSelectionMode(QAbstractItemView.ExtendedSelection)
@@ -337,10 +388,24 @@ class ThreeDModelWizard(QWizard):
 			return hbox
 
 		def add_items(self):
+			"""
+			Clears the region list, then adds all regions from AstroGUI's region list. Used after 
+			adjustments are made to various regions, such as when regions are added, deleted, merged, 
+			or split.
+			"""
 			self.reg_list.clear()
 			self.reg_list.addItems([reg.name for reg in self.grandparent.regions])
 
 		def enableButtons(self):
+			"""
+			Enables/disables the show_, hide, merge, split, and delete buttons depending on which 
+			regions are selected.
+				self.show_ is enabled if any selected regions are hidden.
+				self.hide is enabled if any selected regions are visible.
+				self.merge is enabled if more than one region is selected.
+				self.split is enabled if only one region is selected and that region is a MergedRegion.
+				self.delete is enabled as long as at least one region is selected.
+			"""
 			selected = self.getSelected()
 			if selected:
 				self.delete.setEnabled(True)
@@ -360,17 +425,27 @@ class ThreeDModelWizard(QWizard):
 				self.delete.setEnabled(False)
 
 		def getSelected(self):
+			"""
+			Output: list of Region objects
+			Purpose: A helper method. Returns the Region object for all selected regions.
+			"""
 			return [self.grandparent.get_region(item.text()) for item in self.reg_list.selectedItems()]
 
 		def show_region(self):
+			"""Displays any hidden regions among the selected regions."""
 			self.grandparent.showRegion(self.getSelected())
 			self.enableButtons()
 
 		def hide_region(self):
+			"""Hides any displayed regions among the selected regions."""
 			self.grandparent.hideRegion(self.getSelected())
 			self.enableButtons()
 
 		def merge_region(self):
+			"""
+			Merges the selected regions with the new name.
+			Note: MergedRegion has not been appropriately updated.
+			"""
 			name, ok = QInputDialog.getText(self, "Merge Regions", "Enter the name of the merged region:")
 			if ok:
 				self.grandparent.mergeRegions(name, self.getSelected())
@@ -378,18 +453,38 @@ class ThreeDModelWizard(QWizard):
 				self.enableButtons()
 
 		def split_region(self):
+			"""
+			Splits the selected MergedRegion.
+			Note: Regions cannot currently be merged.
+			"""
 			self.grandparent.splitRegion(self.getSelected()[0])
 			self.add_items()
 			self.enableButtons()
 
 		def delete_region(self):
+			"""Deletes the selected region."""
 			self.grandparent.deleteRegion(self.getSelected())
 			self.add_items()
 			self.enableButtons()
 
 	class IdentifyPeakPage(QWizardPage):
 
+		"""
+		A subclass of QWizardPage. Activates the ClusterStarScene, which allows the user to select and 
+		ave the 15 brightest star clusters. At the moment, the locations of the star clusters are 
+		automatically added to the screen when the user advances to this page. However, the 
+		find_clusters() method requires several seconds at least to finish, so it feels odd, almost 
+		as if the wizard has frozen. For that reason it may be better to incorporate find_peaks() in 
+		as a button, instead of the current automatic generation.
+		"""
+
 		def __init__(self, grandparent):
+			"""
+			Inputs:
+				grandparent - the instantiating class's parent, in this case AstroGUI.
+			Variables:
+				self.grandparent - same as input grandparent.
+			"""
 			super(ThreeDModelWizard.IdentifyPeakPage, self).__init__()
 			self.grandparent = grandparent
 			self.setTitle("Identify 15 Brightest Star Clusters")
@@ -408,15 +503,30 @@ class ThreeDModelWizard(QWizard):
 			self.setLayout(vbox)
 
 		def initializePage(self):
+			"""
+			An override of QWizardPage's initializePage method. Automatically identifies the 15 
+			brightest star clusters and displays them.
+			"""
 			super(ThreeDModelWizard.IdentifyPeakPage, self).initializePage()
 			self.grandparent.find_clusters()
 
 	class MakeModelPage(QWizardPage):
 
-		def __init__(self, grandparent, debug=False):
+		"""
+		A subclass of QWizardPage. Allows the user to select a save location and filename, then 
+		creates a single STL file. It currently does not split the model into two halves. This 
+		would have to be handled under the File object's make_3d method.
+		"""
+
+		def __init__(self, grandparent):
+			"""
+			Inputs:
+				grandparent - the instantiating class's parent, in this case AstroGUI.
+			Variables:
+			self.grandparent - same as input grandparent.
+			"""
 			super(ThreeDModelWizard.MakeModelPage, self).__init__()
 			self.grandparent = grandparent
-			self.debug = debug
 			self.setTitle("Create an stl file")
 			self.setSubTitle("If there are no more changes you would like to make, "
 				"press the 'Make Model' button to create your stl file!")
@@ -427,17 +537,15 @@ class ThreeDModelWizard(QWizard):
 			self.setLayout(vbox)
 
 		def save_file(self, depth=1, double=False, _ascii=False):
-			if not self.debug:
-				path = QFileInfo(self.filename.path()) \
-					if self.grandparent.filename != None else "."
-				path = QFileDialog.getSaveFileName(self, "3D Model Creator - Save STL", path)
-				path = str(path)
-			else:
-				path = "/Users/rrao/Documents/Internship/test/testsave/ngc3344_gui_test"
+			"""
+			Input: float depth, boolean double, boolean _ascii
+			Purpose: Gets save file location and instructs the File object to construct a 3D model. 
+						The depth, double, and _ascii inputs could be taken as input from the user.
+						See img2stl.meshcreator.to_mesh() for an explanation of depth, double, and
+						_ascii.
+			"""
+			path = QFileInfo(self.filename.path()) \
+				if self.grandparent.filename != None else "."
+			path = QFileDialog.getSaveFileName(self, "3D Model Creator - Save STL", path)
+			path = str(path)
 			self.grandparent.curr.make_3d(path, depth, double, _ascii)
-
-	def createRotatePage(self):
-		page = QWizardPage()
-
-	def createOptionsPage(self):
-		page = QWizardPage()
