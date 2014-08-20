@@ -40,12 +40,15 @@ class File(object):
 		self.scaleRegions()
 		self.data = np.flipud(self.data)
 
-		spiralmask = imageprep.combine_masks([imageprep.region_mask(self.data, reg, True) for reg 
+		spiralmask = imageprep.combine_masks([imageprep.region_mask(self.data, reg, True) for reg
 			in self.spiralarms])
 		disk = imageprep.region_mask(self.data, self.disk, True)
 
-		model = imageprep.make_model(self.data, spiralmask, disk, self.clusters, 
+		model = imageprep.make_model(self.data, spiralmask, disk, self.clusters,
 							self.height, self.stars)
+
+                # Split bottom/top here
+
 		print 'Creating mesh'
 		meshcreator.to_mesh(model, fname, depth, double, _ascii)
 		print 'Done!'
