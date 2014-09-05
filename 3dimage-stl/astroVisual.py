@@ -12,7 +12,7 @@ from PIL import Image
 from astroObjects import File, Region, MergedRegion
 from star_scenes import StarScene, RegionStarScene, ClusterStarScene
 from wizard import ThreeDModelWizard
-from img2stl import imageprep
+from img2stl import imageprep, imageutils
 
 class AstroGUI(QMainWindow):
     """
@@ -142,7 +142,7 @@ class AstroGUI(QMainWindow):
         elif fnamestr.endswith(('fits', 'FITS')):
             data = fits.getdata(fnamestr)
         elif fnamestr.endswith(('jpg', 'JPG', 'jpeg', 'JPEG')):  # grayscale
-            data = np.array(Image.open(fnamestr).convert('L'))
+            data = imageutils.img2array(fnamestr)
         else:
             QMessageBox.warning(self, "File Error", "Unsupported file type")
             return
