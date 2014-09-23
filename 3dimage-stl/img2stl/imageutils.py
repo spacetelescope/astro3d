@@ -1,83 +1,172 @@
+from __future__ import division, print_function
+
+# Anaconda
 import numpy as np
+import scipy
 from PIL import Image
 
+
 def img2array(filename):
-	"""Turns an image into a numpy array. Requires PIL (Python Imaging Library) or Pillow (a PIL fork)."""
-	img = Image.open(filename)
-	array = np.array(img, dtype=np.float32)
-	if array.ndim == 3:
-		array = array.sum(2)
-	return array
+    """Turns an image into a numpy array.
+    Requires PIL (Python Imaging Library) or Pillow (a PIL fork).
+
+    """
+    img = Image.open(filename)
+    array = np.array(img, dtype=np.float32)
+    if array.ndim == 3:
+        array = array.sum(2)
+    return array
+
 
 def compressImage(image, height):
-	"""
-	Note: Should probably replace this method with one from photutils or PIL.Image. Will probably be faster/more accurate and can handle
-	both increasing and decreasing resolution
-	"""
-	"""
-	Compresses the image to a given size. Given that 3D printing cannot handle fine resolution, any 
-	loss of resolution is ultimately unimportant.
-	"""
-	h, w = image.shape
-	width = int(w * height / float(h))
-	array = np.zeros((height, width))
-	y_step = h / float(height)
-	x_step = w / float(width)
-	for y in range(height):
-		for x in range(width):
-			array[y, x] = image[y * y_step, x * x_step]
-	return array
+    """Compress the image to a given size.
+    Given that 3D printing cannot handle fine resolution,
+    any loss of resolution is ultimately unimportant.
+
+    """
+    h, w = image.shape
+    width = int(w * height / float(h))
+
+    array = scipy.misc.imresize(image, (height, width))
+
+    #array = np.zeros((height, width))
+    #y_step = h / float(height)
+    #x_step = w / float(width)
+    #for y in range(height):
+    #    for x in range(width):
+    #        array[y, x] = image[y * y_step, x * x_step]
+
+    return array
+
 
 def crop_image(image, _max=0.0, masks=None, table=None):
-	locations = np.where(image > _max)
-	ymin, ymax, xmin, xmax = min(locations[0]), max(locations[0]), min(locations[1]), max(locations[1])
-	image = image[ymin:ymax + 1, xmin:xmax + 1]
-	toreturn = image
-	if masks:
-		masks = [mask[ymin:ymax + 1, xmin:xmax + 1] for mask in masks]
-		toreturn = [toreturn, masks]
-	if table:
-		print len(table['xcen'])
-		table = table[table['xcen'] < xmax]
-		table = table[table['ycen'] < ymax]
-		table['xcen'] = table['xcen'] - xmin
-		table['ycen'] = table['ycen'] - ymin
-		table = table[table['xcen'] > 0]
-		table = table[table['ycen'] > 0]
-		print len(table['xcen'])
-		toreturn.append(table)
-	return toreturn
+    """Crop boundaries of image where maximum value is
+    less than the given value. Also adjust boolean masks
+    and the table of clusters accordingly.
+
+    Specifically on clusters, any clusters lying outside
+    the boundary will be removed.
+
+    Parameters
+    ----------
+    image : ndarray
+        Image array to process.
+
+    _max : float
+        Crop pixels below this value.
+
+    masks : list
+        List of boolean masks.
+
+    table : ``astropy.Table``
+        Locations of star clusters.
+
+    Returns
+    -------
+    image, masks, table
+        Cropped data.
+
+    iy1, iy2, ix1, ix2 : int
+        Indices of input image for cropping.
+
+    """
+    locations = np.where(image > _max)
+    iy1 = min(locations[0])
+    ymax = max(locations[0])
+    iy2 = ymax + 1
+    ix1 = min(locations[1])
+    xmax = max(locations[1])
+    ix2 = xmax + 1
+    image = image[iy1:iy2, ix1:ix2]
+
+    if masks is not None:
+        masks = [mask[iy1:iy2, ix1:ix2] if mask is not None else None
+                 for mask in masks]
+
+    if table is not None:
+        table = table[(table['xcen'] > ix1) & (table['xcen'] < xmax) &
+                      (table['ycen'] > iy1) & (table['ycen'] < ymax)]
+
+    return image, masks, table, iy1, iy2, ix1, ix2
+
 
 def normalize(array, norm, height=255.):
-	"""
-	Taken, with some slight modifications, from the module qimage2ndarray. As this module requires 
-	installation of itself, SIP, and PyQt4, it is simpler to copy this 
-	method, which does not require either extension. See http://hmeine.github.io/qimage2ndarray/ for 
-	more information.
+    """Taken, with some slight modifications, from ``qimage2ndarray``.
 
-	The parameter `normalize` can be used to normalize an image's
-	value range to 0..height:
+    As ``qimage2ndarray`` is a third-party package and has
+    SIP and PyQt4 dependency, it is simpler to copy this
+    method.
 
-	`normalize` = (nmin, nmax):
-	  scale & clip image values from nmin..nmax to 0..height
+    See http://hmeine.github.io/qimage2ndarray/ for more information.
 
-	`normalize` = nmax:
-	  lets nmin default to zero, i.e. scale & clip the range 0..nmax
-	  to 0..height
+    Parameters
+    ----------
+    array : ndarray
+        Input array.
 
-	`normalize` = True:
-	  scale image values to 0..255 (same as passing (gray.min(),
-	  gray.max()))
-	"""
-	if not norm:
-		return array
+    norm
+        Used to normalize an image to ``0..height``:
+        * ``(nmin, nmax)`` - Scale and clip values from
+          ``nmin..nmax`` to ``0..height``
+        * ``nmax`` - Scale and clip the range
+          ``0..nmax`` to ``0..height``
+        * `True` - Scale image values to ``0..height``
+        * `False` - No scaling
 
-	if norm is True:
-		norm = array.min(), array.max()
-	elif np.isscalar(norm):
-		norm = (0, norm)
+    height : float
+        Max value of scaled image.
 
-	nmin, nmax = norm
-	array = array - nmin
-	array = array * height / float(nmax - nmin)
-	return array
+    Returns
+    -------
+    array : ndarray
+        Scaled array.
+
+    """
+    if not norm:
+        return array
+
+    if norm is True:
+        norm = array.min(), array.max()
+    elif np.isscalar(norm):
+        norm = (0, norm)
+
+    nmin, nmax = norm
+    array = array - nmin
+    array = array * height / float(nmax - nmin)
+
+    return array
+
+
+def split_image(image):
+    """Split image array into two halves.
+    If image shape is a rectangle, splitting is done
+    on the shorter edge.
+
+    Parameters
+    ----------
+    image : ndarray
+
+    Returns
+    -------
+    image1, image2 : ndarray
+
+    """
+    if image.shape[0] > image.shape[1]:
+        mid = int(image.shape[1] / 2)
+        image1 = image[:, :mid]
+
+        if image.shape[1] % 2 == 0:
+            image2 = image[:, mid:]
+        else:
+            image2 = image[:, mid:-1]
+
+    else:
+        mid = int(image.shape[0] / 2)
+        image1 = image[:mid]
+
+        if image.shape[0] % 2 == 0:
+            image2 = image[mid:]
+        else:
+            image2 = image[mid:-1]
+
+    return image1, image2

@@ -1,214 +1,312 @@
+"""This module contains several subclasses of ``QGraphicsScene``.
+These are instantiated by ``astroVisual.MainPanel`` and
+are used to display the image and any regions.
+Furthermore, ``RegionStarScene`` and ``ClusterStarScene`` allow
+user input upon mouse click.
+
+"""
+from __future__ import division, print_function
+
+# STDLIB
+from collections import defaultdict
+
+# Anaconda
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 
-"""
-This file contains several subclasses of QGraphicsScene. These are instantiated by
-astroVisual.MainPanel and are used to display the image and any regions. Furthermore, RegionStarScene
-and ClusterStarScene allow user input upon mouse click.
-"""
 
 class StarScene(QGraphicsScene):
-	"""
-	This is a non-interactive subclass of QGraphicsScene. It will display the image and any regions
-	that have been added.
-	"""
+    """This is a non-interactive subclass of ``QGraphicsScene``.
+    It will display the image and any regions that have been added.
 
-	def __init__(self, parent, width, height):
-		"""
-		Inputs:
-			parent - The instantiating class, in this case astroVisual.MainPanel.
-			width, height - the size of the MainPanel, which allows StarScene to scale the image
-							appropriately.
-		Variables:
-			self.size - the size of the MainPanel
-			self.regions - a dictionary of regions (String name, QGraphicsPolygonItem region), which
-							provides StarScene with a pointer to each region, allowing them to be
-							removed if necessary. Note: Regions should not have the same name.
-		"""
-		super(StarScene, self).__init__(parent)
-		self.size = QSize(width, height)
-		self.regions = {}
+    Parameters
+    ----------
+    parent : ``astroVisual.MainPanel``
+        The instantiating class.
 
-	def addImg(self, pixmap):
-		"""
-		Input: QPixmap pixmap
-		Output: QPixmap scaledPixmap
-		Purpose: Scales the input pixmap to appropriate size for the MainPanel, then adds it to the
-					display. Adds all regions on top of image. Returns the scaledPixmap to save so
-					that scaling will be unnecessary in the future.
-		"""
-		self.clear()
-		scaledPixmap = pixmap.scaled(self.size, Qt.KeepAspectRatio)
-		self.addItem(QGraphicsPixmapItem(scaledPixmap))
-		for name in self.regions:
-			self.addItem(self.regions[name])
-		return scaledPixmap
+    width, height : int
+        The size of the ``MainPanel``, which allows `StarScene`
+        to scale the image appropriately.
 
-	def addReg(self, region):
-		"""
-		Input: Region region
-		Purpose: Adds a given region to the display.
-		"""
-		self.regions[region.name] = self.reg_add(region.region)
+    Attributes
+    ----------
+    size : QSize
+        Size of the ``MainPanel``.
 
-	def reg_add(self, sub_region):
-		"""
-		Input: Region sub_region
-		Output: QGraphicsPolygonItem r
-		Purpose: If the input region of addReg is a MergedRegion, this method allows the StarScene to
-					recursively add every sub_region of the MergedRegion. However, if MergedRegion
-					is deemed to be unnecessary, then this too would be unnecessary, and the code
-					under the else statement could be moved up to addReg.
-		"""
-		if type(sub_region) == list or type(sub_region) == tuple:
-			return map(self.reg_add, sub_region)
-		else:
-			r = QGraphicsPolygonItem(sub_region)
-			r.setPen(QColor(0, 100, 200))
-			self.addItem(r)
-			return r
+    regions : dict
+        Contains region type and a list of ``QGraphicsPolygonItem`` regions,
+        which provides ``StarScene`` with a pointer to each region,
+        allowing them to be removed if necessary. ``Region.name`` must
+        contain region type.
 
-	def delReg(self, region):
-		"""
-		Input: Region region
-		Purpose: Removes a given region from the display.
-		"""
-		self.reg_remove(self.regions[region.name])
-		del self.regions[region.name]
+    """
+    def __init__(self, parent, width, height):
+        super(StarScene, self).__init__(parent)
+        self.size = QSize(width, height)
+        self.regions = defaultdict(list)
 
-	def reg_remove(self, sub_region):
-		"""
-		Input: QGraphicsPolygonItem sub_region
-		Purpose: If the input region of delReg is a MergedRegion, this method allows the StarScene to
-					recursively remove every sub_region of the MergedRegion. However, if MergedRegion
-					is deemed to be unnecessary, then this too would be unnecessary, and the code under
-					the else statement could be moved up to delReg.
-		"""
-		if type(sub_region) == list or type(sub_region) == tuple:
-			map(self.reg_remove, sub_region)
-		else:
-			self.removeItem(sub_region)
+    def addImg(self, pixmap):
+        """Scales the input pixmap to appropriate size for the ``MainPanel``,
+        then adds it to the display. Adds all regions on top of image.
 
-	def clear(self):
-		"""Removes all items from the display without destroying instance variables."""
-		for i in self.items():
-			self.removeItem(i)
+        .. note::
+
+            Returns the scaled pixmap to save so that scaling will be
+            unnecessary in the future.
+
+        Parameters
+        ----------
+        pixmap : QPixmap
+
+        Returns
+        -------
+        scaledPixmap : QPixmap
+
+        """
+        self.clear()
+        scaledPixmap = pixmap.scaled(self.size, Qt.KeepAspectRatio)
+        self.addItem(QGraphicsPixmapItem(scaledPixmap))
+        for reglist in self.regions.itervalues():
+            for reg in reglist:
+                self.addItem(reg)
+        return scaledPixmap
+
+    def addReg(self, region):
+        """Adds a given region to the display.
+
+        .. note::
+
+            The recursive behavior is for ``MergedRegion``,
+            which is not currently supported.
+
+        Parameters
+        ----------
+        region : Region
+
+        """
+        if isinstance(region.region, (list, tuple)):
+            return map(self.addReg, region.region)
+        else:
+            r = QGraphicsPolygonItem(region.region)
+            r.setPen(QColor(0, 100, 200))
+            self.addItem(r)
+            self.regions[region.name].append(r)
+
+    def delReg(self, region):
+        """Remove a given region from the display.
+
+        .. note::
+
+            The recursive behavior is for ``MergedRegion``,
+            which is not currently supported.
+
+        Parameters
+        ----------
+        region : Region
+
+        """
+        if isinstance(region.region, (list, tuple)):
+            map(self.delReg, region.region)
+        else:
+            r = QGraphicsPolygonItem(region.region)
+            self.removeItem(r)
+            self.regions[region.name].remove(r)
+
+    def clear(self):
+        """Removes all items from the display without destroying
+        instance variables.
+
+        """
+        for i in self.items():
+            self.removeItem(i)
+
 
 class RegionStarScene(QGraphicsScene):
+    """This is an interactive subclass of ``QGraphicsScene``.
+    Every time the user clicks on the image, it generates a point
+    and adds it to a ``QPolygon``, allowing it to display that
+    polygon as a region.
 
-	"""
-	This is an interactive subclass of QGraphicsScene. Every time the user clicks on the image it
-	generates a point and adds it to a QPolygon, allowing it to display that polygon as a region.
-	"""
+    Parameters
+    ----------
+    parent : ``astroVisual.MainPanel``
+        The instantiating class.
 
-	def __init__(self, parent, pixmap, name):
-		"""
-		Inputs:
-			parent - The instantiating class, in this case astroVisual.MainPanel.
-			pixmap - The scaled QPixmap generated by StarScene's addImg method. It is added so that
-						RegionStarScene can display the image.
-			name - A String indicating the name of the region to be drawn.
-		Variables:
-			self.name - same as name
-			self.item - a QGraphicsPixmapItem created from the input pixmap.
-			self.points - a list of points that have been added by the user.
-			self.shape - A QPolygonF created from self.points
-			self.display_shape - A QGraphicsPolygonItem that allows RegionStarScene to display
-									self.shape.
-		"""
-		super(RegionStarScene, self).__init__(parent)
-		self.name = name
-		self.item = QGraphicsPixmapItem(pixmap)
-		self.addItem(self.item)
-		self.points = []
-		self.shape = None
-		self.display_shape = None
+    pixmap : QPixmap
+        The scaled QPixmap generated by :meth:`StarScene.addImg`.
+        It is added so that `RegionStarScene` can display the image.
 
-	def mousePressEvent(self, event):
-		"""
-		Input: QEvent event
-		Purpose: This method is called whenever the user clicks on RegionStarScene. It adds the point
-					clicked to self.points and (if more than 3 or more points are added) it generates
-					a QPolygonF and a QGraphicsPolygonItem to go along with it.
-		"""
-		p = event.scenePos()
-		self.points.append(p)
-		e = QGraphicsEllipseItem(p.x()-5, p.y()-5, 10, 10)
-		e.setPen(QPen(QColor(0, 255, 0)))
-		self.addItem(e)
-		if len(self.points) >= 3:
-			self.shape = QPolygonF(self.points)
-			if self.display_shape is not None:
-				self.removeItem(self.display_shape)
-			self.display_shape = QGraphicsPolygonItem(self.shape)
-			self.display_shape.setPen(QPen(QColor(0, 100, 200)))
-			self.addItem(self.display_shape)
+    name : str
+        Name (type) of the region to be drawn.
 
-	def getRegion(self):
-		"""Returns the name (String) and shape (QPolygonF) of the region."""
-		return self.name, self.shape
+    Attributes
+    ----------
+    name : str
+        Same as ``name``.
 
-	def clear(self):
-		"""
-		Removes all items from the display except the image. Resets all instance variables except
-		for self.item.
-		"""
-		for i in self.items():
-			self.removeItem(i)
-		self.addItem(self.item)
-		self.points = []
-		self.shape = None
-		self.display_shape = None
+    item : QGraphicsPixmapItem
+        Created from ``pixmap``.
+
+    points : list
+        Points that have been added by the user.
+
+    shape : QPolygonF
+        Polygon created from ``points``.
+
+    display_shape : QGraphicsPolygonItem
+        Display version of ``shape``.
+
+    """
+    def __init__(self, parent, pixmap, name):
+        super(RegionStarScene, self).__init__(parent)
+        self.name = name
+        self.item = QGraphicsPixmapItem(pixmap)
+        self.addItem(self.item)
+        self.points = []
+        self.shape = None
+        self.display_shape = None
+
+    def mousePressEvent(self, event):
+        """This method is called whenever the user clicks on
+        `RegionStarScene`. It adds the point clicked to ``points``
+        and (if 3 or more points are added) it generates
+        ``shape`` and ``display_shape`` to go along with it.
+
+        Parameters
+        ----------
+        event : QEvent
+
+        """
+        p = event.scenePos()
+        self.points.append(p)
+        e = QGraphicsEllipseItem(p.x()-5, p.y()-5, 10, 10)
+        e.setPen(QPen(QColor(0, 255, 0)))
+        self.addItem(e)
+        if len(self.points) >= 3:
+            self.shape = QPolygonF(self.points)
+            if self.display_shape is not None:
+                self.removeItem(self.display_shape)
+            self.display_shape = QGraphicsPolygonItem(self.shape)
+            self.display_shape.setPen(QPen(QColor(0, 100, 200)))
+            self.addItem(self.display_shape)
+
+    def getRegion(self):
+        """Returns the name (String) and shape (QPolygonF) of the region."""
+        return self.name, self.shape
+
+    def clear(self):
+        """Removes all items from the display except the image.
+        Resets all instance variables except for ``item``.
+
+        """
+        for i in self.items():
+            self.removeItem(i)
+        self.addItem(self.item)
+        self.points = []
+        self.shape = None
+        self.display_shape = None
+
+
+class RegionFileScene(QGraphicsScene):
+    """Like `RegionStarScene` but the regions are pre-loaded from files."""
+    def __init__(self, parent, pixmap, regions):
+        super(RegionFileScene, self).__init__(parent)
+        self.item = QGraphicsPixmapItem(pixmap)
+        self.addItem(self.item)
+
+        if isinstance(regions, list):
+            self.name = [reg.name for reg in regions]
+            self.shape = [reg.region for reg in regions]
+            self.display_shape = []
+
+            for s in self.shape:
+                q = QGraphicsPolygonItem(s)
+                q.setPen(QPen(QColor(0, 100, 200)))
+                self.display_shape.append(q)
+                self.addItem(q)
+
+        else:
+            self.name = regions.name
+            self.shape = regions.region
+            self.display_shape = QGraphicsPolygonItem(self.shape)
+            self.addItem(self.display_shape)
+
+    def getRegion(self):
+        """Returns the name (String or list) and shapes (QPolygonF or list)
+        of the regions.
+
+        """
+        return self.name, self.shape
+
+    def clear(self):
+        """Removes all items from the display except the image."""
+        for i in self.items():
+            self.removeItem(i)
+        self.addItem(self.item)
+
 
 class ClusterStarScene(QGraphicsScene):
+    """An interactive subclass of QGraphicsScene.
+    Displays the given number of brightest potential star
+    clusters using circles to highlight their locations.
+    The user may click on these to remove them from consideration.
 
-	"""
-	An interactive subclass of QGraphicsScene. Displays the 15 brightest potential star clusters using
-	circles to highlight their locations. The user may click on these to remove them from consideration.
-	When this is done, the next brightest point is added to the display.
-	"""
+    .. note::
 
-	def __init__(self, parent, pixmap, points):
-		"""
-		Inputs:
-			parent - The instantiating class, in this case astroVisual.MainPanel.
-			pixmap - The scaled QPixmap generated by StarScene's addImg method. It is added so that
-						ClusterStarScene can display the image.
-			points - An ndarray of coordinates denoting the locations of potential star clusters.
-		Variables:
-			self.points - same as input points.
-			self.graphicspoints - a list of QGraphicsEllipseItems that are displayed on screen.
-			self.added - the index value of the next brightest potential star cluster.
-			self.toremove - a list of index values that must be removed from the astropy Table
-							that contains the locations of star clusters.
-		"""
-		super(ClusterStarScene, self).__init__(parent)
-		self.points = points
-		self.addItem(QGraphicsPixmapItem(pixmap))
-		self.graphicspoints = []
-		for point in points[:15]:
-			self.graphicspoints.append(QGraphicsEllipseItem(point[0] - 5, point[1] - 5, 10, 10))
-			self.graphicspoints[-1].setPen(QPen(QColor(200, 50, 50)))
-			self.addItem(self.graphicspoints[-1])
-		self.added = 15
-		self.toremove = []
+        There is currently no safe guard against removing
+        all the points.
 
-	def mousePressEvent(self, event):
-		"""
-		Input: QEvent event
-		Purpose: This method is called whenever the user clicks on the screen. If the click is on one
-					of the displayed points, that point is removed from the screen and another one is
-					added. The index value of the point is added to self.toremove.
-		"""
-		p = event.scenePos()
-		for i, gp in enumerate(self.graphicspoints):
-			if gp.contains(p):
-				self.removeItem(gp)
-				self.toremove.append(i)
-				self.graphicspoints.append(QGraphicsEllipseItem(self.points[self.added][0] - 5,
-															self.points[self.added][1] - 5, 10, 10))
-				# TODO: cannot remove all points
-				self.graphicspoints[-1].setPen(QPen(QColor(200, 50, 50)))
-				self.addItem(self.graphicspoints[-1])
-				self.added += 1
-				break
+    Parameters
+    ----------
+    parent : ``astroVisual.MainPanel``
+        The instantiating class.
+
+    pixmap : QPixmap
+        Scaled QPixmap generated by :meth:`StarScene.addImg`.
+        It is added so that image can be displayed.
+
+    points : ndarray
+        Coordinates denoting the locations of potential star clusters.
+
+    Attributes
+    ----------
+    points
+        Same as input points.
+
+    graphicspoints : QGraphicsEllipseItems
+        Points displayed on screen.
+
+    toremove
+        A list of index values that must be removed from the astropy Table
+        that contains the locations of star clusters.
+
+    """
+    def __init__(self, parent, pixmap, points):
+        super(ClusterStarScene, self).__init__(parent)
+        self.points = points
+        self.addItem(QGraphicsPixmapItem(pixmap))
+        self.graphicspoints = []
+        for point in points:
+            self.graphicspoints.append(
+                QGraphicsEllipseItem(point[0] - 5, point[1] - 5, 10, 10))
+            self.graphicspoints[-1].setPen(QPen(QColor(200, 50, 50)))
+            self.addItem(self.graphicspoints[-1])
+        self.toremove = []
+
+    def mousePressEvent(self, event):
+        """This method is called whenever the user clicks
+        on the screen. If the click is on one of the displayed
+        points, that point is removed from the screen.
+        The index value of the point is added to ``toremove``.
+
+        Parameters
+        ----------
+        event : QEvent
+
+        """
+        p = event.scenePos()
+        for i, gp in enumerate(self.graphicspoints):
+            if gp.contains(p):
+                self.removeItem(gp)
+                self.toremove.append(i)
+                break
