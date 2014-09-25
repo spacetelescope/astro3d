@@ -1,7 +1,7 @@
 """This module contains several subclasses of ``QGraphicsScene``.
-These are instantiated by ``astroVisual.MainPanel`` and
+These are instantiated by `~astro3d.gui.astroVisual.MainPanel` and
 are used to display the image and any regions.
-Furthermore, ``RegionStarScene`` and ``ClusterStarScene`` allow
+Furthermore, `RegionStarScene` and `ClusterStarScene` allow
 user input upon mouse click.
 
 """
@@ -21,23 +21,20 @@ class StarScene(QGraphicsScene):
 
     Parameters
     ----------
-    parent : ``astroVisual.MainPanel``
+    parent : `~astro3d.gui.astroVisual.MainPanel`
         The instantiating class.
 
     width, height : int
-        The size of the ``MainPanel``, which allows `StarScene`
-        to scale the image appropriately.
+        The size of the `~astro3d.gui.astroVisual.MainPanel`,
+        which allows `StarScene` to scale the image appropriately.
 
     Attributes
     ----------
     size : QSize
-        Size of the ``MainPanel``.
+        Size of the `~astro3d.gui.astroVisual.MainPanel`.
 
     regions : dict
-        Contains region type and a list of ``QGraphicsPolygonItem`` regions,
-        which provides ``StarScene`` with a pointer to each region,
-        allowing them to be removed if necessary. ``Region.name`` must
-        contain region type.
+        Contains region type and a list of ``QGraphicsPolygonItem`` regions, which provides `StarScene` with a pointer to each region, allowing them to be removed if necessary. ``Region.name`` must contain region type.
 
     """
     def __init__(self, parent, width, height):
@@ -46,8 +43,9 @@ class StarScene(QGraphicsScene):
         self.regions = defaultdict(list)
 
     def addImg(self, pixmap):
-        """Scales the input pixmap to appropriate size for the ``MainPanel``,
-        then adds it to the display. Adds all regions on top of image.
+        """Scales the input pixmap to appropriate size for the
+        `~astro3d.gui.astroVisual.MainPanel`, then adds it to
+        the display. Adds all regions on top of image.
 
         .. note::
 
@@ -81,7 +79,7 @@ class StarScene(QGraphicsScene):
 
         Parameters
         ----------
-        region : Region
+        region : `~astro3d.gui.astroObjects.Region`
 
         """
         if isinstance(region.region, (list, tuple)):
@@ -102,7 +100,7 @@ class StarScene(QGraphicsScene):
 
         Parameters
         ----------
-        region : Region
+        region : `~astro3d.gui.astroObjects.Region`
 
         """
         if isinstance(region.region, (list, tuple)):
@@ -129,7 +127,7 @@ class RegionStarScene(QGraphicsScene):
 
     Parameters
     ----------
-    parent : ``astroVisual.MainPanel``
+    parent : `~astro3d.gui.astroVisual.MainPanel`
         The instantiating class.
 
     pixmap : QPixmap
@@ -142,7 +140,7 @@ class RegionStarScene(QGraphicsScene):
     Attributes
     ----------
     name : str
-        Same as ``name``.
+        Same as input.
 
     item : QGraphicsPixmapItem
         Created from ``pixmap``.
@@ -232,7 +230,7 @@ class RegionFileScene(QGraphicsScene):
             self.addItem(self.display_shape)
 
     def getRegion(self):
-        """Returns the name (String or list) and shapes (QPolygonF or list)
+        """Returns the name (string or list) and shapes (QPolygonF or list)
         of the regions.
 
         """
@@ -246,7 +244,7 @@ class RegionFileScene(QGraphicsScene):
 
 
 class ClusterStarScene(QGraphicsScene):
-    """An interactive subclass of QGraphicsScene.
+    """An interactive subclass of ``QGraphicsScene``.
     Displays the given number of brightest potential star
     clusters using circles to highlight their locations.
     The user may click on these to remove them from consideration.
@@ -258,7 +256,7 @@ class ClusterStarScene(QGraphicsScene):
 
     Parameters
     ----------
-    parent : ``astroVisual.MainPanel``
+    parent : `~astro3d.gui.astroVisual.MainPanel`
         The instantiating class.
 
     pixmap : QPixmap
@@ -271,14 +269,13 @@ class ClusterStarScene(QGraphicsScene):
     Attributes
     ----------
     points
-        Same as input points.
+        Same as input.
 
     graphicspoints : QGraphicsEllipseItems
         Points displayed on screen.
 
     toremove
-        A list of index values that must be removed from the astropy Table
-        that contains the locations of star clusters.
+        A list of index values that must be removed from the `astropy.table.Table` that contains the locations of star clusters.
 
     """
     def __init__(self, parent, pixmap, points):

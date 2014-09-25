@@ -1,4 +1,4 @@
-"""GUI for Hubble 3D Printing.
+"""Main GUI for Hubble 3D Printing.
 
 It allows the user to upload any FITS or JPEG image file and
 subsequently convert the image into an STL file, which can then
@@ -27,15 +27,15 @@ import qimage2ndarray as q2a
 import photutils.utils as putils
 
 # LOCAL
-from astroObjects import File, Region
-from img2stl import imageprep, imageutils
-from star_scenes import (StarScene, RegionStarScene, RegionFileScene,
-                         ClusterStarScene)
-from wizard import ThreeDModelWizard
+from .astroObjects import File, Region
+from .star_scenes import (StarScene, RegionStarScene, RegionFileScene,
+                          ClusterStarScene)
+from .wizard import ThreeDModelWizard
+from ..utils import imageprep, imageutils
 
 
 __version__ = '0.1.0.dev'
-__vdate__ = '17-Sep-2014'
+__vdate__ = '25-Sep-2014'
 __author__ = 'STScI'
 
 
@@ -55,12 +55,12 @@ class AstroGUI(QMainWindow):
     ----------
     argv
         Arguments from command line.
-        'debug' os used to run the debug script
+        'debug' is used to run the debug script
         (see :meth:`run_auto_login_script`).
 
     Attributes
     ----------
-    file : File
+    file : `~astro3d.gui.astroObjects.File`
         Image file object.
 
     transformation : func
@@ -157,7 +157,9 @@ class AstroGUI(QMainWindow):
 
     def createAction(self, text, slot=None, tip=None, checkable=False):
         """Creates an action with given text, slot (method), tooltip,
-        and checkable."""
+        and checkable.
+
+        """
         action = QAction(text, self)
         if tip != None:
             action.setToolTip(tip)
@@ -176,7 +178,8 @@ class AstroGUI(QMainWindow):
         After file data is converted to Numpy array, it uses
         :func:`makeqimage` to create a ``QImage``. Then, it
         creates a ``QPixmap``, which is passed to the ``widget``.
-        A ``File`` object is also created to store information.
+        A `~astro3d.gui.astroObjects.File` object is also created
+        to store information.
 
         Parameters
         ----------
@@ -212,10 +215,11 @@ class AstroGUI(QMainWindow):
         self.file = File(data, pic, height=height)
 
     def fileSave(self, split_halves=True, save_all=True):
-        """Get save file location and instructs the ``File`` object
-        to construct a 3D model.
+        """Get save file location and instructs the
+        `~astro3d.gui.astroObjects.File` object to construct
+        a 3D model.
 
-        See ``img2stl.meshcreator.to_mesh()`` for more details.
+        See :func:`~astro3d.utils.meshcreator.to_mesh` for more details.
 
         Parameters
         ----------
@@ -297,7 +301,7 @@ class AstroGUI(QMainWindow):
         ----------
         key : str
 
-        region : Region or list
+        region : `~astro3d.gui.astroObjects.Region` or list
 
         """
         if isinstance(region, list):
@@ -313,7 +317,7 @@ class AstroGUI(QMainWindow):
 
         Parameters
         ----------
-        region : Region or list
+        region : `~astro3d.gui.astroObjects.Region` or list
 
         """
         if not isinstance(region, Region):
@@ -329,7 +333,7 @@ class AstroGUI(QMainWindow):
 
         Parameters
         ----------
-        region : Region or list
+        region : `~astro3d.gui.astroObjects.Region` or list
 
         """
         if not isinstance(region, Region):
@@ -352,7 +356,7 @@ class AstroGUI(QMainWindow):
         self.widget.region_drawer(key)
 
     def loadRegion(self):
-        """Load region from file."""
+        """Load region(s) from file."""
         flist = QFileDialog.getOpenFileNames(
             self, '3D Model Creator - Load Regions', '', 'Region files (*.reg)')
 
@@ -369,7 +373,8 @@ class AstroGUI(QMainWindow):
         """Store selected region.
 
         It obtains the name (string) and region (QPolygonF)
-        from the `MainPanel`, and in turn creates a Region object,
+        from the `MainPanel`, and in turn creates a
+        `~astro3d.gui.astroObjects.Region` object,
         which is added to ``regions``.
 
         """
@@ -453,9 +458,10 @@ class AstroGUI(QMainWindow):
 
     def find_clusters(self, n):
         """Retrieve locations of star clusters using
-        ``imageprep.find_peaks()``, then displays them on the
-        screen for the user to see using the ``ClusterStarScene``.
-        This action is similar to ``matplotlib.pyplot.scatter()``.
+        :func:`~astro3d.utils.imageprep.find_peaks`, then displays
+        them on the screen for the user to see using the
+        `~astro3d.gui.star_scenes.ClusterStarScene`.
+        This action is similar to :func:`matplotlib.pyplot.scatter`.
 
         Parameters
         ----------
@@ -510,38 +516,44 @@ class AstroGUI(QMainWindow):
 
     # For DEBUG PURPOSES ONLY
     def run_auto_login_script(self):
-        """This needs to be generalized, if used at all.
-        from astropy.table import Table
+        """Auto-populate data collected by GUI so it can skip
+        to the last page in the wizard.
 
-        fname = 'data/ngc3344_uvis_f555w_sci.fits'
-        name = os.path.basename(fname)
-        data = fits.getdata(fname)
-        image = QPixmap().fromImage(
-            makeqimage(data, self.transformation, self.widget.size))
-        pic = self.widget.addImage(image)
-        self.file = File(data, pic)
-        self.resizeImage(2000, 2000)
-        self.setTransformation('Logarithmic')
-        disk = Region.fromfile('data/Disk.reg')
-        spiral1 = Region.fromfile('data/Spiral1.reg')
-        spiral2 = Region.fromfile('data/Spiral2.reg')
-        spiral3 = Region.fromfile('data/Spiral3.reg')
-        star1 = Region.fromfile('data/Star1.reg')
-        star2 = Region.fromfile('data/Star2.reg')
-        regions = [
-            reg.scaledRegion(1/float(self.file.scale()))
-            for reg in [spiral1, spiral2, spiral3, disk, star1, star2]]
-        for reg in regions:
-            self.regions.append(reg)
-            if len(self.regions) < 4:
-                self.file.spiralarms.append(reg)
-            elif len(self.regions) == 4:
-                self.file.disk = reg
-            else:
-                self.file.stars.append(reg)
-        t = Table.read('data/clusterpath', format='ascii')
-        self.file.clusters = t
+        .. note::
+
+            This needs updating to work. Currently not used.
+
         """
+        #from astropy.table import Table
+        #fname = 'data/ngc3344_uvis_f555w_sci.fits'
+        #name = os.path.basename(fname)
+        #data = fits.getdata(fname)
+        #image = QPixmap().fromImage(
+        #    makeqimage(data, self.transformation, self.widget.size))
+        #pic = self.widget.addImage(image)
+        #self.file = File(data, pic)
+        #self.resizeImage(2000, 2000)
+        #self.setTransformation('Logarithmic')
+        #disk = Region.fromfile('data/Disk.reg')
+        #spiral1 = Region.fromfile('data/Spiral1.reg')
+        #spiral2 = Region.fromfile('data/Spiral2.reg')
+        #spiral3 = Region.fromfile('data/Spiral3.reg')
+        #star1 = Region.fromfile('data/Star1.reg')
+        #star2 = Region.fromfile('data/Star2.reg')
+        #regions = [
+        #    reg.scaledRegion(1/float(self.file.scale()))
+        #    for reg in [spiral1, spiral2, spiral3, disk, star1, star2]]
+        #for reg in regions:
+        #    self.regions.append(reg)
+        #    if len(self.regions) < 4:
+        #        self.file.spiralarms.append(reg)
+        #    elif len(self.regions) == 4:
+        #        self.file.disk = reg
+        #    else:
+        #        self.file.stars.append(reg)
+        #t = Table.read('data/clusterpath', format='ascii')
+        #self.file.clusters = t
+
         raise NotImplementedError('Script needs updating')
 
 
@@ -608,7 +620,8 @@ class MainPanel(QWidget):
         Returns
         -------
         scaledPixmap : QPixmap
-            A scaled version for storage in the appropriate File object.
+            A scaled version for storage in the appropriate
+            `~astro3d.gui.astroObjects.File` object.
 
         """
         return self.main_scene.addImg(pixmap)
@@ -647,7 +660,7 @@ class MainPanel(QWidget):
 
         Parameters
         ----------
-        reg : ``Region`` or list
+        reg : `~astro3d.gui.astroObjects.Region` or list
 
         """
         draw_scene = RegionFileScene(self, self.parent.file.image, reg)
@@ -655,7 +668,7 @@ class MainPanel(QWidget):
 
     def save_region(self):
         """Sets the scene to the non-interactive main scene.
-        Passes region information to AstroGUI to save.
+        Passes region information to `AstroGUI` to save.
 
         Returns
         -------
@@ -677,7 +690,7 @@ class MainPanel(QWidget):
 
         Parameters
         ----------
-        region : Region
+        region : `~astro3d.gui.astroObjects.Region`
 
         """
         self.main_scene.addReg(region)
@@ -688,7 +701,7 @@ class MainPanel(QWidget):
 
         Parameters
         ----------
-        region : Region
+        region : `~astro3d.gui.astroObjects.Region`
 
         """
         self.main_scene.delReg(region)
@@ -698,7 +711,7 @@ class MainPanel(QWidget):
         """Highlights the locations of clusters given by points
         to allow the user to remove 'invalid' clusters, such as
         foreground stars, etc. using the interactive
-        ClusterStarScene.
+        `~astro3d.gui.star_scenes.ClusterStarScene`.
 
         Parameters
         ----------
@@ -710,8 +723,8 @@ class MainPanel(QWidget):
 
     def save_clusters(self):
         """Sets the scene to the non-interactive main scene.
-        Passes a list of indices to remove from the astropy
-        Table that contains the cluster information.
+        Passes a list of indices to remove from the
+        `astropy.table.Table` that contains the cluster information.
 
         Returns
         -------
@@ -752,6 +765,7 @@ def makeqimage(nparray, transformation, size):
 
 
 def main(argv):
+    """Execute the GUI."""
     app = QApplication(argv)
     window = AstroGUI(argv[1:])
     sys.exit(app.exec_())

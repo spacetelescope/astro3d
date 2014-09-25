@@ -1,3 +1,4 @@
+"""Functions to convert image array to STL files."""
 from __future__ import division, print_function
 
 # STDLIB

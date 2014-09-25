@@ -1,14 +1,49 @@
+"""Utility functions for image manipulation."""
 from __future__ import division, print_function
 
 # Anaconda
 import numpy as np
 import scipy
+from astropy import log
 from PIL import Image
 
 
+def im2file(im, filename):
+    """Save image in TIFF or JPEG format.
+
+    Parameters
+    ----------
+    im : ndarray
+        Input image.
+
+    filename : str
+        Output filename.
+
+    """
+    im = im[::-1,:]
+    cim = np.zeros(im.shape,dtype=np.uint8)
+    cim[:] = (255*im/im.max()).astype(np.uint8)
+    pim = Image.fromarray(cim)
+    pim.save(filename)
+    log.info('{0} saved'.format(filename))
+
+
 def img2array(filename):
-    """Turns an image into a numpy array.
-    Requires PIL (Python Imaging Library) or Pillow (a PIL fork).
+    """Turns an image into a Numpy array.
+
+    .. note::
+
+        Requires PIL (Python Imaging Library) or Pillow (a PIL fork).
+
+    Parameters
+    ----------
+    filename : str
+        Input filename. For example, a JPEG file.
+
+    Returns
+    -------
+    array : ndarray
+        Image array.
 
     """
     img = Image.open(filename)
@@ -22,6 +57,20 @@ def compressImage(image, height):
     """Compress the image to a given size.
     Given that 3D printing cannot handle fine resolution,
     any loss of resolution is ultimately unimportant.
+
+    Parameters
+    ----------
+    image : ndarray
+        Input image.
+
+    height : int
+        Desired height. Width is adjusted according to
+        input aspect ratio.
+
+    Returns
+    -------
+    array : ndarray
+        Resized image.
 
     """
     h, w = image.shape
@@ -58,7 +107,7 @@ def crop_image(image, _max=0.0, masks=None, table=None):
     masks : list
         List of boolean masks.
 
-    table : ``astropy.Table``
+    table : `astropy.table.Table`
         Locations of star clusters.
 
     Returns
@@ -106,12 +155,12 @@ def normalize(array, norm, height=255.):
 
     norm
         Used to normalize an image to ``0..height``:
-        * ``(nmin, nmax)`` - Scale and clip values from
-          ``nmin..nmax`` to ``0..height``
-        * ``nmax`` - Scale and clip the range
-          ``0..nmax`` to ``0..height``
-        * `True` - Scale image values to ``0..height``
-        * `False` - No scaling
+            * ``(nmin, nmax)`` - Scale and clip values from
+              ``nmin..nmax`` to ``0..height``
+            * ``nmax`` - Scale and clip the range
+              ``0..nmax`` to ``0..height``
+            * `True` - Scale image values to ``0..height``
+            * `False` - No scaling
 
     height : float
         Max value of scaled image.

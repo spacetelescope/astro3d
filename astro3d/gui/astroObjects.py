@@ -13,19 +13,13 @@ from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 
 # LOCAL
-from img2stl import imageprep, meshcreator
-from img2stl.imageutils import split_image
+from ..utils import imageprep, meshcreator
+from ..utils.imageutils import split_image
 
 
 class File(object):
-    """Data holder.
-
-    A class that stores all the information necessary to
-    construct the STL file from the original numpy array.
-
-    .. note::
-
-        This class should be renamed.
+    """A class that stores all the information necessary to
+    construct the STL file from the original Numpy array.
 
     Parameters
     ----------
@@ -43,16 +37,16 @@ class File(object):
     data, image, height
         Same as inputs.
 
-    spiralarms : list of ``Region``
+    spiralarms : list of `Region`
         Spiral arms of the galaxy.
 
-    disk : ``Region``
+    disk : `Region`
         Disk of the galaxy.
 
-    stars : list of ``Region``
+    stars : list of `Region`
         Foreground stars that need to be patched.
 
-    clusters : ``astropy.Table``
+    clusters : `astropy.table.Table`
         Selected star clusters.
 
     """
@@ -89,10 +83,16 @@ class File(object):
 
         #. Scale regions.
         #. Create boolean masks for the regions.
-        #. Use ``imageprep.make_model()`` to perform transformations
-           on the array and obtains a new array ready for STL creator.
+        #. Use :func:`~astro3d.utils.imageprep.make_model` to perform
+           transformations on the array and obtains a new array ready
+           for STL creator.
         #. Split array into two halves (optional).
-        #. Use ``meshcreator.to_mesh()`` to make STL file(s).
+        #. Use :func:`~astro3d.utils.meshcreator.to_mesh` to make STL file(s).
+
+        .. note::
+
+            :func:`~astro3d.utils.meshcreator.to_mesh` modifies
+            inputs in-place, so this is a one-time thing per GUI session.
 
         Parameters
         ----------
@@ -150,64 +150,43 @@ class File(object):
 
 
 class Region(object):
-    """
-    Stores the name, QPolygonF, and visibility associated with each region. Also contains
-    various useful methods each region can use.
-    """
+    """This class defines a selected region in GUI.
 
+    Parameters
+    ----------
+    name : str
+        Region type.
+
+    region : QPolygonF
+        Shape of the region.
+
+    Attributes
+    ----------
+    name, region
+        Same as inputs.
+
+    visible : bool
+        Visibility (shown/hidden) of the region.
+
+    """
     def __init__(self, name, region):
-        """
-        Inputs:
-            name - a string giving the name of the Region.
-            region - a QPolygonF giving the shape of the region.
-        Variables:
-            self.name - same as input name.
-            self.region - same as input region.
-            self.visibility - a boolean giving the visibility (shown/hidden) of the region.
-        """
         super(Region, self).__init__()
         self.name = name
         self.region = region
         self.visible = False
 
-    @classmethod
-    def fromfile(cls, filename, _file=None):
-        """
-        Input: String filename, File _file
-        Output: Region
-        Purpose: If a Region has been saved using the save() method, this class method can read
-                    and return a new Region object from the file.
-        """
-        region = QPolygonF()
-        if _file is not None:
-            scale = _file.scale()
-        else:
-            scale = 1.0
-        name = ''
-        with open(filename) as f:
-            name = f.readline().split()[0]
-            for line in f:
-                coords = line.split(" ")
-                region << QPointF(float(coords[0]) * scale, float(coords[1]) * scale)
-        return cls(name, region)
-
-    def contains(self, x, y, scaled=1):
-        """
-        Input: float x, float y, float scaled
-        Output: boolean
-        Purpose: Returns whether a certain point is inside the region. This capability has since been
-                    replaced by imageprep.region_mask(), and I believe it is no longer used.
-        """
-        x *= scaled
-        y *= scaled
-        p = QPointF(x, y)
-        return QGraphicsPolygonItem(self.region).contains(p)
-
     def points(self, scale=1):
-        """
-        Input: float scale
-        Output: a list of QPointFs
-        Purpose: Returns a list of all points that are part of the polygon.
+        """Return a list of all points that are part of the polygon.
+
+        Parameters
+        ----------
+        scale : float
+            Not used.
+
+        Returns
+        -------
+        points : list of QPointF
+
         """
         i = 0
         p = None
@@ -219,10 +198,44 @@ class Region(object):
                 i += 1
         return points
 
-    def get_bounding_box(self):
+    def contains(self, x, y, scaled=1):
+        """Check whether a certain point is inside the region.
+
+        .. note::
+
+            Maybe this is no longer needed because its capability
+            is replaced by :func:`astro3d.utils.imageprep.region_mask`.
+
+        Parameters
+        ----------
+        x, y : float
+            Location of the point.
+
+        scaled : float
+            Scale the location to match region.
+
+        Returns
+        -------
+        is_within : bool
+
         """
-        Returns the min/max x and y coordinates of all points in polygon. I believe this method is
-        no longer used.
+        x *= scaled
+        y *= scaled
+        p = QPointF(x, y)
+        return QGraphicsPolygonItem(self.region).contains(p)
+
+    def get_bounding_box(self):
+        """Return the min/max X and Y coordinates of all
+        points in polygon.
+
+        .. note::
+
+            Maybe this is no longer needed.
+
+        Returns
+        -------
+        xmin, ymin, xmax, ymax : int
+
         """
         xmin = float('inf')
         xmax = float('-inf')
@@ -239,9 +252,37 @@ class Region(object):
                 ymax = p.y()
         return int(xmin), int(ymin), int(xmax), int(ymax)
 
-    def save(self, filename, _file=None):
+    def scaledRegion(self, _file):
+        """Return a new region scaled to match the `File` data.
+
+        Parameters
+        ----------
+        _file : `File`
+
+        Returns
+        -------
+        region : `Region`
+
         """
-        Saves the Region to a text file. Useful for debugging purposes.
+        region = QPolygonF()
+        for point in self.points():
+            scale = 1 / _file.scale()
+            p = QPointF(int(point.x() * scale), int(point.y() * scale))
+            region << p
+        return Region(self.name, region)
+
+    def save(self, filename, _file=None):
+        """Save the region to a text file.
+
+        Parameters
+        ----------
+        filename : str
+            Output filename.
+
+        _file : `File`
+            This is used to store region in coordinates
+            of unscaled image.
+
         """
         if _file is not None:
             scale = 1.0 / _file.scale()
@@ -254,27 +295,49 @@ class Region(object):
                 f.write(unicode('{0} {1}\n'.format(int(p.x() * scale),
                                                    int(p.y() * scale))))
 
-    def scaledRegion(self, _file):
-        """
-        Input: File _file
-        Output: Region
-        Purpose: Returns a new region object scaled to match the data of the input _file object.
+    @classmethod
+    def fromfile(cls, filename, _file=None):
+        """Read a region from file generated by :meth:`save`.
+
+        Parameters
+        ----------
+        filename : str
+            Input filename.
+
+        _file : `File`
+            This is used to convert native coordinates to
+            match scaled image.
+
+        Returns
+        -------
+        region : `Region`
+
         """
         region = QPolygonF()
-        for point in self.points():
-            scale = 1 / _file.scale()
-            p = QPointF(int(point.x() * scale), int(point.y() * scale))
-            region << p
-        return Region(self.name, region)
+        if _file is not None:
+            scale = _file.scale()
+        else:
+            scale = 1.0
+        name = ''
+        with open(filename) as f:
+            name = f.readline().split()[0]
+            for line in f:
+                coords = line.split(" ")
+                region << QPointF(float(coords[0]) * scale,
+                                  float(coords[1]) * scale)
+        return cls(name, region)
 
 
-class _MergedRegion(Region):
-    """
-    Originally supposed to represent a merging of two or more regions. The class does not currently
-    work, and only about half the relevant methods throughout the GUI can support MergedRegions.
+class MergedRegion(Region):
+    """Class to represent a merging of two or more regions.
+
+    .. note::
+
+        This does not currently work, and not supported by GUI.
+
     """
     def __init__(self, list_of_regions):
-        super(MergedRegion, self).__init__() # Will raise error, no arguments
+        super(MergedRegion, self).__init__()  # Will raise error, no arguments
         self.name = list_of_regions[0].name
         self.region = [region.region for region in list_of_regions]
         self.originals = list_of_regions

@@ -7,8 +7,7 @@ from PyQt4.QtCore import *
 
 
 class ThreeDModelWizard(QWizard):
-    """
-    This wizard is meant to guide users through the creation
+    """This wizard is meant to guide users through the creation
     of a 3D STL file from a 2D image. It contains:
 
     #. Load Image - Allows the user to load an image.
@@ -19,7 +18,7 @@ class ThreeDModelWizard(QWizard):
     #. Model Type Selection - Allows the user to select which type
        of model to make.
     #. Region Selection - Allows the user to draw and save regions.
-    #. Star or Clusters Selection - Allows the user to save the
+    #. Star Clusters Selection - Allows the user to save the
        desired amount of brightest star clusters to be marked in
        the model.
        **(Not shown for intensity map without textures.)**
@@ -28,18 +27,13 @@ class ThreeDModelWizard(QWizard):
 
     Parameters
     ----------
-    parent : ``astroVisual.AstroGUI``
+    parent : `~astro3d.gui.astroVisual.AstroGUI`
         The instantiating widget.
 
     debug : bool
         If `True`, wizard jumps straight to the final page.
         All the prior pages will be auto-populated by
-        ``AstroGUI.run_auto_login_script()``.
-
-    Attributes
-    ----------
-    parent
-        Same as input.
+        :meth:`~astro3d.gui.AstroGUI.run_auto_login_script`.
 
     """
     NUM_PAGES = 7
@@ -115,14 +109,16 @@ Currently, only FITS and JPEG are supported.
         self.setLayout(vbox)
 
     def do_load(self):
+        """Load image from file."""
         self.parent.fileLoad(height=float(self.heightbox.text()))
         self.emit(SIGNAL('completeChanged()'))
 
     def isComplete(self):
+        """Only proceed when image is loaded."""
         return self.parent.file is not None
 
     def nextId(self):
-        """Proceed to Resize Image page."""
+        """Proceed to `ImageResizePage`."""
         return ThreeDModelWizard.PG_RESIZE
 
 
@@ -143,7 +139,7 @@ class ImageResizePage(QWizardPage):
     during the model creation process, the average image can
     probably be most 1300x1300.
 
-    **Intensity Map without Textures***
+    **Intensity Map without Textures**
 
     The restriction against smaller image sizes stems from the
     need to provide texture. If there are too few pixels, then
@@ -160,11 +156,11 @@ class ImageResizePage(QWizardPage):
     therefore require some adjustment before a 500x500 pixel
     image can be run through.
 
-    **Image Rotation***
+    **Image Rotation**
 
     If the image is rotated, then the crop function of the engine
     will remove a far greater amount of the image. It has been
-    Roshan's experience that a rotated image with dimensions
+    Roshan Rao's experience that a rotated image with dimensions
     2000x2000 will be cropped to an image just slightly over
     1000x1000, which is perfect for this project. If we do not
     want users to have to deal with this issue, it may be possible
@@ -178,9 +174,6 @@ class ImageResizePage(QWizardPage):
 
     Attributes
     ----------
-    parent
-        Same as input.
-
     height, width : int
         The current height/width of the loaded image array.
 
@@ -280,7 +273,8 @@ class ImageResizePage(QWizardPage):
 
     def changeSize(self):
         """Called when the resize button is clicked.
-        Calls ``AstroGUI.resizeImage()`` with the input height and width.
+        Calls :meth:`~astro3d.gui.AstroGUI.resizeImage` with
+        the input height and width.
 
         """
         w = int(self.width)
@@ -303,10 +297,11 @@ class ImageResizePage(QWizardPage):
         self.resetUI(h, w)
 
     def isComplete(self):
+        """Only proceed when allowed dimensions are set."""
         return self.size_okay
 
     def nextId(self):
-        """Proceed to Intensity Scaling page."""
+        """Proceed to `IntensityScalePage`."""
         return ThreeDModelWizard.PG_SCALE
 
 
@@ -321,16 +316,11 @@ class IntensityScalePage(QWizardPage):
 
     Attributes
     ----------
-    parent
-        Same as input.
-
     choices : dict
         Maps ID to scale name.
 
     bgroup : QButtonGroup
-        Contains the three checkboxes. It ensures that the
-        boxes are exclusive and sets an ID for each box so
-        it knows which one is checked.
+        Contains the three checkboxes. It ensures that the boxes are exclusive and sets an ID for each box so it knows which one is checked.
 
     """
     def __init__(self, parent=None):
@@ -369,15 +359,15 @@ This is for display only; It does not affect output.""")
     def apply(self):
         """Called when user clicks the apply button.
         Gets the ID of the checked box from ``bgroup``,
-        then calls ``AstroGUI.setTransformation()`` with
-        the appropriate argument.
+        then calls :meth:`~astro3d.gui.AstroGUI.setTransformation`
+        with the appropriate argument.
 
         """
         _id = self.bgroup.checkedId()
         self.parent.setTransformation(self.choices[_id])
 
     def nextId(self):
-        """Proceed to Model Type page."""
+        """Proceed to `ModelTypePage`."""
         return ThreeDModelWizard.PG_TYPE
 
 
@@ -395,9 +385,6 @@ class ModelTypePage(QWizardPage):
 
     Attributes
     ----------
-    parent
-        Same as input.
-
     choices : dict
        Maps ID to model type.
 
@@ -438,12 +425,13 @@ class ModelTypePage(QWizardPage):
         return True
 
     def nextId(self):
-        """Proceed to Region Selection page."""
+        """Proceed to `RegionPage`."""
         return ThreeDModelWizard.PG_REG
 
 
 class RegionPage(QWizardPage):
-    """Sets the display to the interactive ``RegionStarScene``.
+    """Sets the display to the interactive
+    `~astro3d.gui.star_scenes.RegionStarScene`.
     Allows the user to manipulate regions.
 
     .. note::
@@ -451,14 +439,10 @@ class RegionPage(QWizardPage):
         GUI components are instantiated in :meth:`initUI` and
         :meth:`createRegionList`.
 
-    .. todo::
-
         Need to enable texture selection (currently hardcoded).
 
         Need to allow saving more than one disk region
         (will need it for interacting galaxies).
-
-        Need a drag circle widget for disk/star.
 
     Parameters
     ----------
@@ -467,18 +451,14 @@ class RegionPage(QWizardPage):
 
     Attributes
     ----------
-    parent
-        Same as input.
-
     draw : QPushButton
-        Activates the ``RegionStarScene``.
+        Activates the `~astro3d.gui.star_scenes.RegionStarScene`.
 
     save : QPushButton
         Saves a region.
 
     clear : QPushButton
-        Clears a region that is being drawn, but does not exit
-        the ``RegionStarScene``.
+        Clears a region that is being drawn, but does not exit the `~astro3d.gui.star_scenes.RegionStarScene`.
 
     reg_list : QListWidget
         Lists all previously drawn regions.
@@ -540,9 +520,8 @@ Select region the drop-down box to draw or load from file. To draw, click on the
         self.setLayout(vbox)
 
     def drawRegion(self, qtext):
-        """Start an interactive ``RegionStarScene``.
-        Also enables save and clear buttons, while
-        disabling the draw button.
+        """Start an interactive `~astro3d.gui.star_scenes.RegionStarScene`.
+        Also enables save and clear buttons.
 
         .. note::
 
@@ -565,6 +544,7 @@ Select region the drop-down box to draw or load from file. To draw, click on the
         self.status.repaint()
 
     def loadRegion(self):
+        """Load saved regions."""
         self.status.setText('Status: Select region file(s) to load')
         self.status.repaint()
 
@@ -575,8 +555,7 @@ Select region the drop-down box to draw or load from file. To draw, click on the
 
     def saveRegion(self):
         """Save the currently drawn region.
-        Also disables save and clear buttons, while enabling
-        the draw button.
+        Also disables save and clear buttons.
 
         .. note::
 
@@ -592,7 +571,9 @@ Select region the drop-down box to draw or load from file. To draw, click on the
 
     def clearRegion(self):
         """Clear the currently drawn region, without exiting
-        the ``RegionStarScene``."""
+        the `~astro3d.gui.star_scenes.RegionStarScene`.
+
+        """
         self.parent.clearRegion()
         self.clear.setEnabled(False)
         self.save.setEnabled(False)
@@ -631,9 +612,9 @@ Select region the drop-down box to draw or load from file. To draw, click on the
 
     def add_items(self):
         """Clear the region list, then adds all regions from
-        ``AstroGUI`` region list. This is used after adjustments
-        are made to various regions, such as when regions are added
-        or deleted.
+        `~astro3d.gui.astroVisual.AstroGUI` region list.
+        This is used after adjustments are made to various regions,
+        such as when regions are added or deleted.
 
         """
         items = []
@@ -652,6 +633,10 @@ Select region the drop-down box to draw or load from file. To draw, click on the
         * Show is enabled if any selected regions are hidden.
         * Hide is enabled if any selected regions are visible.
         * Delete is enabled as long as at least one region is selected.
+
+        .. note::
+
+            Disabled for now.
 
         """
         selected = self.getSelected()
@@ -678,7 +663,8 @@ Select region the drop-down box to draw or load from file. To draw, click on the
         Returns
         -------
         output
-           A list of Region objects for all selected regions.
+           A list of `~astro3d.gui.astroObjects.Region` objects
+           for all selected regions.
 
         """
         output = []
@@ -690,17 +676,35 @@ Select region the drop-down box to draw or load from file. To draw, click on the
         return output
 
     def show_region(self):
-        """Displays any hidden regions among the selected regions."""
+        """Displays any hidden regions among the selected regions.
+
+        .. note::
+
+            Disabled for now.
+
+        """
         self.parent.showRegion(self.getSelected())
         self.enableButtons()
 
     def hide_region(self):
-        """Hides any displayed regions among the selected regions."""
+        """Hides any displayed regions among the selected regions.
+
+        .. note::
+
+            Disabled for now.
+
+        """
         self.parent.hideRegion(self.getSelected())
         self.enableButtons()
 
     def delete_region(self):
-        """Deletes the selected region."""
+        """Deletes the selected region.
+
+        .. note::
+
+            Disabled for now.
+
+        """
         self.parent.deleteRegion(self.getSelected())
         self.add_items()
         self.enableButtons()
@@ -722,7 +726,7 @@ Select region the drop-down box to draw or load from file. To draw, click on the
         return has_region
 
     def nextId(self):
-        """Proceed to star clusters page."""
+        """Proceed to `IdentifyPeakPage`."""
         if self.parent.model_type in (1, 2):  # No texture
             return ThreeDModelWizard.PG_MAKE
         else:
@@ -730,14 +734,13 @@ Select region the drop-down box to draw or load from file. To draw, click on the
 
 
 class IdentifyPeakPage(QWizardPage):
-    """Activates the ``ClusterStarScene``.
-    Allows the user to select and save the desired number
+    """Activate the `~astro3d.gui.star_scenes.ClusterStarScene`.
+    Allow the user to select and save the desired number
     of brightest star clusters.
 
     .. note::
 
-        Need to add de-selected stars to be smoothed out.
-        This requires File.stars to handle them like clusters, not regions.
+        This page is not needed for models without textures.
 
     Parameters
     ----------
@@ -835,12 +838,12 @@ Once you are satisfied, click the 'Save Objects' button.
         return self._proceed_ok
 
     def nextId(self):
-        """Proceed to make model page."""
+        """Proceed to `MakeModelPage`."""
         return ThreeDModelWizard.PG_MAKE
 
 
 class MakeModelPage(QWizardPage):
-    """Allows the user to select a save location and filename,
+    """Allow the user to select a save location and filename,
     then creates STL file(s). This is the last page.
 
     Parameters
@@ -885,9 +888,7 @@ To accomodate MakerBot Replicator 2, it is recommended that the model to be spli
         self.setLayout(vbox)
 
     def save_file(self):
-        """Save files. This is the end point of the GUI.
-
-        """
+        """Save files. This is the end point of the GUI."""
         self.status.setText('Status: Please wait...')
         self.status.repaint()
 

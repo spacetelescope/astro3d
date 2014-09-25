@@ -1,3 +1,4 @@
+"""Functions to prepare image before conversion to 3D model."""
 from __future__ import division, print_function
 
 # STDLIB
@@ -15,9 +16,9 @@ from scipy import ndimage
 import photutils
 
 # LOCAL
-import meshcreator
-import imageutils as iutils
-import texture as _texture
+from . import meshcreator
+from . import imageutils as iutils
+from . import texture as _texture
 
 
 def make_model(image, spiralarms=None, disk=None, clusters=None, height=150.,
@@ -38,13 +39,13 @@ def make_model(image, spiralarms=None, disk=None, clusters=None, height=150.,
     disk : ndarray
         Boolean mask for disk.
 
-    clusters : ``astropy.Table``
+    clusters : `astropy.table.Table`
         Selected star clusters.
 
     height : float
         The maximum height above the base.
 
-    stars : list of ``Region``
+    stars : list of `~astro3d.gui.astroObjects.Region`
         Foreground stars that need to be patched.
 
     base_thickness : int
@@ -259,7 +260,7 @@ def remove_stars(image, stars):
     ----------
     image : ndimage
 
-    stars : list of ``Region``
+    stars : list of `~astro3d.gui.astroObjects.Region`
         Foreground stars that need to be patched.
 
     Returns
@@ -344,7 +345,9 @@ def emphasize_regions(image, masks, threshold=20, niter=2):
 
 def make_star(radius, height):
     """Creates a crator-like depression that can be used
-    to represent a star. Similar to ``texture.make_star()``.
+    to represent a star.
+
+    Similar to :func:`astro3d.utils.texture.make_star`.
 
     """
     a = np.arange(radius * 2 + 1)
@@ -417,8 +420,8 @@ def galaxy_texture(galaxy, scale=None, lmask=None, hexgrid_spacing=7,
         ``scale`` works well for NGC 3344 (first test galaxy)
         but poorly for NGC 1566 (second test galaxy).
 
-    Parameter
-    ---------
+    Parameters
+    ----------
     galaxy : ndimage
         Input array with background already suppressed.
         Unsuppressed regions that are not disk are assumed
@@ -433,7 +436,7 @@ def galaxy_texture(galaxy, scale=None, lmask=None, hexgrid_spacing=7,
         If given, textured areas are the masked regions.
 
     hexgrid_spacing : int
-        Spacing for ``hex_grid()`` to populate dots.
+        Spacing for :func:`~astro3d.utils.texture.hex_grid` to populate dots.
 
     dots_profile : {'linear', 'spherical'}
         How to arrange the dots.
@@ -457,7 +460,7 @@ def galaxy_texture(galaxy, scale=None, lmask=None, hexgrid_spacing=7,
         Orientation of the lines in degrees.
 
     fil_size : int
-        Filter size for ``maximum_filter()``.
+        Filter size for :func:`~scipy.ndimage.filters.maximum_filter`.
 
     fil_invscale : float
         Filter is divided by this number.
@@ -533,7 +536,7 @@ def make_star_cluster(image, peak, max_intensity, r_fac_add=15, r_fac_mul=5,
     ----------
     image : ndarray
 
-    peak : ``astropy.Table`` row
+    peak : `astropy.table.Table` row
         One star cluster entry.
 
     max_intensity : float
@@ -552,7 +555,7 @@ def make_star_cluster(image, peak, max_intensity, r_fac_add=15, r_fac_mul=5,
         If `None` is given, then no readjustment is done.
 
     fil_size : int
-        Filter size for ``maximum_filter()``.
+        Filter size for :func:`~scipy.ndimage.filters.maximum_filter`.
 
     Returns
     -------
@@ -606,7 +609,7 @@ def make_star_cluster(image, peak, max_intensity, r_fac_add=15, r_fac_mul=5,
 
 
 def region_mask(image, region, interpolate, fil_size=3):
-    """Uses ``matplotlib.path.Path`` to generate a
+    """Uses `matplotlib.path.Path` to generate a
     numpy boolean array, which can then be used as
     a mask for a region.
 
@@ -615,14 +618,14 @@ def region_mask(image, region, interpolate, fil_size=3):
     image : ndarray
         Image to apply mask to.
 
-    region : ``Region``
+    region : `~astro3d.gui.astroObjects.Region`
         Region to generate mask for.
 
     interpolate : `True`, number, or tuple
         For filter used in mask generation.
 
     fil_size : int
-        Filter size for ``maximum_filter()``.
+        Filter size for :func:`~scipy.ndimage.filters.maximum_filter`.
 
     Returns
     -------
@@ -759,7 +762,7 @@ def make_base(image, dist=60, height=10, snapoff=True):
     image : ndarray
 
     dist : int
-        Filter size for ``maximum_filter()``.
+        Filter size for :func:`~scipy.ndimage.filters.maximum_filter`.
         Only used if ``snapoff=True``.
 
     height : int
