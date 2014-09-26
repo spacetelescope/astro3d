@@ -197,7 +197,7 @@ class AstroGUI(QMainWindow):
         elif fnamestr.endswith(('fits', 'FITS')):
             data = fits.getdata(fnamestr)
         elif fnamestr.endswith(('jpg', 'JPG', 'jpeg', 'JPEG')):  # grayscale
-            data = imageutils.img2array(fnamestr)
+            data = imageutils.img2array(fnamestr)[::-1,]
         else:
             QMessageBox.warning(self, 'File Error', 'Unsupported file type')
             return
