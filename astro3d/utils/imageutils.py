@@ -88,13 +88,9 @@ def compressImage(image, height):
     return array
 
 
-def crop_image(image, _max=0.0, masks=None, table=None):
+def crop_image(image, _max=0):
     """Crop boundaries of image where maximum value is
-    less than the given value. Also adjust boolean masks
-    and the table of clusters accordingly.
-
-    Specifically on clusters, any clusters lying outside
-    the boundary will be removed.
+    less than the given value.
 
     Parameters
     ----------
@@ -104,19 +100,13 @@ def crop_image(image, _max=0.0, masks=None, table=None):
     _max : float
         Crop pixels below this value.
 
-    masks : list
-        List of boolean masks.
-
-    table : `astropy.table.Table`
-        Locations of star clusters.
-
     Returns
     -------
-    image, masks, table
-        Cropped data.
+    image : ndarray
+        Cropped image.
 
     iy1, iy2, ix1, ix2 : int
-        Indices of input image for cropping.
+        Indices of input image for cropping other components.
 
     """
     locations = np.where(image > _max)
@@ -126,17 +116,8 @@ def crop_image(image, _max=0.0, masks=None, table=None):
     ix1 = min(locations[1])
     xmax = max(locations[1])
     ix2 = xmax + 1
-    image = image[iy1:iy2, ix1:ix2]
 
-    if masks is not None:
-        masks = [mask[iy1:iy2, ix1:ix2] if mask is not None else None
-                 for mask in masks]
-
-    if table is not None:
-        table = table[(table['xcen'] > ix1) & (table['xcen'] < xmax) &
-                      (table['ycen'] > iy1) & (table['ycen'] < ymax)]
-
-    return image, masks, table, iy1, iy2, ix1, ix2
+    return image[iy1:iy2, ix1:ix2], iy1, iy2, ix1, ix2
 
 
 def normalize(array, norm, height=255.):

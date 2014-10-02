@@ -2,18 +2,20 @@
 from __future__ import division, print_function
 
 # STDLIB
-import sys
+from collections import defaultdict
 from copy import deepcopy
 
 # Anaconda
 import numpy as np
 from astropy import log
-from astropy.io import fits
+from matplotlib.path import Path
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
+from scipy import ndimage
 
 # LOCAL
-from ..utils import imageprep, meshcreator
+from ..utils.imageprep import combine_masks, make_model
+from ..utils.meshcreator import to_mesh
 from ..utils.imageutils import split_image
 
 
@@ -29,56 +31,106 @@ class File(object):
     image : QPixmap
         Scaled image for display purposes.
 
-    height : float
-        Height of the model.
-
     Attributes
     ----------
-    data, image, height
+    data, image
         Same as inputs.
 
-    spiralarms : list of `Region`
-        Spiral arms of the galaxy.
+    regions : dict
+        A dictionary that maps each texture to a list of `Region`.
 
-    disk : `Region`
-        Disk of the galaxy.
-
-    stars : list of `Region`
-        Foreground stars that need to be patched.
-
-    clusters : `astropy.table.Table`
-        Selected star clusters.
+    peaks : dict
+        A dictionary that maps each texture to a `astropy.table.Table`.
 
     """
-    def __init__(self, data, image, height=150.0):
+    def __init__(self, data, image):
         super(File, self).__init__()
         self.data = data
         self.image = image
-        self.height = height
-        self.spiralarms = []
-        self.disk = None
-        self.stars = []
-        self.clusters = None
+        self.regions = defaultdict(list)
+        self.peaks = {}
+        self._orig_shape = self.data.shape
 
     def scale(self):
         """Return the ratio by which the image has been scaled."""
-        return self.image.height() / float(self.data.shape[0])
+        return self.image.height() / self.data.shape[0]
 
-    def scaleRegions(self):
-        """Scale the coordinates of all Regions from the display
+    def orig_scale(self):
+        """Return the ratio between display and original size."""
+        return self.image.height() / self._orig_shape[0]
+
+    def scaleMasks(self):
+        """Create masks scaled to actual data.
+
+        Scale the coordinates of all regions from the display
         image to the corresponding locations on the actual data.
+        Then, create masks for them. For dots and lines, their
+        respective regions are combined to a single mask.
+
+        Returns
+        -------
+        scaled_masks : dict
+            A dictionary that maps each texture type to a list of
+            corresponding boolean masks.
 
         """
-        self.spiralarms = [reg.scaledRegion(self) for reg in self.spiralarms
-                           if reg is not None]
-        self.stars = [reg.scaledRegion(self) for reg in self.stars
-                      if reg is not None]
+        scaled_masks = defaultdict(list)
 
-        if self.disk is not None:
-            self.disk = self.disk.scaledRegion(self)
+        for key, reglist in self.regions.iteritems():
+            masklist = [reg.scaledRegion(self).to_mask(self.data)
+                        for reg in reglist]
 
-    def make_3d(self, fname, depth=1., double=False, _ascii=False,
-                has_texture=True, has_intensity=True, split_halves=True):
+            if key != 'smooth':
+                scaled_masks[key] = [combine_masks(masklist)]
+            else:  # To be smoothed
+                scaled_masks[key] = masklist
+
+        return scaled_masks
+
+    def save_regions(self, prefix):
+        """Save ``regions`` to text files.
+
+        Coordinates are transformed to match original image.
+        One output file per region, each name ``<prefix>_<type>_<n>.reg``.
+
+        Parameters
+        ----------
+        prefix : str
+            Prefix of output files.
+
+        """
+        for key, reglist in self.regions.iteritems():
+            i = 1
+            for reg in reglist:
+                rname = '{0}_{1}_{2}.reg'.format(prefix, key, i)
+                i += 1
+                reg.save(rname, _file=self)
+                log.info('{0} saved'.format(rname))
+
+    def save_peaks(self, prefix):
+        """Save ``peaks`` to text files.
+
+        Coordinates already match original image.
+        One output file per table, each named ``<prefix>_<type>.txt``.
+
+        """
+        scale = self._orig_shape[0] / self.data.shape[0]
+
+        for key, tab in self.peaks.iteritems():
+            if len(tab) < 1:
+                continue
+
+            out_tab = deepcopy(tab)
+            out_tab['xcen'] *= scale
+            out_tab['ycen'] *= scale
+
+            tname = '{0}_{1}.txt'.format(prefix, key)
+            out_tab.write(tname, format='ascii')
+            log.info('{0} saved'.format(tname))
+
+    def make_3d(self, fname, height=150.0, depth=10, double=False,
+                _ascii=False, has_texture=True, has_intensity=True,
+                is_spiralgal=False, split_halves=True):
         """Generate STL file.
 
         #. Scale regions.
@@ -89,18 +141,16 @@ class File(object):
         #. Split array into two halves (optional).
         #. Use :func:`~astro3d.utils.meshcreator.to_mesh` to make STL file(s).
 
-        .. note::
-
-            :func:`~astro3d.utils.meshcreator.to_mesh` modifies
-            inputs in-place, so this is a one-time thing per GUI session.
-
         Parameters
         ----------
         fname : str or QString
             Filename prefix. The ``.stl`` extension is automatically
             added. Also see ``split_halves``.
 
-        depth : float
+        height : float
+            Height of the model.
+
+        depth : int
             Depth of back plate.
 
         double : bool
@@ -115,25 +165,22 @@ class File(object):
         has_intensity : bool
             Generate intensity map.
 
+        is_spiralgal : bool
+            Special processing for a single spiral galaxy.
+
         split_halves : bool
             If `True`, image is split into two halves and the files
             will have ``1.stl`` or ``2.stl`` added to ``fname``,
             respectively.
 
         """
-        self.scaleRegions()
-        self.data = np.flipud(self.data)
+        image = deepcopy(np.flipud(self.data))
+        regions = self.scaleMasks()
 
-        spiralmask = imageprep.combine_masks(
-            [imageprep.region_mask(self.data, reg, True)
-             for reg in self.spiralarms if reg is not None])
-        disk = imageprep.region_mask(self.data, self.disk, True)
-
-        # make_model() modifies input in-place, so pass in a copy instead
-        model = imageprep.make_model(
-            deepcopy(self.data), spiralarms=spiralmask, disk=disk,
-            clusters=self.clusters, height=self.height, stars=self.stars,
-            double=double, has_texture=has_texture, has_intensity=has_intensity)
+        model = make_model(
+            image, region_masks=regions, peaks=self.peaks, height=height,
+            base_thickness=depth, double=double, has_texture=has_texture,
+            has_intensity=has_intensity, is_spiralgal=is_spiralgal)
 
         # Input filename might be QString.
         # Remove any .stl suffix because it is added by to_mesh()
@@ -141,12 +188,13 @@ class File(object):
         if fname.lower().endswith('.stl'):
             fname = fname[:-4]
 
+        # Depth is set to 1 here because it is accounted for in make_model()
         if split_halves:
             model1, model2 = split_image(model)
-            meshcreator.to_mesh(model1, fname + '_1', depth, double, _ascii)
-            meshcreator.to_mesh(model2, fname + '_2', depth, double, _ascii)
+            to_mesh(model1, fname + '_1', 1, double, _ascii)
+            to_mesh(model2, fname + '_2', 1, double, _ascii)
         else:
-            meshcreator.to_mesh(model, fname, depth, double, _ascii)
+            to_mesh(model, fname, 1, double, _ascii)
 
 
 class Region(object):
@@ -204,7 +252,7 @@ class Region(object):
         .. note::
 
             Maybe this is no longer needed because its capability
-            is replaced by :func:`astro3d.utils.imageprep.region_mask`.
+            is replaced by :meth:`to_mask`.
 
         Parameters
         ----------
@@ -264,12 +312,64 @@ class Region(object):
         region : `Region`
 
         """
+        scale = 1.0 / _file.scale()
         region = QPolygonF()
         for point in self.points():
-            scale = 1 / _file.scale()
-            p = QPointF(int(point.x() * scale), int(point.y() * scale))
+            p = QPointF(point.x() * scale, point.y() * scale)
             region << p
         return Region(self.name, region)
+
+    def to_mask(self, image, interpolate=True, fil_size=3):
+        """Uses `matplotlib.path.Path` to generate a
+        Numpy boolean array, which can then be used as
+        a mask for the region.
+
+        Parameters
+        ----------
+        image : ndarray
+            Image to apply mask to.
+
+        interpolate : `True`, number, or tuple
+            For filter used in mask generation.
+
+        fil_size : int
+            Filter size for :func:`~scipy.ndimage.filters.maximum_filter`.
+
+        Returns
+        -------
+        mask : ndarray
+            Boolean mask for the region.
+
+        """
+        y, x = np.indices(image.shape)
+        y, x = y.flatten(), x.flatten()
+        points = np.vstack((x, y)).T
+        polygon = Path([(p.x(), p.y()) for p in self.points()])
+        mask = polygon.contains_points(points).reshape(image.shape)
+
+        if interpolate:
+            if interpolate == True:  # Magic?
+                interpolate = (np.percentile(image[mask], 50),
+                               np.percentile(image[mask], 75))
+            elif np.isscalar(interpolate):
+                interpolate = (np.percentile(image[mask], 0),
+                               np.percentile(image[mask], interpolate))
+            else:
+                interpolate = (np.percentile(image[mask], interpolate[0]),
+                               np.percentile(image[mask], interpolate[1]))
+
+            nmin, nmax = interpolate
+            filtered = np.zeros(mask.shape)
+            filtered[mask] = 1
+            radius = min(axis.ptp() for axis in np.where(mask))
+            filtered = ndimage.filters.maximum_filter(
+                filtered, min(radius, image.shape[0] / 33))  # Magic?
+            filtered = image * filtered
+            mask = mask | ((filtered > nmin) & (filtered < nmax))
+            maxfilt = ndimage.filters.maximum_filter(mask.astype(int), fil_size)
+            mask = maxfilt != 0
+
+        return mask
 
     def save(self, filename, _file=None):
         """Save the region to a text file.
@@ -285,15 +385,15 @@ class Region(object):
 
         """
         if _file is not None:
-            scale = 1.0 / _file.scale()
+            scale = 1.0 / _file.orig_scale()
         else:
             scale = 1.0
 
         with open(filename, 'w') as f:
             f.write(unicode('{0}\n'.format(self.name)))
             for p in self.points():
-                f.write(unicode('{0} {1}\n'.format(int(p.x() * scale),
-                                                   int(p.y() * scale))))
+                f.write(unicode('{0} {1}\n'.format(p.x() * scale,
+                                                   p.y() * scale)))
 
     @classmethod
     def fromfile(cls, filename, _file=None):
@@ -315,7 +415,7 @@ class Region(object):
         """
         region = QPolygonF()
         if _file is not None:
-            scale = _file.scale()
+            scale = _file.orig_scale()
         else:
             scale = 1.0
         name = ''

@@ -4,6 +4,18 @@ It allows the user to upload any FITS or JPEG image file and
 subsequently convert the image into an STL file, which can then
 be printed with a 3D printer.
 
+These are the available textures for regions and the
+recommended representations:
+
+* ``dots`` or ``spiral`` - Spiral arms.
+* ``lines`` or ``disk`` - Galactic disk.
+* ``smooth`` or ``star`` - Foreground stars to be smoothed over.
+
+These are pre-defined textures for peaks:
+
+* ``crator1`` (single crator) - Stars or galactic center.
+* ``crator3`` (a set of 3 crators) - Star clusters.
+
 """
 from __future__ import division, print_function
 
@@ -11,7 +23,7 @@ from __future__ import division, print_function
 import os
 import sys
 import warnings
-from collections import defaultdict, OrderedDict
+from collections import OrderedDict
 
 # Anaconda
 import numpy as np
@@ -34,8 +46,8 @@ from .wizard import ThreeDModelWizard
 from ..utils import imageprep, imageutils
 
 
-__version__ = '0.1.0.dev'
-__vdate__ = '25-Sep-2014'
+__version__ = '0.2.0.dev'
+__vdate__ = '02-Oct-2014'
 __author__ = 'STScI'
 
 
@@ -68,11 +80,11 @@ class AstroGUI(QMainWindow):
         image before it is displayed. Applied for visualization and display
         purposes only.
 
-    regions : dict
-        A list of all regions the user has created.
-
     model_type : int
         Type of 3D model to make.
+
+    is_spiral : bool
+        Special processing for single spiral galaxy.
 
     widget : `MainPanel`
         Initialized in :meth:`createWidgets`. Displays the image.
@@ -95,32 +107,36 @@ class AstroGUI(QMainWindow):
          (2, 'Smooth intensity map (two-sided)'),
          (3, 'Textured intensity map (one-sided)'),
          (4, 'Textured intensity map (two-sided)')])
-    REGION_TEXT = OrderedDict(
-        [('disk', 'Disk'), ('spiral', 'Spiral arm'), ('star', 'Star')])
+
+    # Maps self.is_spiral to textures
+    REGION_TEXTURES = {
+        False: ['dots', 'lines', 'smooth'],
+        True: ['spiral', 'disk', 'star']}
 
     def __init__(self, argv=None):
         super(AstroGUI, self).__init__()
+        self.setWindowTitle('Astronomy 3D Model')
 
         self.file = None
         self.transformation = self.TRANS_FUNCS['Linear']
-        self.regions = defaultdict(list)
         self.model_type = 0
+        self.is_spiral = False
 
         self.setGeometry(
             self._GEOM_X, self._GEOM_Y, self._GEOM_SZ, self._GEOM_SZ)
         self.createWidgets()
         self.resize(self._NEWSZ_W, self._NEWSZ_H)
 
-        self.setWindowTitle('3D Star Field Creator')
-
         if argv and argv[0] == 'debug':
             debug = True
-            print('running debug script')
+            log.info('running debug script')
             self.run_auto_login_script()
         else:
             debug = False
 
         wizard = ThreeDModelWizard(self, debug=debug)
+        wizard.move(self._GEOM_X + self._NEWSZ_W,
+                    self._GEOM_Y + self._NEWSZ_H * 0.25)
         self.show()
 
         self.statusBar().showMessage('')
@@ -133,7 +149,7 @@ class AstroGUI(QMainWindow):
         self.setCentralWidget(self.widget)
 
         fileQuitAction = self.createAction(
-            '&Exit', QCoreApplication.instance().quit, 'Exit the session')
+            '&Quit', QCoreApplication.instance().quit, 'Quit the session')
         fileMenu = self.menuBar().addMenu('&File')
         self.addActions(fileMenu, (fileQuitAction, ))
 
@@ -172,7 +188,7 @@ class AstroGUI(QMainWindow):
 
     # Basic Actions
 
-    def fileLoad(self, height=150.0):
+    def fileLoad(self):
         """Load image file from FITS or JPEG.
 
         After file data is converted to Numpy array, it uses
@@ -181,10 +197,6 @@ class AstroGUI(QMainWindow):
         A `~astro3d.gui.astroObjects.File` object is also created
         to store information.
 
-        Parameters
-        ----------
-        height : float
-            Height of the model.
 
         """
         fname = QFileDialog.getOpenFileName(
@@ -197,7 +209,7 @@ class AstroGUI(QMainWindow):
         elif fnamestr.endswith(('fits', 'FITS')):
             data = fits.getdata(fnamestr)
         elif fnamestr.endswith(('jpg', 'JPG', 'jpeg', 'JPEG')):  # grayscale
-            data = imageutils.img2array(fnamestr)[::-1,]
+            data = imageutils.img2array(fnamestr)[::-1, ]
         else:
             QMessageBox.warning(self, 'File Error', 'Unsupported file type')
             return
@@ -212,9 +224,11 @@ class AstroGUI(QMainWindow):
         image = image.fromImage(
             makeqimage(data, self.transformation, self.widget.size))
         pic = self.widget.addImage(image)
-        self.file = File(data, pic, height=height)
+        self.file = File(data, pic)
+        self.statusBar().showMessage(name)
 
-    def fileSave(self, split_halves=True, save_all=True):
+    def fileSave(self, height=150.0, depth=10, split_halves=True,
+                 save_all=True):
         """Get save file location and instructs the
         `~astro3d.gui.astroObjects.File` object to construct
         a 3D model.
@@ -223,6 +237,12 @@ class AstroGUI(QMainWindow):
 
         Parameters
         ----------
+        height : float
+            Height of the model.
+
+        depth : int
+            Depth of back plate.
+
         split_halves : bool
             Split 3D model into two halves.
 
@@ -235,7 +255,6 @@ class AstroGUI(QMainWindow):
             Status message.
 
         """
-        depth = 1  # Depth of back plate
         _ascii = False  # Binary STL
 
         # Single- or double-sided
@@ -262,28 +281,17 @@ class AstroGUI(QMainWindow):
             return 'ERROR - No filename given!'
         else:
             fname = str(path)
-            path = os.path.dirname(fname)
-            prefix = os.path.basename(fname).split('.')[0]
+            prefix = os.path.join(os.path.dirname(fname),
+                                  os.path.basename(fname).split('.')[0])
 
         if save_all:
-            for key, reglist in self.regions.iteritems():
-                i = 1
-                for reg in reglist:
-                    rname = os.path.join(
-                        path, '{0}_{1}_{2}.reg'.format(prefix, key, i))
-                    i += 1
-                    reg.save(rname, _file=self.file)
-                    log.info('{0} saved'.format(rname))
-
-            if self.file.clusters is not None:
-                cname = os.path.join(path, '{0}_clusters.txt'.format(prefix))
-                self.file.clusters.write(cname, format='ascii')
-                log.info('{0} saved'.format(cname))
+            self.file.save_regions(prefix)
+            self.file.save_peaks(prefix)
 
         self.file.make_3d(
-            fname, depth=depth, double=double, _ascii=_ascii,
+            fname, height=height, depth=depth, double=double, _ascii=_ascii,
             has_texture=has_texture, has_intensity=has_intensity,
-            split_halves=split_halves)
+            is_spiralgal=self.is_spiral, split_halves=split_halves)
 
         return 'Done!'
 
@@ -309,7 +317,7 @@ class AstroGUI(QMainWindow):
                 self.deleteRegion(key, reg)
         else:
             self.hideRegion(region)
-            self.regions[key].remove(region)
+            self.file.regions[key].remove(region)
 
     def showRegion(self, region):
         """Displays the hidden region(s) passed in as the
@@ -396,17 +404,11 @@ class AstroGUI(QMainWindow):
 
             key = key.lower()
 
-            if 'spiral' in key:
-                self.file.spiralarms.append(reg)
-                self.regions[key].append(reg)
-            elif 'disk' in key:
-                self.file.disk = reg
-                self.regions[key] = [reg]
-            elif 'star' in key:
-                self.file.stars.append(reg)
-                self.regions[key].append(reg)
+            if key in self.REGION_TEXTURES[self.is_spiral]:
+                self.file.regions[key].append(reg)
             else:
-                warnings.warn('{0} not found'.format(key), AstropyUserWarning)
+                warnings.warn('{0} is not a valid region texture'.format(key),
+                              AstropyUserWarning)
                 continue
 
             log.info('{0} saved'.format(key))
@@ -456,6 +458,8 @@ class AstroGUI(QMainWindow):
         self.file.data = np.array(image, dtype=np.float64)
         self.remake_image()
 
+    # Clusters editing
+
     def find_clusters(self, n):
         """Retrieve locations of star clusters using
         :func:`~astro3d.utils.imageprep.find_peaks`, then displays
@@ -470,14 +474,8 @@ class AstroGUI(QMainWindow):
 
         """
         log.info('Finding star clusters, please be patient...')
-        image = self.file.data
-        scale = self.file.scale()
-        peaks = imageprep.find_peaks(np.flipud(image))[:n]
-        self.file.clusters = peaks
-        xcen = peaks['xcen'] * scale
-        ycen = peaks['ycen'] * scale
-        coords = np.dstack((xcen, ycen)).reshape((-1, 2))
-        self.widget.cluster_find(coords)
+        peaks = imageprep.find_peaks(np.flipud(self.file.data))[:n]
+        self.widget.cluster_find(peaks)
 
     def load_clusters(self):
         """Retrieve locations of star clusters from file."""
@@ -488,31 +486,44 @@ class AstroGUI(QMainWindow):
         if fname.isEmpty():
             return
 
-        scale = self.file.scale()
-        peaks = ascii.read(
-            str(fname), data_start=1,
-            names=['id', 'xcen', 'ycen', 'area', 'radius_equiv', 'flux'])
-        self.file.clusters = peaks
-        xcen = peaks['xcen'] * scale
-        ycen = peaks['ycen'] * scale
-        coords = np.dstack((xcen, ycen)).reshape((-1, 2))
-        self.widget.cluster_find(coords)
+        scale = self.file.data.shape[0] / self.file._orig_shape[0]
+        peaks = ascii.read(str(fname), data_start=1)
+        peaks['xcen'] *= scale
+        peaks['ycen'] *= scale
+        self.widget.cluster_find(peaks)
+
+    def manual_clusters(self):
+        """Select locations from display."""
+        self.widget.cluster_find()
 
     def save_clusters(self):
-        """Remove clusters identified by the user as
-        other objects (foreground stars, center of galaxy,
-        etc.).
+        """Done selecting star clusters."""
+        self.widget.save_clusters()
 
-        .. note::
+    # Stars editing
 
-            Foreground stars also need to be smoothed out
-            from image.
+    def load_stars(self):
+        """Retrieve locations of stars from file."""
+        fname = QFileDialog.getOpenFileName(
+            self, '3D Model Creator - Load Stars', '',
+            'Text files (*.txt *.dat)')
 
-        """
-        if self.file.clusters is not None:
-            toremove = self.widget.save_clusters()
-            if len(toremove) > 0:
-                self.file.clusters.remove_rows(toremove)
+        if fname.isEmpty():
+            return
+
+        scale = self.file.data.shape[0] / self.file._orig_shape[0]
+        peaks = ascii.read(str(fname), data_start=1)
+        peaks['xcen'] *= scale
+        peaks['ycen'] *= scale
+        self.widget.star_find(peaks)
+
+    def manual_stars(self):
+        """Select locations from display."""
+        self.widget.star_find()
+
+    def save_stars(self):
+        """Done selecting stars."""
+        self.widget.save_stars()
 
     # For DEBUG PURPOSES ONLY
     def run_auto_login_script(self):
@@ -552,7 +563,7 @@ class AstroGUI(QMainWindow):
         #    else:
         #        self.file.stars.append(reg)
         #t = Table.read('data/clusterpath', format='ascii')
-        #self.file.clusters = t
+        #self.file.peaks['clusters'] = t
 
         raise NotImplementedError('Script needs updating')
 
@@ -707,33 +718,34 @@ class MainPanel(QWidget):
         self.main_scene.delReg(region)
         self.update_scene(self.main_scene)
 
-    def cluster_find(self, points):
-        """Highlights the locations of clusters given by points
-        to allow the user to remove 'invalid' clusters, such as
-        foreground stars, etc. using the interactive
+    def cluster_find(self, peaks=None):
+        """Highlights the locations of clusters to allow
+        the user to add new or remove 'invalid' clusters
+        (e.g., foreground stars, etc) using the interactive
         `~astro3d.gui.star_scenes.ClusterStarScene`.
 
         Parameters
         ----------
-        points : ndarray
+        peaks : `astropy.table.Table`
+            Table data to add.
 
         """
-        cluster_scene = ClusterStarScene(self, self.parent.file.image, points)
+        cluster_scene = ClusterStarScene(self, self.parent.file, data=peaks)
         self.update_scene(cluster_scene)
 
     def save_clusters(self):
-        """Sets the scene to the non-interactive main scene.
-        Passes a list of indices to remove from the
-        `astropy.table.Table` that contains the cluster information.
-
-        Returns
-        -------
-        toremove : list
-
-        """
-        toremove = self.current_scene.toremove
+        """Sets the scene to the non-interactive main scene."""
         self.update_scene(self.main_scene)
-        return toremove
+
+    def star_find(self, peaks=None):
+        """Like :meth:`cluster_find` but for stars."""
+        markstar_scene = ClusterStarScene(
+            self, self.parent.file, data=peaks, key='stars')
+        self.update_scene(markstar_scene)
+
+    def save_stars(self):
+        """Sets the scene to the non-interactive main scene."""
+        self.update_scene(self.main_scene)
 
 
 def makeqimage(nparray, transformation, size):
