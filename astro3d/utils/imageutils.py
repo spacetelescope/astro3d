@@ -167,36 +167,52 @@ def normalize(array, norm, height=255.):
     return array
 
 
-def split_image(image):
+def split_image(image, axis='auto'):
     """Split image array into two halves.
-    If image shape is a rectangle, splitting is done
-    on the shorter edge.
 
     Parameters
     ----------
     image : ndarray
+
+    axis : {'horizontal', 'vertical', 'auto'}
+        Horizontal means cut across horizontally.
+        Likewise, for vertical. Auto means cut on
+        the shorter axis.
 
     Returns
     -------
     image1, image2 : ndarray
 
     """
-    if image.shape[0] > image.shape[1]:
-        mid = int(image.shape[1] / 2)
+    y_size = image.shape[0]
+    x_size = image.shape[1]
+    axis = axis.lower()
+
+    if axis == 'auto':
+        if y_size > x_size:
+            axis = 'vertical'
+        else:
+            axis = 'horizontal'
+
+    if axis == 'vertical':
+        mid = int(x_size / 2)
         image1 = image[:, :mid]
 
-        if image.shape[1] % 2 == 0:
+        if x_size % 2 == 0:
             image2 = image[:, mid:]
         else:
             image2 = image[:, mid:-1]
 
-    else:
-        mid = int(image.shape[0] / 2)
-        image1 = image[:mid]
+    elif axis == 'horizontal':
+        mid = int(y_size / 2)
+        image1 = image[:mid, :]
 
-        if image.shape[0] % 2 == 0:
-            image2 = image[mid:]
+        if y_size % 2 == 0:
+            image2 = image[mid:, :]
         else:
-            image2 = image[mid:-1]
+            image2 = image[mid:-1, :]
+
+    else:
+        raise ValueError('Invalid axis={0}'.format(axis))
 
     return image1, image2

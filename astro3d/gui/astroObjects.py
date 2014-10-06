@@ -190,7 +190,7 @@ class File(object):
 
         # Depth is set to 1 here because it is accounted for in make_model()
         if split_halves:
-            model1, model2 = split_image(model)
+            model1, model2 = split_image(model, axis='horizontal')
             to_mesh(model1, fname + '_1', 1, double, _ascii)
             to_mesh(model2, fname + '_2', 1, double, _ascii)
         else:
