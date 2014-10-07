@@ -128,9 +128,10 @@ class File(object):
             out_tab.write(tname, format='ascii')
             log.info('{0} saved'.format(tname))
 
-    def make_3d(self, fname, height=150.0, depth=10, double=False,
-                _ascii=False, has_texture=True, has_intensity=True,
-                is_spiralgal=False, split_halves=True):
+    def make_3d(self, fname, height=150.0, depth=10, clus_r_fac_add=15,
+                clus_r_fac_mul=1, star_r_fac_add=15, star_r_fac_mul=1,
+                double=False, _ascii=False, has_texture=True,
+                has_intensity=True, is_spiralgal=False, split_halves=True):
         """Generate STL file.
 
         #. Scale regions.
@@ -156,6 +157,10 @@ class File(object):
         double : bool
             Double- or single-sided.
 
+        clus_r_fac_add, clus_r_fac_mul, star_r_fac_add, star_r_fac_mul : float
+            Crater radius scaling factors for star clusters and stars,
+            respectively.
+
         _ascii : bool
             ASCII or binary format.
 
@@ -179,8 +184,11 @@ class File(object):
 
         model = make_model(
             image, region_masks=regions, peaks=self.peaks, height=height,
-            base_thickness=depth, double=double, has_texture=has_texture,
-            has_intensity=has_intensity, is_spiralgal=is_spiralgal)
+            base_thickness=depth, clus_r_fac_add=clus_r_fac_add,
+            clus_r_fac_mul=clus_r_fac_mul, star_r_fac_add=star_r_fac_add,
+            star_r_fac_mul=star_r_fac_mul, double=double,
+            has_texture=has_texture, has_intensity=has_intensity,
+            is_spiralgal=is_spiralgal)
 
         # Input filename might be QString.
         # Remove any .stl suffix because it is added by to_mesh()

@@ -81,7 +81,7 @@ class ImageLoadPage(QWizardPage):
 
         label = QLabel("""This wizard will help you create a 3D model from a 2D image.
 
-Click the button below to load an image of a galaxy. Currently, only FITS and JPEG are supported.""")
+Click the button below to load an image of a galaxy. Currently, only FITS, JPEG, and TIFF are supported.""")
         label.setWordWrap(True)
 
         button = QPushButton('Load Image')
@@ -747,11 +747,7 @@ class IdentifyPeakPage(QWizardPage):
         self._proceed_ok = False
         self.setTitle("Identify Star Clusters")
 
-        msglabel = QLabel("""Choose one: Find, load, or manual. 'Find' automatically finds the given number of brightest objects (TAKES UP TO A MINUTE TO COMPLETE, PLEASE BE PATIENT). 'Load' reads objects from file. 'Manual' allows selection from display.
-
-Next, click on existing circle to remove it from the list, or click on new object to add it.
-
-Once you are satisfied, continue to next page.""")
+        msglabel = QLabel("""Choose one: Find, load, or manual. Click on existing circle to remove object, or click on new object to add. Once you are satisfied, click 'Next'.""")
         msglabel.setWordWrap(True)
 
         self.findbutton = QPushButton('Find')
@@ -762,7 +758,7 @@ Once you are satisfied, continue to next page.""")
         nobjgrid = QHBoxLayout()
         nobjgrid.addWidget(self.findbutton)
         nobjgrid.addWidget(self.ntext)
-        nobjgrid.addWidget(QLabel('objects'))
+        nobjgrid.addWidget(QLabel('objects (might take a while)'))
         nobjgrid.addStretch()
 
         self.loadbutton = QPushButton('Load')
@@ -777,13 +773,30 @@ Once you are satisfied, continue to next page.""")
         hbbox2.addWidget(self.manbutton)
         hbbox2.addStretch()
 
+        self.r_fac_add = QLineEdit('15')
+        self.r_fac_add.setMaxLength(3)
+        self.r_fac_add.setFixedWidth(40)
+        self.r_fac_mul = QLineEdit('1')
+        self.r_fac_mul.setMaxLength(3)
+        self.r_fac_mul.setFixedWidth(40)
+        radbox = QHBoxLayout()
+        radbox.addWidget(self.r_fac_add)
+        radbox.addWidget(QLabel('+'))
+        radbox.addWidget(self.r_fac_mul)
+        radbox.addWidget(QLabel('x flux / flux_max'))
+        radbox.addStretch()
+        radframe = QGroupBox('Radius')
+        radframe.setLayout(radbox)
+
         self.status = QLabel('Status: Ready!')
 
         vbox = QVBoxLayout()
         vbox.addWidget(msglabel)
+        vbox.addStretch()
         vbox.addLayout(nobjgrid)
         vbox.addLayout(hbbox1)
         vbox.addLayout(hbbox2)
+        vbox.addWidget(radframe)
         vbox.addStretch()
         vbox.addWidget(self.status)
 
@@ -834,6 +847,22 @@ Once you are satisfied, continue to next page.""")
 
     def validatePage(self):
         """Pass the selected values to GUI parent."""
+        try:
+            radd = float(self.r_fac_add.text())
+        except ValueError:
+            self.status.setText(
+                'Status: ERROR - Invalid radius additive factor!')
+            return False
+
+        try:
+             rmul = float(self.r_fac_mul.text())
+        except ValueError:
+            self.status.setText(
+                'Status: ERROR - Invalid radius multiplicative factor!')
+            return False
+
+        self.parent._clus_r_fac_add = radd
+        self.parent._clus_r_fac_mul = rmul
         self.parent.save_clusters()
         return True
 
@@ -870,11 +899,7 @@ class IdentifyStarPage(QWizardPage):
         self._proceed_ok = False
         self.setTitle("Identify Stars")
 
-        msglabel = QLabel("""Choose one: Load or manual. 'Load' reads objects from file. 'Manual' allows selection from display.
-
-Next, click on existing circle to remove it from the list, or click on new object to add it.
-
-Once you are satisfied, continue to next page.""")
+        msglabel = QLabel("""Choose one: Load or manual. Click on existing circle to remove object, or click on new object to add. Once you are satisfied, click 'Next'.""")
         msglabel.setWordWrap(True)
 
         self.loadbutton = QPushButton('Load')
@@ -889,12 +914,29 @@ Once you are satisfied, continue to next page.""")
         hbbox2.addWidget(self.manbutton)
         hbbox2.addStretch()
 
+        self.r_fac_add = QLineEdit('15')
+        self.r_fac_add.setMaxLength(3)
+        self.r_fac_add.setFixedWidth(40)
+        self.r_fac_mul = QLineEdit('1')
+        self.r_fac_mul.setMaxLength(3)
+        self.r_fac_mul.setFixedWidth(40)
+        radbox = QHBoxLayout()
+        radbox.addWidget(self.r_fac_add)
+        radbox.addWidget(QLabel('+'))
+        radbox.addWidget(self.r_fac_mul)
+        radbox.addWidget(QLabel('x flux / flux_max'))
+        radbox.addStretch()
+        radframe = QGroupBox('Radius')
+        radframe.setLayout(radbox)
+
         self.status = QLabel('Status: Ready!')
 
         vbox = QVBoxLayout()
         vbox.addWidget(msglabel)
+        vbox.addStretch()
         vbox.addLayout(hbbox1)
         vbox.addLayout(hbbox2)
+        vbox.addWidget(radframe)
         vbox.addStretch()
         vbox.addWidget(self.status)
 
@@ -932,6 +974,22 @@ Once you are satisfied, continue to next page.""")
 
     def validatePage(self):
         """Pass the selected values to GUI parent."""
+        try:
+            radd = float(self.r_fac_add.text())
+        except ValueError:
+            self.status.setText(
+                'Status: ERROR - Invalid radius additive factor!')
+            return False
+
+        try:
+             rmul = float(self.r_fac_mul.text())
+        except ValueError:
+            self.status.setText(
+                'Status: ERROR - Invalid radius multiplicative factor!')
+            return False
+
+        self.parent._star_r_fac_add = radd
+        self.parent._star_r_fac_mul = rmul
         self.parent.save_stars()
         return True
 
@@ -969,7 +1027,7 @@ To accomodate MakerBot Replicator 2, it is recommended that the model to be spli
         hgrid.addWidget(self.heightbox)
         hgrid.addStretch()
 
-        self.depthbox = QLineEdit('10')
+        self.depthbox = QLineEdit('20')
         self.depthbox.setMaxLength(3)
         self.depthbox.setFixedWidth(80)
         dgrid = QHBoxLayout()
@@ -1010,18 +1068,28 @@ To accomodate MakerBot Replicator 2, it is recommended that the model to be spli
         self.status.setText('Status: Please wait...')
         self.status.repaint()
 
+        try:
+            height = float(self.heightbox.text())
+        except ValueError:
+            self.status.setText('Status: ERROR - Invalid height!')
+            return
+
+        try:
+            depth = int(self.depthbox.text())
+        except ValueError:
+            self.status.setText('Status: ERROR - Invalid depth!')
+            return
+
         # OK to proceed even if no files saved
         self._proceed_ok = True
         self.emit(SIGNAL('completeChanged()'))
-
 
         do_split = self.split_halves.checkState() == Qt.Checked
         save_all = self.save_extras.checkState() == Qt.Checked
 
         msg = self.parent.fileSave(
-            height=float(self.heightbox.text()),
-            depth=int(self.depthbox.text()),
-            split_halves=do_split, save_all=save_all)
+            height=height, depth=depth, split_halves=do_split,
+            save_all=save_all)
         self.status.setText('Status: {0}'.format(msg))
 
     def isComplete(self):

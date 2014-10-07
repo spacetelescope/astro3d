@@ -47,7 +47,7 @@ from ..utils import imageprep, imageutils
 
 
 __version__ = '0.2.0.dev'
-__vdate__ = '02-Oct-2014'
+__vdate__ = '07-Oct-2014'
 __author__ = 'STScI'
 
 
@@ -121,6 +121,10 @@ class AstroGUI(QMainWindow):
         self.transformation = self.TRANS_FUNCS['Linear']
         self.model_type = 0
         self.is_spiral = False
+        self._clus_r_fac_add = 15
+        self._clus_r_fac_mul = 1
+        self._star_r_fac_add = 15
+        self._star_r_fac_mul = 1
 
         self.setGeometry(
             self._GEOM_X, self._GEOM_Y, self._GEOM_SZ, self._GEOM_SZ)
@@ -189,7 +193,7 @@ class AstroGUI(QMainWindow):
     # Basic Actions
 
     def fileLoad(self):
-        """Load image file from FITS or JPEG.
+        """Load image file from FITS, JPEG, or TIFF.
 
         After file data is converted to Numpy array, it uses
         :func:`makeqimage` to create a ``QImage``. Then, it
@@ -201,18 +205,16 @@ class AstroGUI(QMainWindow):
         """
         fname = QFileDialog.getOpenFileName(
             self, '3D Model Creator - Load Image', '',
-            'Image files (*.fits *.FITS *.jpg *.JPG *.jpeg *JPEG)')
+            'Image files (*.fits *.FITS *.jpg *.JPG *.jpeg *JPEG '
+            '*.tif *.TIF *.tiff *.TIFF)')
         fnamestr = str(fname)
 
         if fname.isEmpty():
             return
         elif fnamestr.endswith(('fits', 'FITS')):
             data = fits.getdata(fnamestr)
-        elif fnamestr.endswith(('jpg', 'JPG', 'jpeg', 'JPEG')):  # grayscale
+        else:  # grayscale
             data = imageutils.img2array(fnamestr)[::-1, ]
-        else:
-            QMessageBox.warning(self, 'File Error', 'Unsupported file type')
-            return
 
         if data is None:
             QMessageBox.warning(
@@ -289,9 +291,14 @@ class AstroGUI(QMainWindow):
             self.file.save_peaks(prefix)
 
         self.file.make_3d(
-            fname, height=height, depth=depth, double=double, _ascii=_ascii,
-            has_texture=has_texture, has_intensity=has_intensity,
-            is_spiralgal=self.is_spiral, split_halves=split_halves)
+            fname, height=height, depth=depth,
+            clus_r_fac_add=self._clus_r_fac_add,
+            clus_r_fac_mul=self._clus_r_fac_mul,
+            star_r_fac_add=self._star_r_fac_add,
+            star_r_fac_mul=self._star_r_fac_mul,
+            double=double, _ascii=_ascii, has_texture=has_texture,
+            has_intensity=has_intensity, is_spiralgal=self.is_spiral,
+            split_halves=split_halves)
 
         return 'Done!'
 

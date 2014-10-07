@@ -20,8 +20,9 @@ from . import texture as _texture
 
 
 def make_model(image, region_masks=defaultdict(list), peaks={}, height=150.0,
-               base_thickness=10, double=True, has_texture=True,
-               has_intensity=True, is_spiralgal=False):
+               base_thickness=10, clus_r_fac_add=15, clus_r_fac_mul=1,
+               star_r_fac_add=15, star_r_fac_mul=1, double=True,
+               has_texture=True, has_intensity=True, is_spiralgal=False):
     """Apply a number of image transformations to enable
     the creation of a meaningful 3D model for an astronomical
     image from a Numpy array.
@@ -47,6 +48,10 @@ def make_model(image, region_masks=defaultdict(list), peaks={}, height=150.0,
     base_thickness : int
         Thickness of the base so model is stable when printed
         on its side.
+
+    clus_r_fac_add, clus_r_fac_mul, star_r_fac_add, star_r_fac_mul : float
+        Crater radius scaling factors for star clusters and stars,
+        respectively. See :func:`make_star_cluster`.
 
     double : bool
         Double- or single-sided.
@@ -221,7 +226,7 @@ def make_model(image, region_masks=defaultdict(list), peaks={}, height=150.0,
         for cluster in clusters:
             c1 = make_star_cluster(
                 image, cluster,  maxclusflux, h_percentile=h_percentile,
-                r_fac_mul=1.0, n_craters=3)
+                r_fac_add=clus_r_fac_add, r_fac_mul=clus_r_fac_mul, n_craters=3)
             if not np.any(c1):
                 continue
             if clustexarr is None:
@@ -242,7 +247,7 @@ def make_model(image, region_masks=defaultdict(list), peaks={}, height=150.0,
         for mstar in markstars:
             s1 = make_star_cluster(
                 image, mstar, maxstarflux, h_percentile=h_percentile,
-                r_fac_mul=1.0, n_craters=1)
+                r_fac_add=star_r_fac_add, r_fac_mul=star_r_fac_mul, n_craters=1)
             if not np.any(s1):
                 continue
             if clustexarr is None:
@@ -527,6 +532,7 @@ def make_star_cluster(image, peak, max_intensity, r_fac_add=15, r_fac_mul=5,
 
     x, y, intensity = peak['xcen'], peak['ycen'], peak['flux']
     radius = r_fac_add + r_fac_mul * intensity / float(max_intensity)
+    #log.info('\tcluster radius = {0}'.format(radius, r_fac_add, r_fac_mul))
     star = make_star(radius, height)
     diam = 2 * radius
     r = star.shape[0]
