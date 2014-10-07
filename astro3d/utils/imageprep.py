@@ -3,54 +3,55 @@ from __future__ import division, print_function
 
 # STDLIB
 import warnings
+from collections import defaultdict
 
 # Anaconda
 import numpy as np
 from astropy import log
-from astropy.io import fits
 from astropy.utils.exceptions import AstropyUserWarning
-from matplotlib.path import Path
 from scipy import ndimage
 
 # THIRD-PARTY
 import photutils
 
 # LOCAL
-from . import meshcreator
 from . import imageutils as iutils
 from . import texture as _texture
 
 
-def make_model(image, spiralarms=None, disk=None, clusters=None, height=150.,
-               stars=None, base_thickness=10, double=True, has_texture=True,
-               has_intensity=True):
-    """Applies a number of image transformations to enable
-    the creation of a meaningful 3D model from a numpy array.
+def make_model(image, region_masks=defaultdict(list), peaks={}, height=150.0,
+               base_thickness=10, clus_r_fac_add=15, clus_r_fac_mul=1,
+               star_r_fac_add=15, star_r_fac_mul=1, double=True,
+               has_texture=True, has_intensity=True, is_spiralgal=False):
+    """Apply a number of image transformations to enable
+    the creation of a meaningful 3D model for an astronomical
+    image from a Numpy array.
+
+    Boundaries are set by :func:`emphasize_regions` and
+    :func:`~astro3d.utils.imageutils.crop_image`.
 
     Parameters
     ----------
     image : ndarray
         Image array to process.
 
-    spiralarms : ndarray
-        Final boolean mask for spiral arms.
-        This is a combined mask from all the individual spiral arms.
+    region_masks : dict
+        A dictionary that maps each texture type to a list of
+        corresponding boolean masks.
 
-    disk : ndarray
-        Boolean mask for disk.
-
-    clusters : `astropy.table.Table`
-        Selected star clusters.
+    peaks : dict
+        A dictionary that maps each texture type to a `astropy.table.Table`.
 
     height : float
         The maximum height above the base.
 
-    stars : list of `~astro3d.gui.astroObjects.Region`
-        Foreground stars that need to be patched.
-
     base_thickness : int
         Thickness of the base so model is stable when printed
         on its side.
+
+    clus_r_fac_add, clus_r_fac_mul, star_r_fac_add, star_r_fac_mul : float
+        Crater radius scaling factors for star clusters and stars,
+        respectively. See :func:`make_star_cluster`.
 
     double : bool
         Double- or single-sided.
@@ -61,6 +62,9 @@ def make_model(image, spiralarms=None, disk=None, clusters=None, height=150.,
     has_intensity : bool
         Generate intensity map.
 
+    is_spiralgal : bool
+        Special processing for a single spiral galaxy.
+
     Returns
     -------
     out_image : ndarray
@@ -70,15 +74,29 @@ def make_model(image, spiralarms=None, disk=None, clusters=None, height=150.,
     if not has_texture and not has_intensity:
         raise ValueError('Model must have textures or intensity!')
 
-    # Texture only
-    texture_image = np.zeros_like(image)
+    smooth_key = 'smooth'
+    dots_key = 'dots'
+    lines_key = 'lines'
+    disk = None
+    spiralarms = None
+
+    # Old logic specific to single spiral galaxy
+    if is_spiralgal:
+        smooth_key = 'stars'
+        lines_key = 'disk'
+        dots_key = 'spiral'
+
+        if len(region_masks[lines_key]) > 0:
+            disk = region_masks[lines_key][0]
+
+        if len(region_masks[dots_key]) > 0:
+            spiralarms = region_masks[dots_key][0]
 
     log.info('Input image shape: {0}'.format(image.shape))
     imsz = max(image.shape)  # GUI allows only approx. 1000
 
-    if stars is not None:
-        log.info('Removing stars')
-        image = remove_stars(image, stars)
+    log.info('Removing stars')
+    image = remove_stars(image, region_masks[smooth_key])
 
     log.info('Filtering image (first pass)')
     fil_size = int(0.01 * imsz)  # imsz / 100
@@ -87,43 +105,76 @@ def make_model(image, spiralarms=None, disk=None, clusters=None, height=150.,
     image = iutils.normalize(image, True)
 
     log.info('Scaling top')
-    image = scale_top(image, disk, spiralarms)
+    image = scale_top(image, mask=disk)
     image = iutils.normalize(image, True)
-
     log.info('Current image shape: {0}'.format(image.shape))
 
     # Only works for single-disk image.
-    # Do this even for smooth intensity map.
+    # Do this even for smooth intensity map to avoid sharp peak in model.
     if disk is not None:
         log.info('Replacing cusp')
         cusp_rad = 0.02 * imsz  # 20
+        cusp_texture = replace_cusp(
+            image, mask=disk, radius=cusp_rad, height=40, percent=10)
+        cusp_mask = cusp_texture > 0
 
         if not has_intensity:
-            cusp_percentile = None
-            cusp_height = 10
-        else:
-            cusp_percentile = 10
-            cusp_height = 40
+            cusp_texture_flat = replace_cusp(
+                image, mask=disk, radius=cusp_rad, height=10, percent=None)
 
-        cusp_texture = replace_cusp(
-            image, radius=cusp_rad, height=cusp_height, percent=cusp_percentile)
-        cusp_mask = cusp_texture > 0
         image[cusp_mask] = cusp_texture[cusp_mask]
-        texture_image[cusp_mask] = cusp_texture[cusp_mask]
+    else:
+        cusp_mask = None
 
     log.info('Emphasizing regions')
-    image = emphasize_regions(image, (spiralarms, disk))
+    image = emphasize_regions(
+        image, region_masks[dots_key] + region_masks[lines_key])
 
     log.info('Cropping image')
-    if clusters is not None:
-        log.info('Clusters before cropping: {0}'.format(len(clusters['xcen'])))
-    image, (spiralarms, disk), clusters, iy1, iy2, ix1, ix2 = iutils.crop_image(
-        image, _max=1.0, masks=(spiralarms, disk), table=clusters)
-    texture_image = texture_image[iy1:iy2, ix1:ix2]
-    if clusters is not None:
-        log.info('Clusters after cropping: {0}'.format(len(clusters['xcen'])))
-
+    image, iy1, iy2, ix1, ix2 = iutils.crop_image(image, _max=1.0)
     log.info('Current image shape: {0}'.format(image.shape))
+
+    log.info('Cropping region masks')
+    croppedmasks = defaultdict(list)
+    for key, mlist in region_masks.iteritems():
+        if key == smooth_key:  # Smoothing already done
+            continue
+        for mask in mlist:
+            croppedmasks[key].append(mask[iy1:iy2, ix1:ix2])
+    region_masks = croppedmasks
+    if is_spiralgal:
+        if len(region_masks[lines_key]) > 0:
+            disk = region_masks[lines_key][0]
+        if len(region_masks[dots_key]) > 0:
+            spiralarms = region_masks[dots_key][0]
+    if cusp_mask is not None:
+        cusp_mask = cusp_mask[iy1:iy2, ix1:ix2]
+
+    if 'clusters' in peaks:
+        clusters = peaks['clusters']
+        log.info('Clusters before cropping: {0}'.format(len(clusters)))
+        clusters = clusters[(clusters['xcen'] > ix1) &
+                            (clusters['xcen'] < ix2 - 1) &
+                            (clusters['ycen'] > iy1) &
+                            (clusters['ycen'] < iy2 - 1)]
+        clusters['xcen'] -= ix1
+        clusters['ycen'] -= iy1
+        log.info('Clusters after cropping: {0}'.format(len(clusters)))
+    else:
+        clusters = []
+
+    if 'stars' in peaks:
+        markstars = peaks['stars']
+        log.info('Stars before cropping: {0}'.format(len(markstars)))
+        markstars = markstars[(markstars['xcen'] > ix1) &
+                              (markstars['xcen'] < ix2 - 1) &
+                              (markstars['ycen'] > iy1) &
+                              (markstars['ycen'] < iy2 - 1)]
+        markstars['xcen'] -= ix1
+        markstars['ycen'] -= iy1
+        log.info('Stars after cropping: {0}'.format(len(markstars)))
+    else:
+        markstars = []
 
     log.info('Filtering image (second pass, height={0})'.format(height))
     image = ndimage.filters.median_filter(image, fil_size)  # 10
@@ -131,49 +182,96 @@ def make_model(image, spiralarms=None, disk=None, clusters=None, height=150.,
     image = np.ma.masked_equal(image, 0)
     image = iutils.normalize(image, True, height)
 
-    if clusters is not None and has_texture:
-        c2 = None
-        n_clus_added = 0
+    # Texture layer that is added later overwrites previous layers if overlap
+    if has_texture:
+
+        # Dots and lines
+
+        if is_spiralgal:
+            # At this point, unsuppressed regions that are not part of disk
+            # means spiral arms
+            log.info('Adding textures for spiral arms and disk')
+            texture_layer = galaxy_texture(image, lmask=disk, cmask=cusp_mask)
+
+        else:
+            log.info('Adding dots and lines')
+            texture_layer = np.zeros(image.shape)
+
+            for mask in region_masks[dots_key]:
+                dots_texture = dots_from_mask(image, mask=mask)
+                texture_layer[mask] = dots_texture[mask]
+
+            for mask in region_masks[lines_key]:
+                lines_texture = lines_from_mask(image, mask=mask)
+                texture_layer[mask] = lines_texture[mask]
+
+        image += texture_layer
+
+        # Stars and star clusters
+
+        clustexarr = None
 
         if has_intensity:
             h_percentile = 75
         else:
             h_percentile = None
 
+        # Add star clusters
+
+        n_clus_added = 0
+
+        if len(clusters) > 0:
+            maxclusflux = max(clusters['flux'])
+
         for cluster in clusters:
             c1 = make_star_cluster(
-                image, cluster, clusters['flux'][0], h_percentile=h_percentile,
-                r_fac_mul=1.0)
-            if c1 is None:
+                image, cluster,  maxclusflux, h_percentile=h_percentile,
+                r_fac_add=clus_r_fac_add, r_fac_mul=clus_r_fac_mul, n_craters=3)
+            if not np.any(c1):
                 continue
-            if c2 is None:
-                c2 = c1
+            if clustexarr is None:
+                clustexarr = c1
             else:
-                c2 = add_clusters(c2, c1)
-
+                clustexarr = add_clusters(clustexarr, c1)
             n_clus_added += 1
 
         log.info('Displaying {0} clusters'.format(n_clus_added))
 
-        if c2 is None:
-            clustermask = None
-        else:
-            clustermask = c2 != 0
-            image[clustermask] = c2[clustermask]
-            texture_image[clustermask] = c2[clustermask]
-    else:
-        clustermask = None
+        # Add individual stars
 
-    # At this point, unsuppressed regions that are not part of disk means
-    # spiral arms
+        n_star_added = 0
 
-    if has_texture:
-        log.info('Adding textures for spiral arms and disk')
-        texture = galaxy_texture(image, lmask=disk)
-        if clustermask is not None:
-            texture[clustermask] = 0
-        image += texture
-        texture_image += texture
+        if len(markstars) > 0:
+            maxstarflux = max(markstars['flux'])
+
+        for mstar in markstars:
+            s1 = make_star_cluster(
+                image, mstar, maxstarflux, h_percentile=h_percentile,
+                r_fac_add=star_r_fac_add, r_fac_mul=star_r_fac_mul, n_craters=1)
+            if not np.any(s1):
+                continue
+            if clustexarr is None:
+                clustexarr = s1
+            else:
+                clustexarr = add_clusters(clustexarr, s1)
+            n_star_added += 1
+
+        log.info('Displaying {0} stars'.format(n_star_added))
+
+        # Both stars and star clusters share the same mask
+
+        if clustexarr is not None:
+            clustermask = clustexarr != 0
+            if has_intensity:
+                image[clustermask] = clustexarr[clustermask]
+            else:
+                texture_layer[clustermask] = clustexarr[clustermask]
+
+        # For texture-only model, need to add cusp to texture layer
+        if not has_intensity and cusp_mask is not None:
+            texture_layer[cusp_mask] = cusp_texture_flat[cusp_mask]
+
+    # endif has_texture
 
     if isinstance(image, np.ma.core.MaskedArray):
         image = image.data
@@ -187,92 +285,28 @@ def make_model(image, spiralarms=None, disk=None, clusters=None, height=150.,
         base = make_base(image, height=base_thickness, snapoff=False)
 
     if has_intensity:
-        out_image = image
+        out_image = image + base
     else:
-        out_image = texture_image
+        out_image = texture_layer + base
 
-    return out_image + base
-
-
-def replace_cusp(image, location=None, radius=20, height=40, percent=10):
-    """Replaces the center of the galaxy, which would be
-    a sharp point, with a crator.
-
-    Parameters
-    ----------
-    image : ndarray
-        Image array.
-
-    location : tuple
-        ``(y, x)`` coordinate of the crator.
-        If not given, use brightest pixel on image.
-
-    radius : int
-        Radius of the crator in pixels.
-
-    height : int
-        Height of the crator.
-
-    percent : float or `None`
-        Percentile between 0 and 100, inclusive, used to
-        re-adjust height of marker.
-        If `None` is given, then no readjustment is done.
-
-    Returns
-    -------
-    cusp_texture : ndarray
-        Crator values to be added.
-
-    """
-    if location is None:
-        y, x = np.where(image == image.max())
-    else:
-        y, x = location
-
-    if not np.isscalar(y):
-        med = len(y) / 2
-        y, x = y[med], x[med]
-
-    ymin, ymax = y - radius, y + radius
-    xmin, xmax = x - radius, x + radius
-
-    if percent is None:
-        top = 0.0
-    else:
-        top = np.percentile(image[ymin:ymax, xmin:xmax], percent)
-
-    star = make_star(radius, height)
-    smask = star != -1
-
-    diam = 2 * radius + 1
-    ymax = ymin + diam
-    xmax = xmin + diam
-    cusp_texture = np.zeros(image.shape)
-    cusp_texture[ymin:ymax, xmin:xmax][smask] = top + star[smask]
-
-    return cusp_texture
+    return out_image
 
 
-def remove_stars(image, stars):
+def remove_stars(image, starmasks):
     """Patches all bright/foreground stars marked as such by the user.
 
     Parameters
     ----------
     image : ndimage
 
-    stars : list of `~astro3d.gui.astroObjects.Region`
-        Foreground stars that need to be patched.
+    starmasks : list
+        List of boolean masks of foreground stars that need to be patched.
 
     Returns
     -------
     image : ndimage
 
     """
-    if not isinstance(stars, list):
-        stars = [stars]
-
-    starmasks = [region_mask(image, star, True) for star in stars]
-
     for mask in starmasks:
         ypoints, xpoints = np.where(mask)
         dist = max(ypoints.ptp(), xpoints.ptp())
@@ -284,7 +318,7 @@ def remove_stars(image, stars):
             try:
                 pts = image[y, x]
             except IndexError as e:
-                warnings.warn('remove_star() failed: {0}\n\timage[{1},{2}]'
+                warnings.warn('remove_stars() failed: {0}\n\timage[{1},{2}]'
                               ''.format(e, y, x), AstropyUserWarning)
                 continue
             else:
@@ -300,6 +334,105 @@ def remove_stars(image, stars):
     return image
 
 
+def scale_top(image, mask=None, percent=30, factor=10.0):
+    """Linear scale of very high values of image.
+
+    Parameters
+    ----------
+    image : ndarray
+        Image array.
+
+    mask : ndarray
+        Mask of region with very high values. E.g., disk.
+
+    percent : float
+        Percentile between 0 and 100, inclusive.
+        Only used if ``mask`` is given.
+
+    factor : float
+        Scaling factor.
+
+    Returns
+    -------
+    image : ndarray
+        Scaled image.
+
+    """
+    if mask is None:
+        top = image.mean() + image.std()
+    else:
+        top = np.percentile(image[mask], percent)
+
+    topmask = image > top
+    image[topmask] = top + (image[topmask] - top) * factor / image.max()
+
+    return image
+
+
+def replace_cusp(image, mask=None, radius=20, height=40, percent=10):
+    """Replaces the center of the galaxy, which would be
+    a sharp point, with a crater.
+
+    Parameters
+    ----------
+    image : ndarray
+        Image array.
+
+    mask : ndarray
+        Mask of the disk.
+
+    radius : int
+        Radius of the crater in pixels.
+
+    height : int
+        Height of the crater.
+
+    percent : float or `None`
+        Percentile between 0 and 100, inclusive, used to
+        re-adjust height of marker.
+        If `None` is given, then no readjustment is done.
+
+    Returns
+    -------
+    cusp_texture : ndarray
+        Crater values to be added.
+
+    """
+    cusp_texture = np.zeros(image.shape)
+
+    if mask is None:
+        y, x = np.where(image == image.max())
+    else:
+        a = np.ma.array(image.data, mask=~mask)
+        y, x = np.where(a == a.max())
+
+    if not np.isscalar(y):
+        med = len(y) // 2
+        y, x = y[med], x[med]
+
+    log.info('\tCenter of galaxy at X={0} Y={1}'.format(x, y))
+
+    ymin = max(y - radius, 0)
+    ymax = min(y + radius, image.shape[0])
+    xmin = max(x - radius, 0)
+    xmax = min(x + radius, image.shape[1])
+
+    if percent is None:
+        top = 0.0
+    else:
+        top = np.percentile(image[ymin:ymax, xmin:xmax], percent)
+
+    star = make_star(radius, height)
+    smask = star != -1
+
+    diam = 2 * radius + 1
+    ymax = min(ymin + diam, image.shape[0])
+    xmax = min(xmin + diam, image.shape[1])
+    cusp_texture[ymin:ymax, xmin:xmax][smask] = top + star[smask]
+
+    return cusp_texture
+
+
 def emphasize_regions(image, masks, threshold=20, niter=2):
     """Emphasize science data and suppress background.
 
@@ -309,7 +442,7 @@ def emphasize_regions(image, masks, threshold=20, niter=2):
 
     masks : list
         List of masks that mark areas of interest.
-        If no mask provided (a list of `None`), entire
+        If no mask provided (empty list), entire
         image is used for calculations.
 
     threshold : float
@@ -324,13 +457,13 @@ def emphasize_regions(image, masks, threshold=20, niter=2):
     image : ndarray
 
     """
-    has_mask = [False if m is None else True for m in masks]
+    n_masks = len(masks)
 
     for i in range(niter):
-        if not any(has_mask):
+        if n_masks < 1:
             _min = image.mean()
         else:
-            _min = min(image[mask].mean() for mask in masks if mask is not None)
+            _min = min([image[mask].mean() for mask in masks])
         _min -= image.std() * 0.5
         minmask = image < _min
         image[minmask] =  image[minmask] * (image[minmask] / _min)
@@ -344,7 +477,7 @@ def emphasize_regions(image, masks, threshold=20, niter=2):
 
 
 def make_star(radius, height):
-    """Creates a crator-like depression that can be used
+    """Creates a crater-like depression that can be used
     to represent a star.
 
     Similar to :func:`astro3d.utils.texture.make_star`.
@@ -358,189 +491,19 @@ def make_star(radius, height):
     return star
 
 
-def scale_top(image, lmask=None, dmask=None, percent=30, factor=10.0):
-    """Linear scale of very high values of image.
-
-    Parameters
-    ----------
-    image : ndarray
-        Image array.
-
-    lmask : ndarray
-        Boolean mask of disk.
-
-    dmask : ndarray
-        Boolean mask of combined spiral arms.
-
-    percent : float
-        Percentile between 0 and 100, inclusive.
-        Only used if mask(s) is given.
-
-    factor : float
-        Scaling factor.
-
-    Returns
-    -------
-    image : ndarray
-        Scaled image.
-
-    """
-    if lmask is not None and dmask is not None:
-        mask = lmask # & ~dmask
-    elif lmask is None and dmask is None:
-        mask = None
-    elif dmask is None:
-        mask = lmask
-    else:
-        mask = dmask
-
-    if mask is None:
-        top = image.mean() + image.std()
-    else:
-        top = np.percentile(image[mask], percent)
-
-    topmask = image > top
-    image[topmask] = top + (image[topmask] - top) * factor / image.max()
-
-    return image
-
-
-def galaxy_texture(galaxy, scale=None, lmask=None, hexgrid_spacing=7,
-                   dots_profile='linear', dots_width=5, dots_scale=3.2,
-                   lines_profile='linear', lines_width=10, lines_spacing=20,
-                   lines_scale=1.2, lines_orient=0, fil_size=25,
-                   fil_invscale=1.1):
-    """Applies texture to the spiral arms and disk of galaxy.
-
-    Lines to mark disk, and dots to mark spiral arms.
-    Input array must be already pre-processed accordingly.
-
-    .. note::
-
-        ``scale`` works well for NGC 3344 (first test galaxy)
-        but poorly for NGC 1566 (second test galaxy).
-
-    Parameters
-    ----------
-    galaxy : ndimage
-        Input array with background already suppressed.
-        Unsuppressed regions that are not disk are assumed
-        to be spiral arms.
-
-    scale : number or `None`
-        If only this is given, texture masks are automatically
-        generated. This is ignored if ``lmask`` is given.
-
-    lmask : ndarray or `None`
-        Boolean mask for disk.
-        If given, textured areas are the masked regions.
-
-    hexgrid_spacing : int
-        Spacing for :func:`~astro3d.utils.texture.hex_grid` to populate dots.
-
-    dots_profile : {'linear', 'spherical'}
-        How to arrange the dots.
-
-    dots_width : int
-        Width of each dot.
-
-    dots_scale : float
-        Scaling for dot height.
-
-    lines_profile : {'linear', 'spherical'}
-        How to draw the lines.
-
-    lines_width, lines_spacing : int
-        Width and spacing for each line.
-
-    lines_scale : float
-        Scaling for line height.
-
-    lines_orient : float
-        Orientation of the lines in degrees.
-
-    fil_size : int
-        Filter size for :func:`~scipy.ndimage.filters.maximum_filter`.
-
-    fil_invscale : float
-        Filter is divided by this number.
-
-    Returns
-    -------
-    textured_galaxy : ndarray
-
-    """
-    if scale is None or lmask is not None:
-        scale = 1
-
-    galmax = galaxy.max()
-    maxfilt = ndimage.filters.maximum_filter(galaxy, fil_size)
-
-    # Try to automatically find disk if not given
-
-    if lmask is None:
-        log.info('No mask given; Attempting auto-find disk and spiral arms')
-        fac = galmax - scale * galaxy.std()
-        #fac = galmax - fil_invscale * galaxy.std()
-        lmask = galaxy > fac
-        dmask = galaxy <= fac
-    else:
-        dmask = ~lmask
-
-    # Mark spiral arms as dots.
-    # This means remove disk and non-galaxy regions from the texture.
-
-    dotgrid = _texture.hex_grid(galaxy.shape, hexgrid_spacing)
-    dots = _texture.dots(
-        dots_profile, galaxy.shape, dots_width, dots_scale, dotgrid)
-
-    dotmask = maxfilt / fil_invscale - galaxy
-    dotmask[dotmask > 0] = 0
-    dotmask[dotmask < 0] = 1
-    dots *= dotmask
-    dots[galaxy < 1] = 0
-    dots[lmask] = 0
-
-    # Mark disk as lines.
-    # This means remove spiral arms and non-galaxy regions from the texture.
-
-    lines = _texture.lines(
-        lines_profile, galaxy.shape, lines_width, lines_spacing, lines_scale,
-        lines_orient)
-    linemask = maxfilt + 5  # Magic?
-    linemask[linemask < galmax] = 1
-    linemask[linemask > galmax] = 0
-    lines *= linemask
-    lines[dmask] = 0
-
-
-    # Mark the regions with both dots and lines
-
-    filt = ndimage.filters.maximum_filter(lines, fil_size - 15)  # 10
-    dots[filt != 0] = 0
-
-    # Debug info
-
-    where = np.where(lines)
-    log.debug('line texture locations: {0}, '
-              '{1}'.format(where[0].ptp(), where[1].ptp()))
-
-    return dots + lines
-
-
 def make_star_cluster(image, peak, max_intensity, r_fac_add=15, r_fac_mul=5,
-                      height=5, h_percentile=75, fil_size=10):
-    """Mark star clusters for each given position.
+                      height=5, h_percentile=75, fil_size=10, n_craters=3):
+    """Mark star or star cluster for given position.
 
     Parameters
     ----------
     image : ndarray
 
     peak : `astropy.table.Table` row
-        One star cluster entry.
+        One star or star cluster entry.
 
     max_intensity : float
-        Max intensity for all the clusters.
+        Max intensity for all the stars or star clusters.
 
     r_fac_add, r_fac_mul : number
         Scaling factors to be added and multiplied to
@@ -557,25 +520,34 @@ def make_star_cluster(image, peak, max_intensity, r_fac_add=15, r_fac_mul=5,
     fil_size : int
         Filter size for :func:`~scipy.ndimage.filters.maximum_filter`.
 
+    n_craters : {1, 3}
+        Star cluster is marked with ``3``. For single star, use ``1``.
+
     Returns
     -------
     array : ndarray
 
     """
+    array = np.zeros(image.shape)
+
     x, y, intensity = peak['xcen'], peak['ycen'], peak['flux']
     radius = r_fac_add + r_fac_mul * intensity / float(max_intensity)
+    #log.info('\tcluster radius = {0}'.format(radius, r_fac_add, r_fac_mul))
     star = make_star(radius, height)
     diam = 2 * radius
     r = star.shape[0]
     dr = r / 2
     star_mask = star != -1
-    dy = 0.5 * radius * np.sqrt(3)  # Magic?
-    centers = [(y + dy, x), (y - dy, x + radius), (y - dy, x - radius)]
-    array = np.zeros(image.shape)
     imx1 = int(x - diam)
     imx2 = int(x + diam)
     imy1 = int(y - diam)
     imy2 = int(y + diam)
+
+    if n_craters == 1:
+        centers = [(y, x)]
+    else:  # 3
+        dy = 0.5 * radius * np.sqrt(3)
+        centers = [(y + dy, x), (y - dy, x + radius), (y - dy, x - radius)]
 
     if h_percentile is None:
         _max = 0.0
@@ -583,10 +555,10 @@ def make_star_cluster(image, peak, max_intensity, r_fac_add=15, r_fac_mul=5,
         try:
             _max = np.percentile(image[imy1:imy2, imx1:imx2], h_percentile)
         except (IndexError, ValueError) as e:
-            warnings.warn('Make cluster failed: {0}\n\timage[{1}:{2},{3}:{4}]'
-                          ''.format(e, imy1, imy2, imx1, imx2),
+            warnings.warn('Make star/cluster failed: {0}\n\timage[{1}:{2},'
+                          '{3}:{4}]'.format(e, imy1, imy2, imx1, imx2),
                           AstropyUserWarning)
-            return None
+            return array
 
     for (cy, cx) in centers:
         xx1 = int(cx - dr)
@@ -599,80 +571,13 @@ def make_star_cluster(image, peak, max_intensity, r_fac_add=15, r_fac_mul=5,
         except (IndexError, ValueError) as e:
             warnings.warn('Make cluster failed: {0}\n\tarray[{1}:{2},{3}:{4}]'
                           ''.format(e, yy1, yy2, xx1, xx2), AstropyUserWarning)
-            return None
+            return np.zeros(image.shape)
 
     filt = ndimage.filters.maximum_filter(array, fil_size)
     mask = (filt > 0) & (image > filt) & (array == 0)
     array[mask] = filt[mask]
 
     return array
-
-
-def region_mask(image, region, interpolate, fil_size=3):
-    """Uses `matplotlib.path.Path` to generate a
-    numpy boolean array, which can then be used as
-    a mask for a region.
-
-    Parameters
-    ----------
-    image : ndarray
-        Image to apply mask to.
-
-    region : `~astro3d.gui.astroObjects.Region`
-        Region to generate mask for.
-
-    interpolate : `True`, number, or tuple
-        For filter used in mask generation.
-
-    fil_size : int
-        Filter size for :func:`~scipy.ndimage.filters.maximum_filter`.
-
-    Returns
-    -------
-    mask : ndarray or `None`
-        Boolean mask for the region.
-
-    """
-    if region is None:
-        return None
-
-    y, x = np.indices(image.shape)
-    y, x = y.flatten(), x.flatten()
-    points = np.vstack((x, y)).T
-    polygon = Path([(p.x(), p.y()) for p in region.points()])
-    mask = polygon.contains_points(points).reshape(image.shape)
-
-    if interpolate:
-        if interpolate == True:  # Magic?
-            interpolate = (np.percentile(image[mask], 50),
-                           np.percentile(image[mask], 75))
-        elif np.isscalar(interpolate):
-            interpolate = (np.percentile(image[mask], 0),
-                           np.percentile(image[mask], interpolate))
-        else:
-            interpolate = (np.percentile(image[mask], interpolate[0]),
-                           np.percentile(image[mask], interpolate[1]))
-
-        nmin, nmax = interpolate
-        filtered = np.zeros(mask.shape)
-        filtered[mask] = 1
-        radius = min(axis.ptp() for axis in np.where(mask))
-        filtered = ndimage.filters.maximum_filter(
-            filtered, min(radius, image.shape[0] / 33))  # Magic?
-        filtered = image * filtered
-        mask = mask | ((filtered > nmin) & (filtered < nmax))
-        maxfilt = ndimage.filters.maximum_filter(mask.astype(int), fil_size)
-        mask = maxfilt != 0
-
-    return mask
-
-
-def combine_masks(masks):
-    """Combine boolean masks into a single mask."""
-    if not masks:
-        return None
-
-    return reduce(lambda m1, m2: m1 | m2, masks)
 
 
 def add_clusters(cluster1, cluster2):
@@ -697,6 +602,247 @@ def add_clusters(cluster1, cluster2):
 
     cluster1[m] = cluster2[m]
     return cluster1
+
+
+def dots_from_mask(image, mask=None, hexgrid_spacing=7, dots_width=5,
+                   dots_scale=3.2, fil_size=25, fil_invscale=1.1):
+    """Apply dots texture to region marked by given mask.
+
+    Parameters
+    ----------
+    image : ndarray
+        Input image with background already suppressed.
+
+    mask : ndarray
+        Boolean mask of the region to be marked.
+        If not given, it is guessed from image values.
+
+    hexgrid_spacing : int
+        Spacing for :func:`~astro3d.utils.texture.hex_grid` to
+        populate dots.
+
+    dots_width : int
+        Width of each dot.
+
+    dots_scale : float
+        Scaling for dot height.
+
+    fil_size : int
+        Filter size for :func:`~scipy.ndimage.filters.maximum_filter`.
+        Only used if ``mask`` is not given.
+
+    fil_invscale : float
+        Filter is divided by this number.
+        Only used if ``mask`` is not given.
+
+    Returns
+    -------
+    dots : ndarray
+        Output array with texture values.
+
+    """
+    dots = _texture.dots('linear', image.shape, dots_width, dots_scale,
+                         _texture.hex_grid(image.shape, hexgrid_spacing))
+
+    if mask is None:
+        maxfilt = ndimage.filters.maximum_filter(image, fil_size)
+        dotmask = maxfilt / fil_invscale - image
+        dotmask[dotmask > 0] = 0
+        dotmask[dotmask < 0] = 1
+    else:
+        dotmask = np.zeros_like(dots)
+        dotmask[mask] = 1
+
+    # Exclude background
+    dotmask[image < 1] = 0
+
+    dots *= dotmask
+    return dots
+
+
+def lines_from_mask(image, mask=None, lines_width=10, lines_spacing=20,
+                    lines_scale=1.2, lines_orient=0, fil_size=25):
+    """Apply lines texture to region marked by given mask.
+
+    Parameters
+    ----------
+    image : ndarray
+        Input image with background already suppressed.
+
+    mask : ndarray
+        Boolean mask of the region to be marked.
+        If not given, it is guessed from image values.
+
+    lines_width, lines_spacing : int
+        Width and spacing for each line.
+
+    lines_scale : float
+        Scaling for line height.
+
+    lines_orient : float
+        Orientation of the lines in degrees.
+
+    fil_size : int
+        Filter size for :func:`~scipy.ndimage.filters.maximum_filter`.
+        Only used if ``mask`` is not given.
+
+    Returns
+    -------
+    lines : ndarray
+        Output array with texture values.
+
+    """
+    lines = _texture.lines('linear', image.shape, lines_width, lines_spacing,
+                           lines_scale, lines_orient)
+
+    if mask is None:
+        imgmax = image.max()
+        maxfilt = ndimage.filters.maximum_filter(image, fil_size)
+        linemask = maxfilt + 5  # Magic?
+        linemask[linemask < imgmax] = 1
+        linemask[linemask > imgmax] = 0
+    else:
+        linemask = np.zeros_like(lines)
+        linemask[mask] = 1
+
+    # Exclude background
+    linemask[image < 1] = 0
+
+    lines *= linemask
+    return lines
+
+
+def galaxy_texture(galaxy, lmask=None, cmask=None, scale=1.0, hexgrid_spacing=7,
+                   dots_width=5, dots_scale=3.2, lines_width=10,
+                   lines_spacing=20, lines_scale=1.2, lines_orient=0,
+                   fil_size=25, fil_invscale=1.1):
+    """Apply texture to the spiral arms and disk of galaxy.
+
+    Lines to mark disk, and dots to mark spiral arms.
+    Input array must be already pre-processed accordingly.
+
+    .. note::
+
+        ``scale`` works well for NGC 3344 (first test galaxy)
+        but poorly for NGC 1566 (second test galaxy).
+
+    Parameters
+    ----------
+    galaxy : ndarray
+        Input array with background already suppressed.
+        Unsuppressed regions that are not disk are assumed
+        to be spiral arms.
+
+    lmask, cmask : ndarray or `None`
+        Boolean masks for disk and cusp.
+        If not given, it is guessed from image values.
+
+    scale : float
+        Scaling for auto texture generation without mask.
+        This is only used if ``lmask`` is not given.
+
+    hexgrid_spacing, dots_width, dots_scale
+        See :func:`dots_from_mask`.
+
+    lines_width, lines_spacing, lines_scale, lines_orient
+        See :func:`lines_from_mask`.
+
+    fil_size : int
+        Filter size for :func:`~scipy.ndimage.filters.maximum_filter`.
+
+    fil_invscale : float
+        Filter is divided by this number.
+
+    Returns
+    -------
+    textured_galaxy : ndarray
+        Output array with texture values.
+
+    """
+    # Try to automatically find disk if not given
+    if lmask is None:
+        log.info('No mask given; Attempting auto-find disk and spiral arms')
+        galmax = galaxy.max()
+        fac = galmax - scale * galaxy.std()
+        #fac = galmax - fil_invscale * galaxy.std()
+        lmask = galaxy > fac
+        dmask = galaxy <= fac
+    else:
+        dmask = ~lmask
+
+    # Mark spiral arms as dots.
+    dots = dots_from_mask(
+        galaxy, hexgrid_spacing=hexgrid_spacing, dots_width=dots_width,
+        dots_scale=dots_scale, fil_size=fil_size, fil_invscale=fil_invscale)
+
+    # Mark disk as lines.
+    lines = lines_from_mask(
+        galaxy, lines_width=lines_width, lines_spacing=lines_spacing,
+        lines_scale=lines_scale, lines_orient=lines_orient, fil_size=fil_size)
+
+    # Remove disk from spiral arms texture, and vice versa.
+    dots[lmask] = 0
+    lines[dmask] = 0
+    if cmask is not None:
+        lines[cmask] = 0
+    filt = ndimage.filters.maximum_filter(lines, fil_size - 15)  # 10
+    dots[filt != 0] = 0
+
+    # Debug info
+    where = np.where(lines)
+    log.debug('line texture locations: {0}, '
+              '{1}'.format(where[0].ptp(), where[1].ptp()))
+
+    return dots + lines
+
+
+def make_base(image, dist=60, height=10, snapoff=True):
+    """Used to create a stronger base for printing.
+    Prevents model from shaking back and forth due to printer vibration.
+
+    .. note::
+
+        Raft can be added using Makerware during printing process.
+
+    Parameters
+    ----------
+    image : ndarray
+
+    dist : int
+        Filter size for :func:`~scipy.ndimage.filters.maximum_filter`.
+        Only used if ``snapoff=True``.
+
+    height : int
+        Height of the base.
+
+    snapoff : bool
+        If `True`, base is thin around object border so it
+        can be snapped off. Set this to `False` for flat
+        texture map or one sided prints.
+
+    Returns
+    -------
+    max_filt : ndarray
+        Array containing base values.
+
+    """
+    if snapoff:
+        max_filt = ndimage.filters.maximum_filter(image, dist)
+        max_filt[max_filt < 1] = -5  # Magic?
+        max_filt[max_filt > 1] = 0
+        max_filt[max_filt < 0] = height
+    else:
+        max_filt = np.zeros(image.shape) + height
+
+    return max_filt
+
+
+def combine_masks(masks):
+    """Combine boolean masks into a single mask."""
+    if len(masks) == 0:
+        return masks
+
+    return reduce(lambda m1, m2: m1 | m2, masks)
 
 
 def find_peaks(image, remove=0, num=None, threshold=8, npix=10, minpeaks=35):
@@ -747,47 +893,6 @@ def find_peaks(image, remove=0, num=None, threshold=8, npix=10, minpeaks=35):
         peaks = isophot
 
     return peaks
-
-
-def make_base(image, dist=60, height=10, snapoff=True):
-    """Used to create a stronger base for printing.
-    Prevents model from shaking back and forth due to printer vibration.
-
-    .. note::
-
-        Raft can be added using Makerware during printing process.
-
-    Parameters
-    ----------
-    image : ndarray
-
-    dist : int
-        Filter size for :func:`~scipy.ndimage.filters.maximum_filter`.
-        Only used if ``snapoff=True``.
-
-    height : int
-        Height of the base.
-
-    snapoff : bool
-        If `True`, base is thin around object border so it
-        can be snapped off. Set this to `False` for flat
-        texture map or one sided prints.
-
-    Returns
-    -------
-    max_filt : ndarray
-        Array containing base values.
-
-    """
-    if snapoff:
-        max_filt = ndimage.filters.maximum_filter(image, dist)
-        max_filt[max_filt < 1] = -5  # Magic?
-        max_filt[max_filt > 1] = 0
-        max_filt[max_filt < 0] = height
-    else:
-        max_filt = np.zeros_like(image) + height
-
-    return max_filt
 
 
 ######################################
@@ -893,6 +998,8 @@ def _prepFits(filename=None, array=None, height=150.0, spiralarms=None,
         Prepared image ready for STL.
 
     """
+    from astropy.io import fits
+
     # TODO: ratio is not a good indicator
     ratio = None
 
@@ -910,7 +1017,7 @@ def _prepFits(filename=None, array=None, height=150.0, spiralarms=None,
         log.info("Removing stars")
         if isinstance(stars, dict):
             stars = [stars]
-        starmasks = [region_mask(img, star, True) for star in stars]
+        starmasks = [star.to_mask(img) for star in stars]
         for mask in starmasks:
             ypoints, xpoints = np.where(mask)
             dist = max(ypoints.ptp(), xpoints.ptp())
@@ -920,8 +1027,8 @@ def _prepFits(filename=None, array=None, height=150.0, spiralarms=None,
             index = np.argmax(medians)
             img[mask] = newmasks[index]
 
-    spiralarms = [region_mask(img, arm, True) for arm in spiralarms]
-    disk = region_mask(img, disk, True)
+    spiralarms = [arm.to_mask(img) for arm in spiralarms]
+    disk = disk.to_mask(img)
     masks = spiralarms + [disk]
 
     if rotation:

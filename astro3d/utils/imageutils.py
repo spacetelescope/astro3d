@@ -88,13 +88,9 @@ def compressImage(image, height):
     return array
 
 
-def crop_image(image, _max=0.0, masks=None, table=None):
+def crop_image(image, _max=0):
     """Crop boundaries of image where maximum value is
-    less than the given value. Also adjust boolean masks
-    and the table of clusters accordingly.
-
-    Specifically on clusters, any clusters lying outside
-    the boundary will be removed.
+    less than the given value.
 
     Parameters
     ----------
@@ -104,19 +100,13 @@ def crop_image(image, _max=0.0, masks=None, table=None):
     _max : float
         Crop pixels below this value.
 
-    masks : list
-        List of boolean masks.
-
-    table : `astropy.table.Table`
-        Locations of star clusters.
-
     Returns
     -------
-    image, masks, table
-        Cropped data.
+    image : ndarray
+        Cropped image.
 
     iy1, iy2, ix1, ix2 : int
-        Indices of input image for cropping.
+        Indices of input image for cropping other components.
 
     """
     locations = np.where(image > _max)
@@ -126,17 +116,8 @@ def crop_image(image, _max=0.0, masks=None, table=None):
     ix1 = min(locations[1])
     xmax = max(locations[1])
     ix2 = xmax + 1
-    image = image[iy1:iy2, ix1:ix2]
 
-    if masks is not None:
-        masks = [mask[iy1:iy2, ix1:ix2] if mask is not None else None
-                 for mask in masks]
-
-    if table is not None:
-        table = table[(table['xcen'] > ix1) & (table['xcen'] < xmax) &
-                      (table['ycen'] > iy1) & (table['ycen'] < ymax)]
-
-    return image, masks, table, iy1, iy2, ix1, ix2
+    return image[iy1:iy2, ix1:ix2], iy1, iy2, ix1, ix2
 
 
 def normalize(array, norm, height=255.):
@@ -186,36 +167,52 @@ def normalize(array, norm, height=255.):
     return array
 
 
-def split_image(image):
+def split_image(image, axis='auto'):
     """Split image array into two halves.
-    If image shape is a rectangle, splitting is done
-    on the shorter edge.
 
     Parameters
     ----------
     image : ndarray
+
+    axis : {'horizontal', 'vertical', 'auto'}
+        Horizontal means cut across horizontally.
+        Likewise, for vertical. Auto means cut on
+        the shorter axis.
 
     Returns
     -------
     image1, image2 : ndarray
 
     """
-    if image.shape[0] > image.shape[1]:
-        mid = int(image.shape[1] / 2)
+    y_size = image.shape[0]
+    x_size = image.shape[1]
+    axis = axis.lower()
+
+    if axis == 'auto':
+        if y_size > x_size:
+            axis = 'vertical'
+        else:
+            axis = 'horizontal'
+
+    if axis == 'vertical':
+        mid = int(x_size / 2)
         image1 = image[:, :mid]
 
-        if image.shape[1] % 2 == 0:
+        if x_size % 2 == 0:
             image2 = image[:, mid:]
         else:
             image2 = image[:, mid:-1]
 
-    else:
-        mid = int(image.shape[0] / 2)
-        image1 = image[:mid]
+    elif axis == 'horizontal':
+        mid = int(y_size / 2)
+        image1 = image[:mid, :]
 
-        if image.shape[0] % 2 == 0:
-            image2 = image[mid:]
+        if y_size % 2 == 0:
+            image2 = image[mid:, :]
         else:
-            image2 = image[mid:-1]
+            image2 = image[mid:-1, :]
+
+    else:
+        raise ValueError('Invalid axis={0}'.format(axis))
 
     return image1, image2

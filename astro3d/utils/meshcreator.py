@@ -2,6 +2,7 @@
 from __future__ import division, print_function
 
 # STDLIB
+from copy import deepcopy
 from struct import unpack
 
 # Anaconda
@@ -150,13 +151,13 @@ def get_cross(triset):
     return triset
 
 
-def to_mesh(npimage, filename, depth=1, double=False, _ascii=False):
+def to_mesh(image, filename, depth=1, double=False, _ascii=False):
     """Write an image to STL file by splitting each pixel
     into two triangles.
 
     Parameters
     ----------
-    npimage : ndarray
+    image : ndarray
         The image to convert.
 
     filename : str
@@ -178,8 +179,13 @@ def to_mesh(npimage, filename, depth=1, double=False, _ascii=False):
         storage space.
 
     """
-    if isinstance(npimage, np.ma.core.MaskedArray):
-        npimage = npimage.data
+    if isinstance(image, np.ma.core.MaskedArray):
+        npimage = deepcopy(image.data)
+    else:
+        npimage = deepcopy(image)
+
+    # Flip it to make it easier to compare GUI display with STL viewer
+    npimage = np.flipud(npimage)
 
     triset = get_triangles(npimage, depth)
 
