@@ -28,7 +28,7 @@ def im2file(im, filename):
     log.info('{0} saved'.format(filename))
 
 
-def img2array(filename):
+def img2array(filename, rgb_scaling=None):
     """Turns an image into a Numpy array.
 
     .. note::
@@ -40,16 +40,37 @@ def img2array(filename):
     filename : str
         Input filename. For example, a JPEG file.
 
+    rgb_scaling : tuple or `None`
+        If tuple is given, it must contain scaling factors for
+        red, green, and blue components, in that order.
+        If `None`, all the components are summed together.
+
     Returns
     -------
     array : ndarray
         Image array.
 
     """
-    img = Image.open(filename)
-    array = np.array(img, dtype=np.float32)
-    if array.ndim == 3:
-        array = array.sum(2)
+    img = np.array(Image.open(filename), dtype=np.float32)
+    ndim = img.ndim
+
+    if ndim == 3:
+        if rgb_scaling is None:
+            rgb_scaling = [1.0, 1.0, 1.0]
+        elif len(rgb_scaling) != 3:
+            raise ValueError('Must have one scaling factor for each RGB color')
+
+        log.info('RGB scaling is {0}'.format(rgb_scaling))
+        array = np.zeros_like(img[:, :, 0])
+        for i in range(ndim):
+            array += rgb_scaling[i] * img[:, :, i]
+
+    elif ndim == 2:
+        array = img
+
+    else:
+        raise ValueError('Invalid image ndim={0}'.format(ndim))
+
     return array
 
 

@@ -47,7 +47,7 @@ from ..utils import imageprep, imageutils
 
 
 __version__ = '0.2.0.dev'
-__vdate__ = '07-Oct-2014'
+__vdate__ = '08-Oct-2014'
 __author__ = 'STScI'
 
 
@@ -214,7 +214,10 @@ class AstroGUI(QMainWindow):
         elif fnamestr.endswith(('fits', 'FITS')):
             data = fits.getdata(fnamestr)
         else:  # grayscale
-            data = imageutils.img2array(fnamestr)[::-1, ]
+            rgb_popup = RGBScalingPopup(self)
+            rgb_popup.exec_()
+            data = imageutils.img2array(
+                fnamestr, rgb_scaling=rgb_popup.rgb_scaling)[::-1, ]
 
         if data is None:
             QMessageBox.warning(
@@ -594,6 +597,56 @@ class AboutPopup(QDialog):
         vbox.addWidget(buttonbox)
 
         self.setLayout(vbox)
+
+
+class RGBScalingPopup(QDialog):
+    """Popup window for user to enter RGB scaling factors."""
+    def __init__(self, parent=None):
+        super(RGBScalingPopup, self).__init__(parent)
+        self.setWindowTitle('RGB Scaling')
+        self.rgb_scaling = None
+        self._colors = ['red', 'green', 'blue']
+        self._texts = {}
+
+        label = QLabel('Enter scaling factors for grayscale conversion:')
+        label.setWordWrap(True)
+
+        vbox = QVBoxLayout()
+        vbox.addStretch()
+        vbox.addWidget(label)
+
+        for color in self._colors:
+            self._texts[color] = QLineEdit('1')
+            self._texts[color].setFixedWidth(80)
+            rbox = QHBoxLayout()
+            rbox.addWidget(self._texts[color])
+            rbox.addWidget(QLabel(color))
+            rbox.addStretch()
+            vbox.addLayout(rbox)
+
+        buttonbox = QDialogButtonBox(self)
+        buttonbox.setStandardButtons(QDialogButtonBox.Ok)
+        self.connect(buttonbox, SIGNAL('accepted()'), self.accept)
+
+        vbox.addStretch()
+        vbox.addWidget(buttonbox)
+        self.setLayout(vbox)
+
+    def accept(self):
+        """Get scaling factors when user press OK button."""
+        self.rgb_scaling = []
+
+        for color in self._colors:
+            try:
+                fac = float(self._texts[color].text())
+            except ValueError as e:
+                warnings.warn('Invalid scaling for {0}: {1}. '
+                'Using default'.format(color, e), AstropyUserWarning)
+                fac = 1.0
+
+            self.rgb_scaling.append(fac)
+
+        QDialog.accept(self)
 
 
 class MainPanel(QWidget):
