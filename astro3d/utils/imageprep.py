@@ -313,18 +313,19 @@ def remove_stars(image, starmasks):
         xx = [xpoints, xpoints, xpoints + dist, xpoints - dist]
         yy = [ypoints + dist, ypoints - dist, ypoints, ypoints]
         newmasks = []
+        warn_msg = []
 
         for x, y in zip(xx, yy):
             try:
                 pts = image[y, x]
             except IndexError as e:
-                warnings.warn('remove_stars() failed: {0}\n\timage[{1},{2}]'
-                              ''.format(e, y, x), AstropyUserWarning)
-                continue
+                warn_msg.append('\t{0}'.format(e))
             else:
                 newmasks.append(pts)
 
         if len(newmasks) == 0:
+            warnings.warn('remove_stars() failed:\n{0}'.format(
+                '\n'.join(warn_msg)), AstropyUserWarning)
             continue
 
         medians = [newmask.mean() for newmask in newmasks]
