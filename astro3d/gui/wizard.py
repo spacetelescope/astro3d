@@ -791,6 +791,7 @@ class IdentifyPeakPage(QWizardPage):
         self.status = QLabel('Status: Ready!')
 
         vbox = QVBoxLayout()
+        vbox.setSpacing(1)
         vbox.addWidget(msglabel)
         vbox.addStretch()
         vbox.addLayout(nobjgrid)
@@ -932,6 +933,7 @@ class IdentifyStarPage(QWizardPage):
         self.status = QLabel('Status: Ready!')
 
         vbox = QVBoxLayout()
+        vbox.setSpacing(1)
         vbox.addWidget(msglabel)
         vbox.addStretch()
         vbox.addLayout(hbbox1)
