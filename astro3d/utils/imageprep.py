@@ -111,6 +111,8 @@ def make_model(image, region_masks=defaultdict(list), peaks={}, height=150.0,
 
     # Only works for single-disk image.
     # Do this even for smooth intensity map to avoid sharp peak in model.
+    cusp_mask = None
+    cusp_texture_flat = None
     if disk is not None:
         log.info('Replacing cusp')
         cusp_rad = 0.02 * imsz  # 20
@@ -123,8 +125,6 @@ def make_model(image, region_masks=defaultdict(list), peaks={}, height=150.0,
                 image, mask=disk, radius=cusp_rad, height=10, percent=None)
 
         image[cusp_mask] = cusp_texture[cusp_mask]
-    else:
-        cusp_mask = None
 
     log.info('Emphasizing regions')
     image = emphasize_regions(
@@ -149,6 +149,8 @@ def make_model(image, region_masks=defaultdict(list), peaks={}, height=150.0,
             spiralarms = region_masks[dots_key][0]
     if cusp_mask is not None:
         cusp_mask = cusp_mask[iy1:iy2, ix1:ix2]
+    if cusp_texture_flat is not None:
+        cusp_texture_flat = cusp_texture_flat[iy1:iy2, ix1:ix2]
 
     if 'clusters' in peaks:
         clusters = peaks['clusters']

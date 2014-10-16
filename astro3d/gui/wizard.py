@@ -550,6 +550,7 @@ class RegionPage(QWizardPage):
 
     def initializePage(self):
         """Do this here because need value set by previous page."""
+        self.draw.clear()
         for key in self.parent.REGION_TEXTURES[self.parent.is_spiral]:
             self.draw.addItem(key)
 
