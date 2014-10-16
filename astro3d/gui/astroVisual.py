@@ -46,8 +46,9 @@ from .wizard import ThreeDModelWizard
 from ..utils import imageprep, imageutils
 
 
+_gui_title = 'Astronomy 3D Model'
 __version__ = '0.2.0.dev'
-__vdate__ = '08-Oct-2014'
+__vdate__ = '16-Oct-2014'
 __author__ = 'STScI'
 
 
@@ -115,7 +116,9 @@ class AstroGUI(QMainWindow):
 
     def __init__(self, argv=None):
         super(AstroGUI, self).__init__()
-        self.setWindowTitle('Astronomy 3D Model')
+        self.setWindowTitle(_gui_title)
+        log.info('Started {0} v{1} ({2}) by {3}'.format(
+            _gui_title, __version__, __vdate__, __author__))
 
         self.file = None
         self.transformation = self.TRANS_FUNCS['Linear']
