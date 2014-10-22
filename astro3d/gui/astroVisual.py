@@ -16,11 +16,17 @@ These are pre-defined textures for peaks:
 * ``crator1`` (single crator) - Stars or galactic center.
 * ``crator3`` (a set of 3 crators) - Star clusters.
 
+.. note::
+
+    On Mac, closing a popup window gives you ``modalSession`` warning, see
+    https://groups.google.com/forum/#!topic/eventandtaskmanager/L636sUwZudY
+
 """
 from __future__ import division, print_function
 
 # STDLIB
 import os
+import platform
 import sys
 import warnings
 from collections import OrderedDict
@@ -48,7 +54,7 @@ from ..utils import imageprep, imageutils
 
 _gui_title = 'Astronomy 3D Model'
 __version__ = '0.2.0.dev'
-__vdate__ = '17-Oct-2014'
+__vdate__ = '22-Oct-2014'
 __author__ = 'STScI'
 
 
@@ -155,15 +161,30 @@ class AstroGUI(QMainWindow):
         self.widget = MainPanel(self)
         self.setCentralWidget(self.widget)
 
-        fileQuitAction = self.createAction(
-            '&Quit', QCoreApplication.instance().quit, 'Quit the session')
-        fileMenu = self.menuBar().addMenu('&File')
-        self.addActions(fileMenu, (fileQuitAction, ))
-
-        helpAboutAction = self.createAction(
-            '&About', AboutPopup(self).exec_, 'About the software')
-        helpMenu = self.menuBar().addMenu('&Help')
-        self.addActions(helpMenu, (helpAboutAction, ))
+        # Special menu for Mac or it will be absorbed into built-in menu
+        # system that is not intuitive. It is important to avoid naming
+        # the actions "Quit" and "About".
+        if platform.system().lower() == 'darwin':
+            appMenu = self.menuBar().addMenu('Astro3D')
+            fileQuitAction = self.createAction(
+                'End Session', QCoreApplication.instance().quit,
+                'Quit the session')
+            fileMenu = appMenu.addMenu('File')
+            self.addActions(fileMenu, (fileQuitAction, ))
+            helpAboutAction = self.createAction(
+                'Software Info', AboutPopup(self).exec_,
+                'About the software')
+            helpMenu = appMenu.addMenu('Help')
+            self.addActions(helpMenu, (helpAboutAction, ))
+        else:
+            fileQuitAction = self.createAction(
+                '&Quit', QCoreApplication.instance().quit, 'Quit the session')
+            fileMenu = self.menuBar().addMenu('&File')
+            self.addActions(fileMenu, (fileQuitAction, ))
+            helpAboutAction = self.createAction(
+                '&About', AboutPopup(self).exec_, 'About the software')
+            helpMenu = self.menuBar().addMenu('&Help')
+            self.addActions(helpMenu, (helpAboutAction, ))
 
     def addActions(self, target, actions):
         """Adds an arbitary number of actions to a menu.
