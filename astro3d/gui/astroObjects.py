@@ -369,7 +369,11 @@ class Region(object):
             nmin, nmax = interpolate
             filtered = np.zeros(mask.shape)
             filtered[mask] = 1
-            radius = min(axis.ptp() for axis in np.where(mask))
+
+            # Cannot have data type to be numpy.int64
+            # https://github.com/scipy/scipy/issues/4106
+            radius = int(min(axis.ptp() for axis in np.where(mask)))
+
             filtered = ndimage.filters.maximum_filter(
                 filtered, min(radius, image.shape[0] / 33))  # Magic?
             filtered = image * filtered
