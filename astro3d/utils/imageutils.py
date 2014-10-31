@@ -5,11 +5,12 @@ from __future__ import division, print_function
 import numpy as np
 import scipy
 from astropy import log
+from astropy.io import fits
 from PIL import Image
 
 
 def im2file(im, filename):
-    """Save image in TIFF or JPEG format.
+    """Save image in TIFF, JPEG, or FITS format.
 
     Parameters
     ----------
@@ -20,11 +21,21 @@ def im2file(im, filename):
         Output filename.
 
     """
-    im = im[::-1,:]
-    cim = np.zeros(im.shape,dtype=np.uint8)
-    cim[:] = (255*im/im.max()).astype(np.uint8)
-    pim = Image.fromarray(cim)
-    pim.save(filename)
+    if isinstance(im, np.ma.core.MaskedArray):
+        im = im.data
+
+    im = im[::-1, :]
+    suffix = filename.split('.')[-1].lower()
+
+    if suffix in ('fit', 'fits'):
+        hdu = fits.PrimaryHDU(im)
+        hdu.writeto(filename, clobber=True)
+    else:
+        cim = np.zeros(im.shape, dtype=np.uint8)
+        cim[:] = (255 * im / im.max()).astype(np.uint8)
+        pim = Image.fromarray(cim)
+        pim.save(filename)
+
     log.info('{0} saved'.format(filename))
 
 

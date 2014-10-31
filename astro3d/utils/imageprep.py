@@ -104,9 +104,11 @@ def make_model(image, region_masks=defaultdict(list), peaks={}, height=150.0,
     image = np.ma.masked_equal(image, 0.0)
     image = iutils.normalize(image, True)
 
-    log.info('Scaling top')
-    image = scale_top(image, mask=disk)
-    image = iutils.normalize(image, True)
+    if is_spiralgal:
+        log.info('Scaling top')
+        image = scale_top(image, mask=disk)
+        image = iutils.normalize(image, True)
+
     log.info('Current image shape: {0}'.format(image.shape))
 
     # Only works for single-disk image.
