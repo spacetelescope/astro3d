@@ -54,7 +54,7 @@ from ..utils import imageprep, imageutils
 
 _gui_title = 'Astronomy 3D Model'
 __version__ = '0.2.0.dev'
-__vdate__ = '31-Oct-2014'
+__vdate__ = '04-Nov-2014'
 __author__ = 'STScI'
 
 
@@ -93,6 +93,9 @@ class AstroGUI(QMainWindow):
     is_spiral : bool
         Special processing for single spiral galaxy.
 
+    layer_order : list
+        Order of non-galaxy texture layers (dots, lines) to apply. Top/foreground layer overwrites the bottom/background.
+
     widget : `MainPanel`
         Initialized in :meth:`createWidgets`. Displays the image.
 
@@ -130,6 +133,7 @@ class AstroGUI(QMainWindow):
         self.transformation = self.TRANS_FUNCS['Linear']
         self.model_type = 0
         self.is_spiral = False
+        self.layer_order = ['lines', 'dots']
         self._clus_r_fac_add = 15
         self._clus_r_fac_mul = 1
         self._star_r_fac_add = 15
@@ -322,7 +326,7 @@ class AstroGUI(QMainWindow):
             clus_r_fac_add=self._clus_r_fac_add,
             clus_r_fac_mul=self._clus_r_fac_mul,
             star_r_fac_add=self._star_r_fac_add,
-            star_r_fac_mul=self._star_r_fac_mul,
+            star_r_fac_mul=self._star_r_fac_mul, layer_order=self.layer_order,
             double=double, _ascii=_ascii, has_texture=has_texture,
             has_intensity=has_intensity, is_spiralgal=self.is_spiral,
             split_halves=split_halves)

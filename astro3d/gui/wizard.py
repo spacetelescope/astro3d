@@ -1,6 +1,9 @@
 """Wizard to create 3D models."""
 from __future__ import division, print_function
 
+# STDLIB
+from functools import partial
+
 # Anaconda
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
@@ -18,6 +21,10 @@ class ThreeDModelWizard(QWizard):
     #. Model Type Selection - Allows the user to select which type
        of model to make.
     #. Region Selection - Allows the user to draw and save regions.
+    #. Region Layer Ordering - Allows the user to order texture layers,
+       except the one used for smoothing. Where they overlap, the one
+       in the foreground will take precedence.
+       **(Not shown if only 1 texture selected.)**
     #. Star and/or Star Clusters Selection - Allows the user to save the
        desired amount of brightest stars or star clusters to be marked in
        the model.
@@ -36,9 +43,9 @@ class ThreeDModelWizard(QWizard):
         :meth:`~astro3d.gui.AstroGUI.run_auto_login_script`.
 
     """
-    NUM_PAGES = 8
+    NUM_PAGES = 9
 
-    (PG_LOAD, PG_RESIZE, PG_SCALE, PG_TYPE, PG_REG, PG_CLUS, PG_STAR,
+    (PG_LOAD, PG_RESIZE, PG_SCALE, PG_TYPE, PG_REG, PG_LAYER, PG_CLUS, PG_STAR,
      PG_MAKE) = range(NUM_PAGES)
 
     def __init__(self, parent=None, debug=False):
@@ -53,6 +60,7 @@ class ThreeDModelWizard(QWizard):
             self.setPage(self.PG_SCALE, IntensityScalePage(parent))
             self.setPage(self.PG_TYPE, ModelTypePage(parent))
             self.setPage(self.PG_REG, RegionPage(parent))
+            self.setPage(self.PG_LAYER, LayerOrderPage(parent))
             self.setPage(self.PG_CLUS, IdentifyPeakPage(parent))
             self.setPage(self.PG_STAR, IdentifyStarPage(parent))
             self.setPage(self.PG_MAKE, MakeModelPage(parent))
@@ -720,11 +728,116 @@ class RegionPage(QWizardPage):
         return has_region
 
     def nextId(self):
-        """Proceed to `IdentifyPeakPage`."""
+        """Proceed to final page if no texture, otherwise to
+        layer ordering or cluster selection page.
+
+        """
         if self.parent.model_type in (1, 2):  # No texture
             return ThreeDModelWizard.PG_MAKE
-        else:
+        elif self.parent.is_spiral or len(self.parent.file.texture_names()) < 2:
             return ThreeDModelWizard.PG_CLUS
+        else:
+            return ThreeDModelWizard.PG_LAYER
+
+
+# http://stackoverflow.com/questions/9166087/move-row-up-and-down-in-pyqt4
+class LayerOrderPage(QWizardPage):
+    """Enable texture layers ordering. Particularly, dots and lines.
+
+    Parameters
+    ----------
+    parent
+        The instantiating widget.
+
+    """
+    _UP = -1
+    _DOWN = 1
+
+    def __init__(self, parent=None):
+        super(LayerOrderPage, self).__init__()
+        self.parent = parent
+        self.setTitle('Texture Layers Ordering')
+
+        label = QLabel("""Order the texture layers such that the top layer will overwrite the following layer(s).""")
+        label.setWordWrap(True)
+
+        self.names_list = QListWidget()
+        self.names_list.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.names_list.itemClicked.connect(self._enable_buttons)
+
+        self.move_up = QPushButton('Move Up')
+        self.move_up.clicked.connect(partial(self._move_item, self._UP))
+        self.move_up.setEnabled(False)
+
+        self.move_down = QPushButton('Move Down')
+        self.move_down.clicked.connect(partial(self._move_item, self._DOWN))
+        self.move_down.setEnabled(False)
+
+        buttonbox = QVBoxLayout()
+        buttonbox.addWidget(self.move_up)
+        buttonbox.addWidget(self.move_down)
+        buttonbox.addStretch()
+
+        hbox = QHBoxLayout()
+        hbox.addWidget(self.names_list)
+        hbox.addLayout(buttonbox)
+
+        vbox = QVBoxLayout()
+        vbox.addWidget(label)
+        vbox.addLayout(hbox)
+        vbox.addStretch()
+
+        self.setLayout(vbox)
+
+    def initializePage(self):
+        """Do this here because need values from parent."""
+        if self.parent is None or self.parent.file is None:
+            return
+
+        self.names_list.clear()
+        names = self.parent.file.texture_names()
+        if len(names) > 1:
+            self.names_list.addItems(names)
+
+    def _enable_buttons(self):
+        # Only one item selection allowed at a time
+        i = self.names_list.currentRow()
+
+        if i < 1:
+            self.move_up.setEnabled(False)
+            self.move_down.setEnabled(True)
+        elif i >= self.names_list.count() - 1:
+            self.move_up.setEnabled(True)
+            self.move_down.setEnabled(False)
+        else:
+            self.move_up.setEnabled(True)
+            self.move_down.setEnabled(True)
+
+    def _move_item(self, direction):
+        if direction not in (self._DOWN, self._UP):
+            return
+
+        pos = self.names_list.currentRow()
+        item = self.names_list.takeItem(pos)
+        new_pos = pos + direction
+        self.names_list.insertItem(new_pos, item)
+
+        for i in range(self.names_list.count()):
+            item = self.names_list.item(i)
+            self.names_list.setItemSelected(item, False)
+
+        self.move_up.setEnabled(False)
+        self.move_down.setEnabled(False)
+
+    def validatePage(self):
+        """Pass the selected values to GUI parent."""
+        self.parent.layer_order = [str(self.names_list.item(i).text())
+                                   for i in range(self.names_list.count())]
+        return True
+
+    def nextId(self):
+        """Proceed to cluster selection page."""
+        return ThreeDModelWizard.PG_CLUS
 
 
 class IdentifyPeakPage(QWizardPage):
@@ -768,7 +881,7 @@ class IdentifyPeakPage(QWizardPage):
         hbbox1.addWidget(self.loadbutton)
         hbbox1.addStretch()
 
-        self.manbutton = QPushButton('Manual')
+        self.manbutton = QPushButton('Manual/Skip')
         self.manbutton.clicked.connect(self.do_manual)
         hbbox2 = QHBoxLayout()
         hbbox2.addWidget(self.manbutton)
@@ -837,7 +950,7 @@ class IdentifyPeakPage(QWizardPage):
 
     def do_manual(self):
         """Manual selection from display."""
-        self.status.setText('Status: Click on display to select clusters')
+        self.status.setText('Status: Click on display to select clusters or Next to skip')
         self.status.repaint()
         self.parent.manual_clusters()
         self._proceed_ok = True
@@ -910,7 +1023,7 @@ class IdentifyStarPage(QWizardPage):
         hbbox1.addWidget(self.loadbutton)
         hbbox1.addStretch()
 
-        self.manbutton = QPushButton('Manual')
+        self.manbutton = QPushButton('Manual/Skip')
         self.manbutton.clicked.connect(self.do_manual)
         hbbox2 = QHBoxLayout()
         hbbox2.addWidget(self.manbutton)
@@ -965,7 +1078,7 @@ class IdentifyStarPage(QWizardPage):
 
     def do_manual(self):
         """Manual selection from display."""
-        self.status.setText('Status: Click on display to select stars')
+        self.status.setText('Status: Click on display to select stars or Next to skip')
         self.status.repaint()
         self.parent.manual_stars()
         self._proceed_ok = True
