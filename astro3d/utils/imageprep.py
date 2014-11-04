@@ -213,8 +213,8 @@ def make_model(image, region_masks=defaultdict(list), peaks={}, height=150.0,
                 elif layer_key == lines_key:
                     texture_func = lines_from_mask
                 else:
-                    log.warning('{0} is not a valid texture, skipping...'
-                                ''.format(layer_key), AstropyUserWarning)
+                    warnings.warn('{0} is not a valid texture, skipping...'
+                                  ''.format(layer_key), AstropyUserWarning)
                     continue
 
                 log.info('Adding {0}'.format(layer_key))

@@ -27,6 +27,7 @@ from __future__ import division, print_function
 # STDLIB
 import os
 import platform
+import subprocess
 import sys
 import warnings
 from collections import OrderedDict
@@ -242,6 +243,7 @@ class AstroGUI(QMainWindow):
         elif fnamestr.endswith(('fits', 'FITS')):
             data = fits.getdata(fnamestr)
         else:  # grayscale
+            self._open_color_img(fnamestr)
             rgb_popup = RGBScalingPopup(self)
             rgb_popup.exec_()
             data = imageutils.img2array(
@@ -259,6 +261,24 @@ class AstroGUI(QMainWindow):
         pic = self.widget.addImage(image)
         self.file = File(data, pic)
         self.statusBar().showMessage(name)
+
+    def _open_color_img(self, filename):
+        """Display color image with built-in software."""
+        sysname = platform.system().lower()
+
+        if sysname == 'windows':
+            cmd = [filename]
+        elif sysname == 'darwin':
+            cmd = ['open', filename]
+        else:  # linux
+            cmd = ['xdg-open', filename]
+
+        try:
+            log.info('Opening color image: {0}'.format(' '.join(cmd)))
+            subprocess.call(cmd)
+        except Exception as e:
+            warnings.warn('Cannot open {0}: {1}'.format(filename, str(e)),
+                          AstropyUserWarning)
 
     def fileSave(self, height=150.0, depth=10, split_halves=True,
                  save_all=True):
