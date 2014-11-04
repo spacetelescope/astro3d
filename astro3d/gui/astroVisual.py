@@ -9,7 +9,7 @@ recommended representations:
 
 * ``dots`` or ``spiral`` - Spiral arms.
 * ``lines`` or ``disk`` - Galactic disk.
-* ``smooth`` or ``star`` - Foreground stars to be smoothed over.
+* ``smooth`` or ``remove_star`` - Foreground stars to be smoothed over.
 
 These are pre-defined textures for peaks:
 
@@ -122,7 +122,7 @@ class AstroGUI(QMainWindow):
     # Maps self.is_spiral to textures
     REGION_TEXTURES = {
         False: ['dots', 'lines', 'smooth'],
-        True: ['spiral', 'disk', 'star']}
+        True: ['spiral', 'disk', 'remove_star']}
 
     def __init__(self, argv=None):
         super(AstroGUI, self).__init__()

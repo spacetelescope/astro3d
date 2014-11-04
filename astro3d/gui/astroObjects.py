@@ -44,7 +44,7 @@ class File(object):
         A dictionary that maps each texture to a `astropy.table.Table`.
 
     """
-    _smooth_keys = ['smooth', 'star']
+    _smooth_keys = ['smooth', 'remove_star']
 
     def __init__(self, data, image):
         super(File, self).__init__()
@@ -61,7 +61,6 @@ class File(object):
     def orig_scale(self):
         """Return the ratio between display and original size."""
         return self.image.height() / self._orig_shape[0]
-
 
     def texture_names(self):
         """Return region texture names, except for the one used

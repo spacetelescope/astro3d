@@ -88,7 +88,7 @@ def make_model(image, region_masks=defaultdict(list), peaks={}, height=150.0,
 
     # Old logic specific to single spiral galaxy
     if is_spiralgal:
-        smooth_key = 'stars'
+        smooth_key = 'remove_star'
         lines_key = 'disk'
         dots_key = 'spiral'
 
