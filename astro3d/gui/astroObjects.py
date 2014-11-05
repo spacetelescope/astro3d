@@ -155,9 +155,9 @@ class File(object):
 
     def make_3d(self, fname, height=150.0, depth=10, clus_r_fac_add=15,
                 clus_r_fac_mul=1, star_r_fac_add=15, star_r_fac_mul=1,
-                layer_order=['lines', 'dots'], double=False, _ascii=False,
-                has_texture=True, has_intensity=True, is_spiralgal=False,
-                split_halves=True):
+                layer_order=['lines', 'dots', 'dots_small'], double=False,
+                _ascii=False, has_texture=True, has_intensity=True,
+                is_spiralgal=False, split_halves=True):
         """Generate STL file.
 
         #. Scale regions.

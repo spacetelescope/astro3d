@@ -4,6 +4,7 @@ from __future__ import division, print_function
 # STDLIB
 import warnings
 from collections import defaultdict
+from functools import partial
 
 # Anaconda
 import numpy as np
@@ -22,8 +23,8 @@ from . import texture as _texture
 def make_model(image, region_masks=defaultdict(list), peaks={}, height=150.0,
                base_thickness=10, clus_r_fac_add=15, clus_r_fac_mul=1,
                star_r_fac_add=15, star_r_fac_mul=1,
-               layer_order=['lines', 'dots'], double=True, has_texture=True,
-               has_intensity=True, is_spiralgal=False):
+               layer_order=['lines', 'dots', 'dots_small'], double=True,
+               has_texture=True, has_intensity=True, is_spiralgal=False):
     """Apply a number of image transformations to enable
     the creation of a meaningful 3D model for an astronomical
     image from a Numpy array.
@@ -81,6 +82,7 @@ def make_model(image, region_masks=defaultdict(list), peaks={}, height=150.0,
         raise ValueError('Model must have textures or intensity!')
 
     smooth_key = 'smooth'
+    small_dots_key = 'dots_small'
     dots_key = 'dots'
     lines_key = 'lines'
     disk = None
@@ -89,6 +91,7 @@ def make_model(image, region_masks=defaultdict(list), peaks={}, height=150.0,
     # Old logic specific to single spiral galaxy
     if is_spiralgal:
         smooth_key = 'remove_star'
+        small_dots_key = None
         lines_key = 'disk'
         dots_key = 'spiral'
 
@@ -136,7 +139,8 @@ def make_model(image, region_masks=defaultdict(list), peaks={}, height=150.0,
 
     log.info('Emphasizing regions')
     image = emphasize_regions(
-        image, region_masks[dots_key] + region_masks[lines_key])
+        image, region_masks[small_dots_key] + region_masks[dots_key] +
+        region_masks[lines_key])
 
     log.info('Cropping image')
     image, iy1, iy2, ix1, ix2 = iutils.crop_image(image, _max=1.0)
@@ -210,6 +214,9 @@ def make_model(image, region_masks=defaultdict(list), peaks={}, height=150.0,
             for layer_key in layer_order[::-1]:
                 if layer_key == dots_key:
                     texture_func = dots_from_mask
+                elif layer_key == small_dots_key:
+                    texture_func = partial(
+                        dots_from_mask, hexgrid_spacing=5, dots_width=3)
                 elif layer_key == lines_key:
                     texture_func = lines_from_mask
                 else:

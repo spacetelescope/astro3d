@@ -4,12 +4,19 @@ It allows the user to upload any FITS or JPEG image file and
 subsequently convert the image into an STL file, which can then
 be printed with a 3D printer.
 
-These are the available textures for regions and the
-recommended representations:
+These are the available textures for regions:
 
-* ``dots`` or ``spiral`` - Spiral arms.
-* ``lines`` or ``disk`` - Galactic disk.
-* ``smooth`` or ``remove_star`` - Foreground stars to be smoothed over.
+* ``dots``
+* ``dots_small``
+* ``lines``
+* ``smooth`` - Foreground stars or objects to be smoothed over.
+
+The textures for special spiral galaxy processing are fixed:
+
+* ``spiral`` - Represents spiral arms. Same as ``dots``.
+* ``disk`` - Represents galactic disk. Same as ``lines``.
+* ``remove_star`` - Represents foreground stars to be smoothed over.
+  Same as ``smooth``.
 
 These are pre-defined textures for peaks:
 
@@ -55,7 +62,7 @@ from ..utils import imageprep, imageutils
 
 _gui_title = 'Astronomy 3D Model'
 __version__ = '0.2.0.dev'
-__vdate__ = '04-Nov-2014'
+__vdate__ = '05-Nov-2014'
 __author__ = 'STScI'
 
 
@@ -121,7 +128,7 @@ class AstroGUI(QMainWindow):
 
     # Maps self.is_spiral to textures
     REGION_TEXTURES = {
-        False: ['dots', 'lines', 'smooth'],
+        False: ['dots', 'dots_small', 'lines', 'smooth'],
         True: ['spiral', 'disk', 'remove_star']}
 
     def __init__(self, argv=None):
@@ -134,7 +141,7 @@ class AstroGUI(QMainWindow):
         self.transformation = self.TRANS_FUNCS['Linear']
         self.model_type = 0
         self.is_spiral = False
-        self.layer_order = ['lines', 'dots']
+        self.layer_order = ['lines', 'dots', 'dots_small']
         self._clus_r_fac_add = 15
         self._clus_r_fac_mul = 1
         self._star_r_fac_add = 15
