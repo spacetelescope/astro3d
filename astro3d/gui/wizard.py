@@ -1139,7 +1139,7 @@ To accomodate MakerBot Replicator 2, it is recommended that the model to be spli
         self.heightbox.setMaxLength(4)
         self.heightbox.setFixedWidth(80)
         hgrid = QHBoxLayout()
-        hgrid.addWidget(QLabel('Max height:'))
+        hgrid.addWidget(QLabel('Model height:'))
         hgrid.addWidget(self.heightbox)
         hgrid.addStretch()
 
