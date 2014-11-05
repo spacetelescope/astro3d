@@ -9,7 +9,7 @@ recommended representations:
 
 * ``dots`` or ``spiral`` - Spiral arms.
 * ``lines`` or ``disk`` - Galactic disk.
-* ``smooth`` or ``star`` - Foreground stars to be smoothed over.
+* ``smooth`` or ``remove_star`` - Foreground stars to be smoothed over.
 
 These are pre-defined textures for peaks:
 
@@ -27,6 +27,7 @@ from __future__ import division, print_function
 # STDLIB
 import os
 import platform
+import subprocess
 import sys
 import warnings
 from collections import OrderedDict
@@ -54,7 +55,7 @@ from ..utils import imageprep, imageutils
 
 _gui_title = 'Astronomy 3D Model'
 __version__ = '0.2.0.dev'
-__vdate__ = '31-Oct-2014'
+__vdate__ = '04-Nov-2014'
 __author__ = 'STScI'
 
 
@@ -93,6 +94,9 @@ class AstroGUI(QMainWindow):
     is_spiral : bool
         Special processing for single spiral galaxy.
 
+    layer_order : list
+        Order of non-galaxy texture layers (dots, lines) to apply. Top/foreground layer overwrites the bottom/background.
+
     widget : `MainPanel`
         Initialized in :meth:`createWidgets`. Displays the image.
 
@@ -118,7 +122,7 @@ class AstroGUI(QMainWindow):
     # Maps self.is_spiral to textures
     REGION_TEXTURES = {
         False: ['dots', 'lines', 'smooth'],
-        True: ['spiral', 'disk', 'star']}
+        True: ['spiral', 'disk', 'remove_star']}
 
     def __init__(self, argv=None):
         super(AstroGUI, self).__init__()
@@ -130,6 +134,7 @@ class AstroGUI(QMainWindow):
         self.transformation = self.TRANS_FUNCS['Linear']
         self.model_type = 0
         self.is_spiral = False
+        self.layer_order = ['lines', 'dots']
         self._clus_r_fac_add = 15
         self._clus_r_fac_mul = 1
         self._star_r_fac_add = 15
@@ -238,6 +243,7 @@ class AstroGUI(QMainWindow):
         elif fnamestr.endswith(('fits', 'FITS')):
             data = fits.getdata(fnamestr)
         else:  # grayscale
+            self._open_color_img(fnamestr)
             rgb_popup = RGBScalingPopup(self)
             rgb_popup.exec_()
             data = imageutils.img2array(
@@ -255,6 +261,24 @@ class AstroGUI(QMainWindow):
         pic = self.widget.addImage(image)
         self.file = File(data, pic)
         self.statusBar().showMessage(name)
+
+    def _open_color_img(self, filename):
+        """Display color image with built-in software."""
+        sysname = platform.system().lower()
+
+        if sysname == 'windows':
+            cmd = [filename]
+        elif sysname == 'darwin':
+            cmd = ['open', filename]
+        else:  # linux
+            cmd = ['xdg-open', filename]
+
+        try:
+            log.info('Opening color image: {0}'.format(' '.join(cmd)))
+            subprocess.call(cmd)
+        except Exception as e:
+            warnings.warn('Cannot open {0}: {1}'.format(filename, str(e)),
+                          AstropyUserWarning)
 
     def fileSave(self, height=150.0, depth=10, split_halves=True,
                  save_all=True):
@@ -322,7 +346,7 @@ class AstroGUI(QMainWindow):
             clus_r_fac_add=self._clus_r_fac_add,
             clus_r_fac_mul=self._clus_r_fac_mul,
             star_r_fac_add=self._star_r_fac_add,
-            star_r_fac_mul=self._star_r_fac_mul,
+            star_r_fac_mul=self._star_r_fac_mul, layer_order=self.layer_order,
             double=double, _ascii=_ascii, has_texture=has_texture,
             has_intensity=has_intensity, is_spiralgal=self.is_spiral,
             split_halves=split_halves)

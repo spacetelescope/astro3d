@@ -8,6 +8,7 @@ from copy import deepcopy
 # Anaconda
 import numpy as np
 from astropy import log
+from astropy.io import ascii
 from matplotlib.path import Path
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
@@ -43,6 +44,8 @@ class File(object):
         A dictionary that maps each texture to a `astropy.table.Table`.
 
     """
+    _smooth_keys = ['smooth', 'remove_star']
+
     def __init__(self, data, image):
         super(File, self).__init__()
         self.data = data
@@ -58,6 +61,28 @@ class File(object):
     def orig_scale(self):
         """Return the ratio between display and original size."""
         return self.image.height() / self._orig_shape[0]
+
+    def texture_names(self):
+        """Return region texture names, except for the one used
+        for smoothing.
+
+        .. note::
+
+            This is targeted at textures with dots and lines,
+            where lines belong in the foreground layer by default,
+            hence listed first.
+
+        """
+        names = set()
+
+        for key in self.regions:
+            if key in self._smooth_keys:
+                continue
+            if len(self.regions[key]) < 1:
+                continue
+            names.add(key)
+
+        return sorted(names, reverse=True)
 
     def scaleMasks(self):
         """Create masks scaled to actual data.
@@ -80,7 +105,7 @@ class File(object):
             masklist = [reg.scaledRegion(self).to_mask(self.data)
                         for reg in reglist]
 
-            if key != 'smooth':
+            if key not in self._smooth_keys:
                 scaled_masks[key] = [combine_masks(masklist)]
             else:  # To be smoothed
                 scaled_masks[key] = masklist
@@ -130,8 +155,9 @@ class File(object):
 
     def make_3d(self, fname, height=150.0, depth=10, clus_r_fac_add=15,
                 clus_r_fac_mul=1, star_r_fac_add=15, star_r_fac_mul=1,
-                double=False, _ascii=False, has_texture=True,
-                has_intensity=True, is_spiralgal=False, split_halves=True):
+                layer_order=['lines', 'dots'], double=False, _ascii=False,
+                has_texture=True, has_intensity=True, is_spiralgal=False,
+                split_halves=True):
         """Generate STL file.
 
         #. Scale regions.
@@ -154,12 +180,17 @@ class File(object):
         depth : int
             Depth of back plate.
 
-        double : bool
-            Double- or single-sided.
-
         clus_r_fac_add, clus_r_fac_mul, star_r_fac_add, star_r_fac_mul : float
             Crater radius scaling factors for star clusters and stars,
             respectively.
+
+        layer_order : list
+            Order of texture layers (dots, lines) to apply.
+            Top/foreground layer overwrites the bottom/background. This
+            is only used if ``is_spiralgal=False`` and ``has_texture=True``.
+
+        double : bool
+            Double- or single-sided.
 
         _ascii : bool
             ASCII or binary format.
@@ -186,8 +217,8 @@ class File(object):
             image, region_masks=regions, peaks=self.peaks, height=height,
             base_thickness=depth, clus_r_fac_add=clus_r_fac_add,
             clus_r_fac_mul=clus_r_fac_mul, star_r_fac_add=star_r_fac_add,
-            star_r_fac_mul=star_r_fac_mul, double=double,
-            has_texture=has_texture, has_intensity=has_intensity,
+            star_r_fac_mul=star_r_fac_mul, layer_order=layer_order,
+            double=double, has_texture=has_texture, has_intensity=has_intensity,
             is_spiralgal=is_spiralgal)
 
         # Input filename might be QString.
@@ -432,11 +463,12 @@ class Region(object):
             scale = 1.0
         name = ''
         with open(filename) as f:
-            name = f.readline().split()[0]
-            for line in f:
-                coords = line.split(" ")
-                region << QPointF(float(coords[0]) * scale,
-                                  float(coords[1]) * scale)
+            name = f.readline().strip()
+            coords = ascii.read(f, data_start=1, names=['x', 'y'])
+            scaled_x = coords['x'].astype(np.float32) * scale
+            scaled_y = coords['y'].astype(np.float32) * scale
+            for x, y in zip(scaled_x, scaled_y):
+                region << QPointF(x, y)
         return cls(name, region)
 
 

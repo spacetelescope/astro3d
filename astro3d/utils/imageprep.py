@@ -21,8 +21,9 @@ from . import texture as _texture
 
 def make_model(image, region_masks=defaultdict(list), peaks={}, height=150.0,
                base_thickness=10, clus_r_fac_add=15, clus_r_fac_mul=1,
-               star_r_fac_add=15, star_r_fac_mul=1, double=True,
-               has_texture=True, has_intensity=True, is_spiralgal=False):
+               star_r_fac_add=15, star_r_fac_mul=1,
+               layer_order=['lines', 'dots'], double=True, has_texture=True,
+               has_intensity=True, is_spiralgal=False):
     """Apply a number of image transformations to enable
     the creation of a meaningful 3D model for an astronomical
     image from a Numpy array.
@@ -53,6 +54,11 @@ def make_model(image, region_masks=defaultdict(list), peaks={}, height=150.0,
         Crater radius scaling factors for star clusters and stars,
         respectively. See :func:`make_star_cluster`.
 
+    layer_order : list
+        Order of texture layers (dots, lines) to apply.
+        Top/foreground layer overwrites the bottom/background.
+        This is only used if ``is_spiralgal=False`` and ``has_texture=True``.
+
     double : bool
         Double- or single-sided.
 
@@ -82,7 +88,7 @@ def make_model(image, region_masks=defaultdict(list), peaks={}, height=150.0,
 
     # Old logic specific to single spiral galaxy
     if is_spiralgal:
-        smooth_key = 'stars'
+        smooth_key = 'remove_star'
         lines_key = 'disk'
         dots_key = 'spiral'
 
@@ -95,7 +101,7 @@ def make_model(image, region_masks=defaultdict(list), peaks={}, height=150.0,
     log.info('Input image shape: {0}'.format(image.shape))
     imsz = max(image.shape)  # GUI allows only approx. 1000
 
-    log.info('Removing stars')
+    log.info('Smoothing {0} region(s)'.format(len(region_masks[smooth_key])))
     image = remove_stars(image, region_masks[smooth_key])
 
     log.info('Filtering image (first pass)')
@@ -198,16 +204,23 @@ def make_model(image, region_masks=defaultdict(list), peaks={}, height=150.0,
             texture_layer = galaxy_texture(image, lmask=disk, cmask=cusp_mask)
 
         else:
-            log.info('Adding dots and lines')
             texture_layer = np.zeros(image.shape)
 
-            for mask in region_masks[dots_key]:
-                dots_texture = dots_from_mask(image, mask=mask)
-                texture_layer[mask] = dots_texture[mask]
+            # Apply layers from bottom up
+            for layer_key in layer_order[::-1]:
+                if layer_key == dots_key:
+                    texture_func = dots_from_mask
+                elif layer_key == lines_key:
+                    texture_func = lines_from_mask
+                else:
+                    warnings.warn('{0} is not a valid texture, skipping...'
+                                  ''.format(layer_key), AstropyUserWarning)
+                    continue
 
-            for mask in region_masks[lines_key]:
-                lines_texture = lines_from_mask(image, mask=mask)
-                texture_layer[mask] = lines_texture[mask]
+                log.info('Adding {0}'.format(layer_key))
+                for mask in region_masks[layer_key]:
+                    cur_texture = texture_func(image, mask=mask)
+                    texture_layer[mask] = cur_texture[mask]
 
         image += texture_layer
 
