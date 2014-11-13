@@ -62,7 +62,7 @@ from ..utils import imageprep, imageutils
 
 _gui_title = 'Astronomy 3D Model'
 __version__ = '0.2.0.dev'
-__vdate__ = '05-Nov-2014'
+__vdate__ = '13-Nov-2014'
 __author__ = 'STScI'
 
 
@@ -366,6 +366,14 @@ class AstroGUI(QMainWindow):
         """Clears a region that is currently being drawn."""
         self.widget.clear_region()
 
+    def renameRegion(self, region):
+        """Rename one region."""
+        text, ok = QInputDialog.getText(
+            self, 'Rename region', 'New region name:')
+
+        if ok:
+            region.description = str(text)
+
     def deleteRegion(self, key, region):
         """Deletes a previously drawn region, removing it from
         ``regions`` and from the screen.
@@ -428,6 +436,10 @@ class AstroGUI(QMainWindow):
         """
         self.widget.region_drawer(key)
 
+    def highlightRegion(self, region):
+        """Highlight selected region(s)."""
+        self.widget.highlight_region(region)
+
     def loadRegion(self):
         """Load region(s) from file."""
         flist = QFileDialog.getOpenFileNames(
@@ -440,7 +452,7 @@ class AstroGUI(QMainWindow):
                    for fname in flist]
         self.widget.region_loader(regions)
 
-        return ','.join([reg.name for reg in regions])
+        return ','.join([reg.description for reg in regions])
 
     def saveRegion(self):
         """Store selected region.
@@ -451,14 +463,16 @@ class AstroGUI(QMainWindow):
         which is added to ``regions``.
 
         """
-        names, regions = self.widget.save_region()
+        names, regions, descriptions = self.widget.save_region()
 
         if not isinstance(regions, list):
             names = [names]
             regions = [regions]
+            descriptions = [descriptions]
 
-        for key, region in zip(names, regions):
+        for key, region, descrip in zip(names, regions, descriptions):
             reg = Region(key, region)
+            reg.description = descrip
 
             # Polygon must have at least 3 points
             if len(reg.points()) < 3:
@@ -476,7 +490,7 @@ class AstroGUI(QMainWindow):
                               AstropyUserWarning)
                 continue
 
-            log.info('{0} saved'.format(key))
+            log.info('{0} ({1}) saved'.format(key, descrip))
             self.showRegion(reg)
 
     # Image Transformations
@@ -803,9 +817,9 @@ class MainPanel(QWidget):
         region : QPolygonF or list
 
         """
-        name, region = self.current_scene.getRegion()
+        name, region, description = self.current_scene.getRegion()
         self.update_scene(self.main_scene)
-        return name, region
+        return name, region, description
 
     def clear_region(self):
         """Clears the currently displayed region."""
@@ -831,6 +845,11 @@ class MainPanel(QWidget):
 
         """
         self.main_scene.delReg(region)
+        self.update_scene(self.main_scene)
+
+    def highlight_region(self, region):
+        """Highlight selected region(s) in a different color."""
+        self.main_scene.draw(selected=region)
         self.update_scene(self.main_scene)
 
     def cluster_find(self, peaks=None):

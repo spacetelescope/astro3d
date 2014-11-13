@@ -34,15 +34,20 @@ class StarScene(QGraphicsScene):
     size : QSize
         Size of the `~astro3d.gui.astroVisual.MainPanel`.
 
+    pixmap : QGraphicsPixmapItem
+        Image the regions belong to.
+
     regions : dict
-        Contains region type and a list of ``QGraphicsPolygonItem`` regions, which provides `StarScene` with a pointer to each region, allowing them to be removed if necessary. ``Region.name`` must contain region type.
+        Contains region type and a list of `~astro3d.gui.astroObjects.Region`, which provides `StarScene` with a pointer to each region, allowing them to be removed if necessary. ``Region.name`` must contain region type.
 
     """
     _SCENE_COLOR = QColor(0, 100, 200)
+    _SELECTED_COLOR = QColor(255, 0, 0)
 
     def __init__(self, parent, width, height):
         super(StarScene, self).__init__(parent)
         self.size = QSize(width, height)
+        self.pixmap = None
         self.regions = defaultdict(list)
 
     def addImg(self, pixmap):
@@ -64,12 +69,9 @@ class StarScene(QGraphicsScene):
         scaledPixmap : QPixmap
 
         """
-        self.clear()
         scaledPixmap = pixmap.scaled(self.size, Qt.KeepAspectRatio)
-        self.addItem(QGraphicsPixmapItem(scaledPixmap))
-        for reglist in self.regions.itervalues():
-            for reg in reglist:
-                self.addItem(reg)
+        self.pixmap = QGraphicsPixmapItem(scaledPixmap)
+        self.draw()
         return scaledPixmap
 
     def addReg(self, region):
@@ -85,13 +87,11 @@ class StarScene(QGraphicsScene):
         region : `~astro3d.gui.astroObjects.Region`
 
         """
-        if isinstance(region.region, (list, tuple)):
-            return map(self.addReg, region.region)
+        if isinstance(region, (list, tuple)):
+            return map(self.addReg, region)
         else:
-            r = QGraphicsPolygonItem(region.region)
-            r.setPen(self._SCENE_COLOR)
-            self.addItem(r)
-            self.regions[region.name].append(r)
+            self.regions[region.name].append(region)
+            self.draw()
 
     def delReg(self, region):
         """Remove a given region from the display.
@@ -106,12 +106,11 @@ class StarScene(QGraphicsScene):
         region : `~astro3d.gui.astroObjects.Region`
 
         """
-        if isinstance(region.region, (list, tuple)):
-            map(self.delReg, region.region)
+        if isinstance(region, (list, tuple)):
+            map(self.delReg, region)
         else:
-            r = QGraphicsPolygonItem(region.region)
-            self.removeItem(r)
-            self.regions[region.name].remove(r)
+            self.regions[region.name].remove(region)
+            self.draw()
 
     def clear(self):
         """Removes all items from the display without destroying
@@ -120,6 +119,25 @@ class StarScene(QGraphicsScene):
         """
         for i in self.items():
             self.removeItem(i)
+
+    def draw(self, selected=[]):
+        """Draw scene. Highlight selected region(s)."""
+        if not isinstance(selected, list):
+            selected = [selected]
+
+        self.clear()
+
+        if self.pixmap is not None:
+            self.addItem(self.pixmap)
+
+        for reglist in self.regions.itervalues():
+            for reg in reglist:
+                r = QGraphicsPolygonItem(reg.region)
+                if reg in selected:
+                    r.setPen(self._SELECTED_COLOR)
+                else:
+                    r.setPen(self._SCENE_COLOR)
+                self.addItem(r)
 
 
 class RegionStarScene(QGraphicsScene):
@@ -170,6 +188,7 @@ class RegionStarScene(QGraphicsScene):
     def __init__(self, parent, pixmap, name):
         super(RegionStarScene, self).__init__(parent)
         self.name = name
+        self.description = name
         self.item = QGraphicsPixmapItem(pixmap)
         self.addItem(self.item)
         self.points = []
@@ -224,8 +243,11 @@ class RegionStarScene(QGraphicsScene):
             self.displayshape = None
 
     def getRegion(self):
-        """Returns the name (String) and shape (QPolygonF) of the region."""
-        return self.name, self.shape
+        """Returns the name (String), shape (QPolygonF), and
+        description (string or list) of the region.
+
+        """
+        return self.name, self.shape, self.description
 
     def clear(self):
         """Removes all items from the display except the image.
@@ -251,9 +273,15 @@ class RegionFileScene(QGraphicsScene):
         self.addItem(self.item)
 
         if isinstance(regions, list):
-            self.name = [reg.name for reg in regions]
-            self.shape = [reg.region for reg in regions]
+            self.name = []
+            self.shape = []
+            self.description = []
             self.display_shape = []
+
+            for reg in regions:
+                self.name.append(reg.name)
+                self.shape.append(reg.region)
+                self.description.append(reg.description)
 
             for s in self.shape:
                 q = QGraphicsPolygonItem(s)
@@ -264,15 +292,16 @@ class RegionFileScene(QGraphicsScene):
         else:
             self.name = regions.name
             self.shape = regions.region
+            self.description = regions.description
             self.display_shape = QGraphicsPolygonItem(self.shape)
             self.addItem(self.display_shape)
 
     def getRegion(self):
-        """Returns the name (string or list) and shapes (QPolygonF or list)
-        of the regions.
+        """Returns the name (string or list), shapes (QPolygonF or list),
+        and descriptions (string or list) of the regions.
 
         """
-        return self.name, self.shape
+        return self.name, self.shape, self.description
 
     def clear(self):
         """Removes all items from the display except the image."""

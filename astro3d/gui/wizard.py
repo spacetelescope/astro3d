@@ -579,6 +579,11 @@ class RegionPage(QWizardPage):
         self.status.setText('Status: Select region file(s) to load')
         self.status.repaint()
         text = self.parent.loadRegion()
+
+        if text is None:
+            self.status.setText('Status: No file(s) selected')
+            return
+
         self.save.setEnabled(True)
         self.clear.setEnabled(True)
         self.status.setText('Status: {0} loaded from file(s)'.format(text))
@@ -604,6 +609,7 @@ class RegionPage(QWizardPage):
         self.clear.setEnabled(False)
         self.save.setEnabled(False)
         self.status.setText('Status: Region cleared (not saved)!')
+        self._highlight_item()
 
     def createRegionList(self):
         """Create the region list, along with a number of
@@ -616,16 +622,17 @@ class RegionPage(QWizardPage):
         """
         self.reg_list = QListWidget()
         self.add_items()
-        self.reg_list.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.reg_list.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.reg_list.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.reg_list.customContextMenuRequested.connect(self._show_item_menu)
+        self.reg_list.itemClicked.connect(self._highlight_item)
 
         # These do not work properly - disabled for now
         #box = QDialogButtonBox(Qt.Vertical)
         #self.show_ = box.addButton('Show', QDialogButtonBox.ActionRole)
         #self.hide = box.addButton('Hide', QDialogButtonBox.ActionRole)
-        #self.delete = box.addButton('Delete', QDialogButtonBox.ActionRole)
         #self.show_.clicked.connect(self.show_region)
         #self.hide.clicked.connect(self.hide_region)
-        #self.delete.clicked.connect(self.delete_region)
         #self.enableButtons()
         #self.reg_list.itemSelectionChanged.connect(self.enableButtons)
 
@@ -634,6 +641,27 @@ class RegionPage(QWizardPage):
         #hbox.addWidget(box)
 
         return hbox
+
+    def _highlight_item(self, item=None):
+        """Highlight region when selected."""
+        self.parent.highlightRegion(self.getSelected()[2])
+
+    def _show_item_menu(self, pos):
+        """This is shown when user right-clicks on a selected item."""
+        item = self.reg_list.itemAt(pos)
+
+        if item is None:
+            return
+
+        menu = QMenu('Context Menu', self)
+        renameAction = menu.addAction('Rename')
+        deleteAction = menu.addAction('Delete')
+        action = menu.exec_(self.reg_list.mapToGlobal(pos))
+
+        if action == renameAction:
+            self.rename_region()
+        elif action == deleteAction:
+            self.delete_region()
 
     def add_items(self):
         """Clear the region list, then adds all regions from
@@ -649,24 +677,22 @@ class RegionPage(QWizardPage):
 
         for key in sorted(self.parent.file.regions):
             reglist = self.parent.file.regions[key]
-            items += ['{0}_{1}'.format(key, i + 1) for i in range(len(reglist))]
+            items += ['{0}_{1} ({2})'.format(key, i, reg.description)
+                      for i, reg in enumerate(reglist, 1)]
 
         self.reg_list.clear()
         self.reg_list.addItems(items)
 
     #def enableButtons(self):
-    #    """Enable/disable the show, hide, and delete buttons
+    #    """Enable/disable the show/hide buttons
     #    depending on which regions are selected.
     #
     #    * Show is enabled if any selected regions are hidden.
     #    * Hide is enabled if any selected regions are visible.
-    #    * Delete is enabled as long as at least one region is selected.
     #
     #    """
     #    selected = self.getSelected()
     #    if selected:
-    #        self.delete.setEnabled(True)
-    #
     #        if any([reg.visible for reg in selected]):
     #            self.hide.setEnabled(True)
     #        else:
@@ -679,23 +705,36 @@ class RegionPage(QWizardPage):
     #    else:
     #        self.show_.setEnabled(False)
     #        self.hide.setEnabled(False)
-    #        self.delete.setEnabled(False)
 
-    #def getSelected(self):
-    #    """Get all selected regions.
-    #
-    #    Returns
-    #    -------
-    #    output
-    #       A list of `~astro3d.gui.astroObjects.Region` objects
-    #       for all selected regions.
-    #
-    #    """
-    #    output = []
-    #    for item in self.reg_list.selectedItems():
-    #        key, val = item.split('_')
-    #        output.append(self.parent.file.regions[key][int(val)])
-    #    return output
+    def getSelected(self):
+        """Get all selected regions.
+
+        Returns
+        -------
+        outrows : list
+            A list of row indices for the selected items.
+
+        outkeys : list
+            A list of keys for the corresponding regions.
+
+        output : list
+            A list of `~astro3d.gui.astroObjects.Region` objects
+            for all selected regions.
+
+        """
+        outrows = []
+        outkeys = []
+        output = []
+
+        for item in self.reg_list.selectedItems():
+            s = str(item.text()).split()[0].split('_')
+            key = '_'.join(s[:-1])
+            val = int(s[-1]) - 1
+            outrows.append(self.reg_list.row(item))
+            outkeys.append(key)
+            output.append(self.parent.file.regions[key][val])
+
+        return outrows, outkeys, output
 
     #def show_region(self):
     #    """Displays any hidden regions among the selected regions."""
@@ -707,14 +746,36 @@ class RegionPage(QWizardPage):
     #    self.parent.hideRegion(self.getSelected())
     #    self.enableButtons()
 
-    #def delete_region(self):
-    #    """Deletes the selected region."""
-    #    self.parent.deleteRegion(self.getSelected())
-    #    self.add_items()
-    #    self.enableButtons()
-    #    self.status.setText('Status: Region deleted!')
-    #    self.status.repaint()
-    #    self.emit(SIGNAL('completeChanged()'))
+    def rename_region(self):
+        """Change region description."""
+        regions = self.getSelected()[2]
+        if len(regions) < 1:
+            return
+
+        for reg in regions:
+            self.parent.renameRegion(reg)
+
+        # Show new name
+        self.add_items()
+
+    def delete_region(self):
+        """Delete the selected region."""
+        rows, keys, regions = self.getSelected()
+        if len(rows) < 1:
+            return
+
+        item_names = []
+
+        for row, key, reg in zip(rows, keys, regions):
+            self.parent.deleteRegion(key, reg)
+            item = self.reg_list.takeItem(row)
+            item_names.append(str(item.text()))
+
+        self.status.setText('Status: {0} deleted!'.format(','.join(item_names)))
+        self.emit(SIGNAL('completeChanged()'))
+
+        # Relabel remaining regions
+        self.add_items()
 
     def isComplete(self):
         """Only proceed if there is at least one region saved."""
