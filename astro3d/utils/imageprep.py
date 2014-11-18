@@ -297,6 +297,9 @@ def make_model(image, region_masks=defaultdict(list), peaks={}, height=150.0,
 
     # endif has_texture
 
+    # Renormalize again so that height is more predictable
+    image = iutils.normalize(image, True, height)
+
     if isinstance(image, np.ma.core.MaskedArray):
         image = image.data
 
