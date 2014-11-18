@@ -521,7 +521,7 @@ class RegionPage(QWizardPage):
         self.setTitle('Region Selection')
 
         msglabel = QLabel(
-            """Select region the drop-down box to draw or 'Load' to load from file. To draw, click on the image. If you are dissatisfied, press 'Clear'. Once you are satisfied, press 'Save'. Once saved, the region cannot be removed. To draw another region, you must explicitly select from the drop-down box again.""")
+            """Select region the drop-down box to draw or 'Load' to load from file. To draw, click on the image. If you are dissatisfied, press 'Clear'. Once you are satisfied, press 'Save'. To draw another region, you must explicitly select from the drop-down box again.""")
         msglabel.setWordWrap(True)
 
         self.draw = QComboBox(self)

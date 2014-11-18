@@ -163,25 +163,16 @@ class RegionStarScene(QGraphicsScene):
     name : str
         Same as input.
 
+    description : str
+        Description of the region (informational only).
+
     item : QGraphicsPixmapItem
         Created from ``pixmap``.
 
-    points : list
-        Points that have been added by the user.
-
-    graphicspoints : list
+    graphicspoints : list of `RegionStarSceneItem`
         Displayed circles representing ``points``.
 
-    shape : QPolygonF
-        Polygon created from ``points``.
-
-    display_shape : QGraphicsPolygonItem
-        Display version of ``shape``.
-
     """
-    _ELLIPSE_SZ = 10
-    _ELLIPSE_RAD = _ELLIPSE_SZ // 2
-    _ELLIPSE_COLOR = QColor(0, 255, 0)
     _REGION_COLOR = QColor(0, 100, 200)
     _MIN_POINTS = 3
 
@@ -190,20 +181,20 @@ class RegionStarScene(QGraphicsScene):
         self.name = name
         self.description = name
         self.item = QGraphicsPixmapItem(pixmap)
-        self.addItem(self.item)
-        self.points = []
         self.graphicspoints = []
-        self.shape = None
-        self.display_shape = None
+        self._i_to_move = None
+        self.draw()
 
     def mousePressEvent(self, event):
         """This method is called whenever the user clicks on
         `RegionStarScene`.
 
-        It adds a new point clicked to ``points`` and ``graphicspoints``.
-        If the point already exists, it is removed instead.
-        If 3 or more points are added, it generates ``shape`` and
-        ``display_shape`` to go along with it.
+        It adds a new point clicked to ``graphicspoints``.
+        If the point already exists, right click will remove it.
+        To move an existing point, select it with left click and
+        then CNTRL+click the new position.
+        If 3 or more points are present, it generates `shape` and
+        draws a polygon.
 
         Parameters
         ----------
@@ -211,40 +202,100 @@ class RegionStarScene(QGraphicsScene):
 
         """
         p = event.scenePos()
-        is_removed = False
+        flag, i = self.has_point(p)
+
+        if flag:
+            if event.button() == Qt.RightButton:  # Remove point
+                self.graphicspoints.pop(i)
+                self.reset_point_selection()
+            else:  # Mark point to be moved
+                self._i_to_move = i
+                self.graphicspoints[self._i_to_move].do_selection()
+        else:
+            if event.button() == Qt.LeftButton:
+                gp = RegionStarSceneItem(p)
+                modifiers = QApplication.keyboardModifiers()
+                if modifiers == Qt.ControlModifier:  # Move point
+                    if self._i_to_move is not None:
+                        self.graphicspoints[self._i_to_move] = gp
+                else:  # Add point
+                    self.graphicspoints.append(gp)
+            self.reset_point_selection()
+
+        self.draw()
+
+    def reset_point_selection(self):
+        """Undo any highlighted point."""
+        if self._i_to_move is not None:
+            self.graphicspoints[self._i_to_move].undo_selection()
+            self._i_to_move = None
+
+    def has_point(self, p):
+        """Check if given point already exists.
+
+        Parameters
+        ----------
+        p : QPointF
+
+        Returns
+        -------
+        flag : bool
+            `True` if point exists, else `False`.
+
+        idx : int or `None`
+            Corresponding index in ``self.points`` and
+            ``self.graphicspoints``, if exists.
+
+        """
+        flag = False
+        idx = None
 
         for i, gp in enumerate(self.graphicspoints):
             if gp.contains(p):
-                is_removed = True
-                self.removeItem(gp)
-                self.graphicspoints.remove(gp)
-                self.points.pop(i)
+                flag = True
+                idx = i
                 break
 
-        if not is_removed:
-            e = QGraphicsEllipseItem(
-                p.x() - self._ELLIPSE_RAD, p.y() - self._ELLIPSE_RAD,
-                self._ELLIPSE_SZ, self._ELLIPSE_SZ)
-            e.setPen(QPen(self._ELLIPSE_COLOR))
-            self.addItem(e)
-            self.graphicspoints.append(e)
-            self.points.append(p)
+        return flag, idx
 
-        if self.display_shape is not None:
-            self.removeItem(self.display_shape)
-
-        if len(self.points) >= self._MIN_POINTS:
-            self.shape = QPolygonF(self.points)
-            self.display_shape = QGraphicsPolygonItem(self.shape)
-            self.display_shape.setPen(QPen(self._REGION_COLOR))
-            self.addItem(self.display_shape)
+    @property
+    def shape(self):
+        """Polygon shape."""
+        if len(self.graphicspoints) < self._MIN_POINTS:
+            s = None
         else:
-            self.shape = None
-            self.displayshape = None
+            s = QPolygonF([gp.pos for gp in self.graphicspoints])
+        return s
+
+    def draw(self):
+        """Draw points and polygon."""
+        for i in self.items():
+            self.removeItem(i)
+
+        self.addItem(self.item)
+
+        for gp in self.graphicspoints:
+            self.addItem(gp)
+
+        shape = self.shape
+        if shape is not None:
+            display_shape = QGraphicsPolygonItem(shape)
+            display_shape.setPen(QPen(self._REGION_COLOR))
+            self.addItem(display_shape)
 
     def getRegion(self):
-        """Returns the name (String), shape (QPolygonF), and
-        description (string or list) of the region.
+        """Return information of region to save.
+
+        Returns
+        -------
+        name : str
+            Name (key) of the region.
+
+        shape : QPolygonF
+            Shape of the region.
+
+        description : str
+            Description of the region.
 
         """
         return self.name, self.shape, self.description
@@ -257,10 +308,48 @@ class RegionStarScene(QGraphicsScene):
         for i in self.items():
             self.removeItem(i)
         self.addItem(self.item)
-        self.points = []
         self.graphicspoints = []
-        self.shape = None
-        self.display_shape = None
+
+
+class RegionStarSceneItem(QGraphicsEllipseItem):
+    """Class to handle data points in `RegionStarScene`.
+
+    Parameters
+    ----------
+    pos : QPointF
+        Initial position of the data point.
+
+    """
+    _ELLIPSE_SZ = 10
+    _ELLIPSE_RAD = _ELLIPSE_SZ // 2
+    _ELLIPSE_COLOR = QColor(0, 255, 0)
+    _SELECTED_COLOR = QColor(255, 0, 0)
+
+    def __init__(self, pos):
+        super(RegionStarSceneItem, self).__init__(
+            pos.x() - self._ELLIPSE_RAD, pos.y() - self._ELLIPSE_RAD,
+            self._ELLIPSE_SZ, self._ELLIPSE_SZ)
+        self.pos = pos
+        self.setPen(QPen(self._ELLIPSE_COLOR))
+        self.setAcceptHoverEvents(True)
+        self._default_brush = self.brush()
+        self._highlight_brush = QBrush(self._ELLIPSE_COLOR)
+
+    def do_selection(self):
+        """Mark as selected."""
+        self.setPen(QPen(self._SELECTED_COLOR))
+
+    def undo_selection(self):
+        """Undo :meth:`do_selection`."""
+        self.setPen(QPen(self._ELLIPSE_COLOR))
+
+    def hoverEnterEvent(self, event):
+        """Highlight point on mouse over."""
+        self.setBrush(self._highlight_brush)
+
+    def hoverLeaveEvent(self, event):
+        """Un-highlight point when mouse leaves."""
+        self.setBrush(self._default_brush)
 
 
 class RegionFileScene(QGraphicsScene):
@@ -276,29 +365,36 @@ class RegionFileScene(QGraphicsScene):
             self.name = []
             self.shape = []
             self.description = []
-            self.display_shape = []
 
             for reg in regions:
                 self.name.append(reg.name)
                 self.shape.append(reg.region)
                 self.description.append(reg.description)
-
-            for s in self.shape:
-                q = QGraphicsPolygonItem(s)
-                q.setPen(QPen(self._REGION_COLOR))
-                self.display_shape.append(q)
-                self.addItem(q)
+                display_shape = QGraphicsPolygonItem(reg.region)
+                display_shape.setPen(QPen(self._REGION_COLOR))
+                self.addItem(display_shape)
 
         else:
             self.name = regions.name
             self.shape = regions.region
             self.description = regions.description
-            self.display_shape = QGraphicsPolygonItem(self.shape)
-            self.addItem(self.display_shape)
+            display_shape = QGraphicsPolygonItem(self.shape)
+            display_shape.setPen(QPen(self._REGION_COLOR))
+            self.addItem(display_shape)
 
     def getRegion(self):
-        """Returns the name (string or list), shapes (QPolygonF or list),
-        and descriptions (string or list) of the regions.
+        """Return information of region(s) to save.
+
+        Returns
+        -------
+        name : str or list
+            Name (key) of the region.
+
+        shape : QPolygonF or list
+            Shape of the region.
+
+        description : str or list
+            Description of the region.
 
         """
         return self.name, self.shape, self.description
