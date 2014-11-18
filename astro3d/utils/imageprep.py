@@ -198,27 +198,35 @@ def make_model(image, region_masks=defaultdict(list), peaks={}, height=150.0,
 
     # Texture layer that is added later overwrites previous layers if overlap
     if has_texture:
+        texture_layer = np.zeros(image.shape)
 
         # Dots and lines
 
         if is_spiralgal:
+
+            log.info('Adding textures for spiral arms and disk')
+
+            # Fill dust lanes for texture-only
+            if not has_intensity:
+                mask = image > 0
+                cur_texture = SMALL_DOTS(image, mask=mask)
+                texture_layer[mask] = cur_texture[mask]
+
             # At this point, unsuppressed regions that are not part of disk
             # means spiral arms
-            log.info('Adding textures for spiral arms and disk')
-            texture_layer = galaxy_texture(image, lmask=disk, cmask=cusp_mask)
+            cur_texture = galaxy_texture(image, lmask=disk, cmask=cusp_mask)
+            mask = cur_texture > 0
+            texture_layer[mask] = cur_texture[mask]
 
         else:
-            texture_layer = np.zeros(image.shape)
-
             # Apply layers from bottom up
             for layer_key in layer_order[::-1]:
                 if layer_key == dots_key:
-                    texture_func = dots_from_mask
+                    texture_func = DOTS
                 elif layer_key == small_dots_key:
-                    texture_func = partial(
-                        dots_from_mask, hexgrid_spacing=5, dots_width=3)
+                    texture_func = SMALL_DOTS
                 elif layer_key == lines_key:
-                    texture_func = lines_from_mask
+                    texture_func = LINES
                 else:
                     warnings.warn('{0} is not a valid texture, skipping...'
                                   ''.format(layer_key), AstropyUserWarning)
@@ -237,8 +245,10 @@ def make_model(image, region_masks=defaultdict(list), peaks={}, height=150.0,
 
         if has_intensity:
             h_percentile = 75
+            s_height = 5
         else:
             h_percentile = None
+            s_height = 10
 
         # Add star clusters
 
@@ -249,8 +259,9 @@ def make_model(image, region_masks=defaultdict(list), peaks={}, height=150.0,
 
         for cluster in clusters:
             c1 = make_star_cluster(
-                image, cluster,  maxclusflux, h_percentile=h_percentile,
-                r_fac_add=clus_r_fac_add, r_fac_mul=clus_r_fac_mul, n_craters=3)
+                image, cluster,  maxclusflux, height=s_height,
+                h_percentile=h_percentile, r_fac_add=clus_r_fac_add,
+                r_fac_mul=clus_r_fac_mul, n_craters=3)
             if not np.any(c1):
                 continue
             if clustexarr is None:
@@ -270,8 +281,9 @@ def make_model(image, region_masks=defaultdict(list), peaks={}, height=150.0,
 
         for mstar in markstars:
             s1 = make_star_cluster(
-                image, mstar, maxstarflux, h_percentile=h_percentile,
-                r_fac_add=star_r_fac_add, r_fac_mul=star_r_fac_mul, n_craters=1)
+                image, mstar, maxstarflux, height=s_height,
+                h_percentile=h_percentile, r_fac_add=star_r_fac_add,
+                r_fac_mul=star_r_fac_mul, n_craters=1)
             if not np.any(s1):
                 continue
             if clustexarr is None:
@@ -601,9 +613,10 @@ def make_star_cluster(image, peak, max_intensity, r_fac_add=15, r_fac_mul=5,
                           ''.format(e, yy1, yy2, xx1, xx2), AstropyUserWarning)
             return np.zeros(image.shape)
 
-    filt = ndimage.filters.maximum_filter(array, fil_size)
-    mask = (filt > 0) & (image > filt) & (array == 0)
-    array[mask] = filt[mask]
+    if h_percentile is not None:
+        filt = ndimage.filters.maximum_filter(array, fil_size)
+        mask = (filt > 0) & (image > filt) & (array == 0)
+        array[mask] = filt[mask]
 
     return array
 
@@ -668,6 +681,26 @@ def dots_from_mask(image, mask=None, hexgrid_spacing=7, dots_width=5,
     dots : ndarray
         Output array with texture values.
 
+    Examples
+    --------
+    Texture for NGC 602 dust region:
+
+    >>> gastex = dots_from_mask(
+    ...     image, mask=gasmask, hexgrid_spacing=7, dots_width=7,
+    ...     dots_scale=1.0)
+
+    Texture for NGC 602 dust and gas combined region:
+
+    >>> dustgastex = dots_from_mask(
+    ...     image, mask=dustgasmask, hexgrid_spacing=10, dots_width=7,
+    ...     dots_scale=3.0)
+
+    Alternate texture for NGC 602 gas region:
+
+    >>> dusttex = dots_from_mask(
+    ...     image, mask=dustmask, hexgrid_spacing=20, dots_width=7,
+    ...     dots_scale=3.0)
+
     """
     dots = _texture.dots('linear', image.shape, dots_width, dots_scale,
                          _texture.hex_grid(image.shape, hexgrid_spacing))
@@ -719,6 +752,14 @@ def lines_from_mask(image, mask=None, lines_width=10, lines_spacing=20,
     lines : ndarray
         Output array with texture values.
 
+    Examples
+    --------
+    Texture for NGC 602 dust region:
+
+    >>> dusttex = lines_from_mask(
+    ...     image, mask=dustmask, lines_width=15, lines_spacing=25,
+    ...     lines_scale=0.7, lines_orient=0)
+
     """
     lines = _texture.lines('linear', image.shape, lines_width, lines_spacing,
                            lines_scale, lines_orient)
@@ -740,9 +781,7 @@ def lines_from_mask(image, mask=None, lines_width=10, lines_spacing=20,
     return lines
 
 
-def galaxy_texture(galaxy, lmask=None, cmask=None, scale=1.0, hexgrid_spacing=7,
-                   dots_width=5, dots_scale=3.2, lines_width=10,
-                   lines_spacing=20, lines_scale=1.2, lines_orient=0,
+def galaxy_texture(galaxy, lmask=None, cmask=None, scale=1.0,
                    fil_size=25, fil_invscale=1.1):
     """Apply texture to the spiral arms and disk of galaxy.
 
@@ -769,12 +808,6 @@ def galaxy_texture(galaxy, lmask=None, cmask=None, scale=1.0, hexgrid_spacing=7,
         Scaling for auto texture generation without mask.
         This is only used if ``lmask`` is not given.
 
-    hexgrid_spacing, dots_width, dots_scale
-        See :func:`dots_from_mask`.
-
-    lines_width, lines_spacing, lines_scale, lines_orient
-        See :func:`lines_from_mask`.
-
     fil_size : int
         Filter size for :func:`~scipy.ndimage.filters.maximum_filter`.
 
@@ -799,14 +832,10 @@ def galaxy_texture(galaxy, lmask=None, cmask=None, scale=1.0, hexgrid_spacing=7,
         dmask = ~lmask
 
     # Mark spiral arms as dots.
-    dots = dots_from_mask(
-        galaxy, hexgrid_spacing=hexgrid_spacing, dots_width=dots_width,
-        dots_scale=dots_scale, fil_size=fil_size, fil_invscale=fil_invscale)
+    dots = DOTS(galaxy, fil_size=fil_size, fil_invscale=fil_invscale)
 
     # Mark disk as lines.
-    lines = lines_from_mask(
-        galaxy, lines_width=lines_width, lines_spacing=lines_spacing,
-        lines_scale=lines_scale, lines_orient=lines_orient, fil_size=fil_size)
+    lines = LINES(galaxy, fil_size=fil_size)
 
     # Remove disk from spiral arms texture, and vice versa.
     dots[lmask] = 0
@@ -921,6 +950,21 @@ def find_peaks(image, remove=0, num=None, threshold=8, npix=10, minpeaks=35):
         peaks = isophot
 
     return peaks
+
+
+# Pre-defined textures (by Perry Greenfield for NGC 602)
+DOTS = partial(
+    dots_from_mask, hexgrid_spacing=10, dots_width=7, dots_scale=3.0)
+SMALL_DOTS = partial(
+    dots_from_mask, hexgrid_spacing=7, dots_width=7, dots_scale=1.0)
+LINES = partial(lines_from_mask, lines_width=15, lines_spacing=25,
+                lines_scale=0.7, lines_orient=0)
+
+# Pre-defined textures (by Roshan Rao for NGC 3344 and NGC 1566)
+#DOTS = partial(
+#    dots_from_mask, hexgrid_spacing=7, dots_width=5, dots_scale=3.2)
+#LINES = partial(lines_from_mask, lines_width=10, lines_spacing=20,
+#                lines_scale=1.2, lines_orient=0)
 
 
 ######################################
