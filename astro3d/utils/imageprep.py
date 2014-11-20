@@ -953,18 +953,22 @@ def find_peaks(image, remove=0, num=None, threshold=8, npix=10, minpeaks=35):
 
 
 # Pre-defined textures (by Perry Greenfield for NGC 602)
-DOTS = partial(
-    dots_from_mask, hexgrid_spacing=10, dots_width=7, dots_scale=3.0)
-SMALL_DOTS = partial(
-    dots_from_mask, hexgrid_spacing=7, dots_width=7, dots_scale=1.0)
-LINES = partial(lines_from_mask, lines_width=15, lines_spacing=25,
-                lines_scale=0.7, lines_orient=0)
+# This is for XSIZE=1100 YSIZE=1344
+#DOTS = partial(
+#    dots_from_mask, hexgrid_spacing=10, dots_width=7, dots_scale=3.0)
+#SMALL_DOTS = partial(
+#    dots_from_mask, hexgrid_spacing=7, dots_width=7, dots_scale=1.0)
+#LINES = partial(lines_from_mask, lines_width=15, lines_spacing=25,
+#                lines_scale=0.7, lines_orient=0)
 
 # Pre-defined textures (by Roshan Rao for NGC 3344 and NGC 1566)
-#DOTS = partial(
-#    dots_from_mask, hexgrid_spacing=7, dots_width=5, dots_scale=3.2)
-#LINES = partial(lines_from_mask, lines_width=10, lines_spacing=20,
-#                lines_scale=1.2, lines_orient=0)
+# This is for roughly XSIZE=1000 YSIZE=1000
+DOTS = partial(
+    dots_from_mask, hexgrid_spacing=7, dots_width=5, dots_scale=3.2)
+SMALL_DOTS = partial(
+    dots_from_mask, hexgrid_spacing=5, dots_width=5, dots_scale=1.0)
+LINES = partial(lines_from_mask, lines_width=10, lines_spacing=20,
+                lines_scale=1.2, lines_orient=0)
 
 
 ######################################
