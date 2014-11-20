@@ -132,12 +132,19 @@ class StarScene(QGraphicsScene):
 
         for reglist in self.regions.itervalues():
             for reg in reglist:
-                r = QGraphicsPolygonItem(reg.region)
                 if reg in selected:
-                    r.setPen(self._SELECTED_COLOR)
-                else:
-                    r.setPen(self._SCENE_COLOR)
+                    continue
+                r = QGraphicsPolygonItem(reg.region)
+                r.setPen(self._SCENE_COLOR)
                 self.addItem(r)
+
+        # Highlight selected regions last
+        for reglist in self.regions.itervalues():
+            for reg in reglist:
+                if reg in selected:
+                    r = QGraphicsPolygonItem(reg.region)
+                    r.setPen(self._SELECTED_COLOR)
+                    self.addItem(r)
 
 
 class RegionStarScene(QGraphicsScene):
@@ -172,6 +179,9 @@ class RegionStarScene(QGraphicsScene):
     graphicspoints : list of `RegionStarSceneItem`
         Displayed circles representing ``points``.
 
+    overwrite : tuple or `None`
+        ``(key, index)`` to identify an existing region in GUI to replace. This is set directly by GUI.
+
     """
     _REGION_COLOR = QColor(0, 100, 200)
     _MIN_POINTS = 3
@@ -182,8 +192,19 @@ class RegionStarScene(QGraphicsScene):
         self.description = name
         self.item = QGraphicsPixmapItem(pixmap)
         self.graphicspoints = []
+        self.overwrite = None
         self._i_to_move = None
         self.draw()
+
+    @classmethod
+    def from_region(cls, parent, pixmap, region):
+        """Generate scene from existing region."""
+        newcls = cls(parent, pixmap, region.name)
+        newcls.description = region.description
+        newcls.graphicspoints = [
+            RegionStarSceneItem(p) for p in region.points()]
+        newcls.draw()
+        return newcls
 
     def mousePressEvent(self, event):
         """This method is called whenever the user clicks on
@@ -353,32 +374,27 @@ class RegionStarSceneItem(QGraphicsEllipseItem):
 
 
 class RegionFileScene(QGraphicsScene):
-    """Like `RegionStarScene` but the regions are pre-loaded from files."""
+    """Like `RegionStarScene` but multiple regions are pre-loaded from files."""
     _REGION_COLOR = QColor(0, 100, 200)
 
     def __init__(self, parent, pixmap, regions):
         super(RegionFileScene, self).__init__(parent)
+
+        if not isinstance(regions, list):
+            raise ValueError('Only support multiple regions')
+
         self.item = QGraphicsPixmapItem(pixmap)
         self.addItem(self.item)
+        self.name = []
+        self.shape = []
+        self.description = []
+        self.overwrite = None  # Not allowed here
 
-        if isinstance(regions, list):
-            self.name = []
-            self.shape = []
-            self.description = []
-
-            for reg in regions:
-                self.name.append(reg.name)
-                self.shape.append(reg.region)
-                self.description.append(reg.description)
-                display_shape = QGraphicsPolygonItem(reg.region)
-                display_shape.setPen(QPen(self._REGION_COLOR))
-                self.addItem(display_shape)
-
-        else:
-            self.name = regions.name
-            self.shape = regions.region
-            self.description = regions.description
-            display_shape = QGraphicsPolygonItem(self.shape)
+        for reg in regions:
+            self.name.append(reg.name)
+            self.shape.append(reg.region)
+            self.description.append(reg.description)
+            display_shape = QGraphicsPolygonItem(reg.region)
             display_shape.setPen(QPen(self._REGION_COLOR))
             self.addItem(display_shape)
 
@@ -387,13 +403,13 @@ class RegionFileScene(QGraphicsScene):
 
         Returns
         -------
-        name : str or list
+        name :list of str
             Name (key) of the region.
 
-        shape : QPolygonF or list
+        shape : list of QPolygonF
             Shape of the region.
 
-        description : str or list
+        description : list of str
             Description of the region.
 
         """

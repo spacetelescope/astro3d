@@ -62,7 +62,7 @@ from ..utils import imageprep, imageutils
 
 _gui_title = 'Astronomy 3D Model'
 __version__ = '0.2.0.dev'
-__vdate__ = '19-Nov-2014'
+__vdate__ = '20-Nov-2014'
 __author__ = 'STScI'
 
 
@@ -374,6 +374,21 @@ class AstroGUI(QMainWindow):
         if ok:
             region.description = str(text)
 
+    def editRegion(self, key, idx):
+        """Edit one existing region.
+
+        Parameters
+        ----------
+        key : str
+            Region key.
+
+        idx : int
+            Index of the region in the existing list of regions.
+
+        """
+        region = self.file.regions[key][idx]
+        self.widget.region_loader(region, overwrite=(key, idx))
+
     def deleteRegion(self, key, region):
         """Deletes a previously drawn region, removing it from
         ``regions`` and from the screen.
@@ -391,6 +406,15 @@ class AstroGUI(QMainWindow):
         else:
             self.hideRegion(region)
             self.file.regions[key].remove(region)
+
+    def handleRegionVisibility(self, region):
+        """Auto hide/show a region."""
+        if not isinstance(region, Region):
+            map(self.handleRegionVisibility, region)
+        elif region.visible:  # Hide
+            self.hideRegion(region)
+        else:  # Show
+            self.showRegion(region)
 
     def showRegion(self, region):
         """Displays the hidden region(s) passed in as the
@@ -450,7 +474,11 @@ class AstroGUI(QMainWindow):
 
         regions = [Region.fromfile(str(fname), _file=self.file)
                    for fname in flist]
-        self.widget.region_loader(regions)
+        if len(regions) == 1:
+            reg = regions[0]
+        else:
+            reg = regions
+        self.widget.region_loader(reg)
 
         return ','.join([reg.description for reg in regions])
 
@@ -463,12 +491,14 @@ class AstroGUI(QMainWindow):
         which is added to ``regions``.
 
         """
-        names, regions, descriptions = self.widget.save_region()
+        names, regions, descriptions, overwrite = self.widget.save_region()
 
         if not isinstance(regions, list):
             names = [names]
             regions = [regions]
             descriptions = [descriptions]
+        elif overwrite is not None:
+            raise ValueError('Cannot overwrite multiple regions.')
 
         for key, region, descrip in zip(names, regions, descriptions):
             reg = Region(key, region)
@@ -484,7 +514,13 @@ class AstroGUI(QMainWindow):
             key = key.lower()
 
             if key in self.REGION_TEXTURES[self.is_spiral]:
-                self.file.regions[key].append(reg)
+                if overwrite is not None:
+                    okey, oidx = overwrite
+                    old_reg = self.file.regions[okey][oidx]
+                    self.hideRegion(old_reg)
+                    self.file.regions[okey][oidx] = reg
+                else:
+                    self.file.regions[key].append(reg)
             else:
                 warnings.warn('{0} is not a valid region texture'.format(key),
                               AstropyUserWarning)
@@ -795,15 +831,23 @@ class MainPanel(QWidget):
         draw_scene = RegionStarScene(self, self.parent.file.image, name)
         self.update_scene(draw_scene)
 
-    def region_loader(self, reg):
+    def region_loader(self, reg, overwrite=None):
         """Sets the scene to display region loaded from file.
 
         Parameters
         ----------
         reg : `~astro3d.gui.astroObjects.Region` or list
 
+        overwrite : tuple or `None`
+            ``(key, index)`` to identify am existing region to replace.
+
         """
-        draw_scene = RegionFileScene(self, self.parent.file.image, reg)
+        if isinstance(reg, list):
+            draw_scene = RegionFileScene(self, self.parent.file.image, reg)
+        else:
+            draw_scene = RegionStarScene.from_region(
+                self, self.parent.file.image, reg)
+        draw_scene.overwrite = overwrite
         self.update_scene(draw_scene)
 
     def save_region(self):
@@ -812,14 +856,20 @@ class MainPanel(QWidget):
 
         Returns
         -------
-        name : str
+        name : str or list
 
         region : QPolygonF or list
 
+        description : str or list
+
+        overwrite
+            See :meth:`region_loader`.
+
         """
         name, region, description = self.current_scene.getRegion()
+        overwrite = self.current_scene.overwrite
         self.update_scene(self.main_scene)
-        return name, region, description
+        return name, region, description, overwrite
 
     def clear_region(self):
         """Clears the currently displayed region."""
