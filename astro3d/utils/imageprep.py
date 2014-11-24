@@ -317,7 +317,7 @@ def make_model(image, region_masks=defaultdict(list), peaks={}, height=150.0,
 
     log.info('Making base')
     if double:
-        base_dist = 60  # Magic?
+        base_dist = 100  # Magic? Was 60.
         base = make_base(image, dist=base_dist, height=base_thickness,
                          snapoff=True)
     else:
