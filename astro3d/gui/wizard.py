@@ -336,8 +336,14 @@ class ImageResizePage(QWizardPage):
         return self.size_okay
 
     def nextId(self):
-        """Proceed to `IntensityScalePage`."""
-        return ThreeDModelWizard.PG_SCALE
+        """Proceed to intensity scaling page if applicable,
+        else skip to model type selection page.
+
+        """
+        if self.parent.transformation is None:
+            return ThreeDModelWizard.PG_TYPE
+        else:
+            return ThreeDModelWizard.PG_SCALE
 
 
 class IntensityScalePage(QWizardPage):
@@ -848,8 +854,13 @@ class LayerOrderPage(QWizardPage):
 
         self.names_list.clear()
         names = self.parent.file.texture_names()
-        if len(names) > 1:
-            self.names_list.addItems(names)
+        ordered_names = [''] * len(names)
+
+        for s in names:
+            i = self.parent.layer_order.index(s)
+            ordered_names[i] = s
+
+        self.names_list.addItems(ordered_names)
 
     def _enable_buttons(self):
         # Only one item selection allowed at a time
@@ -969,6 +980,15 @@ class IdentifyPeakPage(QWizardPage):
 
         self.setLayout(vbox)
 
+    def initializePage(self):
+        """Do this here because need values from parent."""
+        if self.parent._enable_photutil:
+            self.findbutton.setDisabled(False)
+            self.ntext.setDisabled(False)
+        else:
+            self.findbutton.setDisabled(True)
+            self.ntext.setDisabled(True)
+
     def do_find(self):
         """Find objects. Can take few seconds to a minute or so."""
         n = int(self.ntext.text())
@@ -1066,8 +1086,19 @@ class IdentifyStarPage(QWizardPage):
         self._proceed_ok = False
         self.setTitle("Identify Stars")
 
-        msglabel = QLabel("""Choose one: Load or manual. Click on existing circle to remove object, or click on new object to add. Once you are satisfied, click 'Next'.""")
+        msglabel = QLabel("""Choose one: Find, load, or manual. Click on existing circle to remove object, or click on new object to add. Once you are satisfied, click 'Next'.""")
         msglabel.setWordWrap(True)
+
+        self.findbutton = QPushButton('Find')
+        self.findbutton.clicked.connect(self.do_find)
+        self.ntext = QLineEdit('25')
+        self.ntext.setMaxLength(4)
+        self.ntext.setFixedWidth(80)
+        nobjgrid = QHBoxLayout()
+        nobjgrid.addWidget(self.findbutton)
+        nobjgrid.addWidget(self.ntext)
+        nobjgrid.addWidget(QLabel('objects (might take a while)'))
+        nobjgrid.addStretch()
 
         self.loadbutton = QPushButton('Load')
         self.loadbutton.clicked.connect(self.do_load)
@@ -1102,6 +1133,7 @@ class IdentifyStarPage(QWizardPage):
         vbox.setSpacing(1)
         vbox.addWidget(msglabel)
         vbox.addStretch()
+        vbox.addLayout(nobjgrid)
         vbox.addLayout(hbbox1)
         vbox.addLayout(hbbox2)
         vbox.addWidget(radframe)
@@ -1109,6 +1141,28 @@ class IdentifyStarPage(QWizardPage):
         vbox.addWidget(self.status)
 
         self.setLayout(vbox)
+
+    def initializePage(self):
+        """Do this here because need values from parent."""
+        if self.parent._enable_photutil:
+            self.findbutton.setDisabled(False)
+            self.ntext.setDisabled(False)
+        else:
+            self.findbutton.setDisabled(True)
+            self.ntext.setDisabled(True)
+
+    def do_find(self):
+        """Find objects. Can take few seconds to a minute or so."""
+        n = int(self.ntext.text())
+        self.status.setText(
+            'Status: Finding {0} object(s), please wait...'.format(n))
+        self.status.repaint()
+        self.parent.find_stars(n)
+        self.status.setText(
+            'Status: {0} object(s) found!'.format(
+                len(self.parent.file.peaks['stars'])))
+        self._proceed_ok = True
+        self.emit(SIGNAL('completeChanged()'))
 
     def do_load(self):
         """Load objects from file."""

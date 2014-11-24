@@ -34,7 +34,6 @@ from __future__ import division, print_function
 # STDLIB
 import os
 import platform
-import subprocess
 import sys
 import warnings
 from collections import OrderedDict
@@ -62,7 +61,7 @@ from ..utils import imageprep, imageutils
 
 _gui_title = 'Astronomy 3D Model'
 __version__ = '0.2.0.dev'
-__vdate__ = '20-Nov-2014'
+__vdate__ = '24-Nov-2014'
 __author__ = 'STScI'
 
 
@@ -146,6 +145,8 @@ class AstroGUI(QMainWindow):
         self._clus_r_fac_mul = 1
         self._star_r_fac_add = 15
         self._star_r_fac_mul = 1
+        self._disp_img = None
+        self._enable_photutil = True
 
         self.setGeometry(
             self._GEOM_X, self._GEOM_Y, self._GEOM_SZ, self._GEOM_SZ)
@@ -247,45 +248,35 @@ class AstroGUI(QMainWindow):
 
         if fname.isEmpty():
             return
+
         elif fnamestr.endswith(('fits', 'FITS')):
             data = fits.getdata(fnamestr)
-        else:  # grayscale
-            self._open_color_img(fnamestr)
-            rgb_popup = RGBScalingPopup(self)
-            rgb_popup.exec_()
-            data = imageutils.img2array(
-                fnamestr, rgb_scaling=rgb_popup.rgb_scaling)[::-1, ]
+            if data is None:
+                QMessageBox.warning(
+                    self, 'File Error', 'This file does not contain image data')
+                return
+            self._disp_img = data
 
-        if data is None:
-            QMessageBox.warning(
-                self, 'File Error', 'This file does not contain image data')
-            return
+        else:  # color display
+            # DISABLED - Used for grayscale display
+            #rgb_popup = RGBScalingPopup(self)
+            #rgb_popup.exec_()
+            #data = imageutils.img2array(
+            #    fnamestr, rgb_scaling=rgb_popup.rgb_scaling)[::-1, :]
+
+            self.transformation = None  # Not applicable to RGB layers
+            self._enable_photutil = False  # Photometry fails for this format
+            self._disp_img = np.array(
+                Image.open(fnamestr), dtype=np.float32)[::-1, :, :]
+            data = self._disp_img.sum(axis=2)
 
         name = os.path.basename(fnamestr)
         image = QPixmap()
         image = image.fromImage(
-            makeqimage(data, self.transformation, self.widget.size))
+            makeqimage(self._disp_img, self.transformation, self.widget.size))
         pic = self.widget.addImage(image)
         self.file = File(data, pic)
         self.statusBar().showMessage(name)
-
-    def _open_color_img(self, filename):
-        """Display color image with built-in software."""
-        sysname = platform.system().lower()
-
-        if sysname == 'windows':
-            cmd = [filename]
-        elif sysname == 'darwin':
-            cmd = ['open', filename]
-        else:  # linux
-            cmd = ['xdg-open', filename]
-
-        try:
-            log.info('Opening color image: {0}'.format(' '.join(cmd)))
-            subprocess.call(cmd)
-        except Exception as e:
-            warnings.warn('Cannot open {0}: {1}'.format(filename, str(e)),
-                          AstropyUserWarning)
 
     def fileSave(self, height=150.0, depth=10, split_halves=True,
                  save_all=True):
@@ -538,7 +529,7 @@ class AstroGUI(QMainWindow):
 
         """
         pic = QPixmap().fromImage(
-            makeqimage(self.file.data, self.transformation, self.widget.size))
+            makeqimage(self._disp_img, self.transformation, self.widget.size))
         self.file.image = pic
         self.widget.setImage()
 
@@ -571,7 +562,6 @@ class AstroGUI(QMainWindow):
         """
         image = Image.fromarray(self.file.data).resize((width, height))
         self.file.data = np.array(image, dtype=np.float64)
-        self.remake_image()
 
     # Clusters editing
 
@@ -588,6 +578,10 @@ class AstroGUI(QMainWindow):
            Max number of objects to find.
 
         """
+        if not self._enable_photutil:
+            log.info('Photometry is disabled.')
+            return
+
         log.info('Finding star clusters, please be patient...')
         peaks = imageprep.find_peaks(np.flipud(self.file.data))[:n]
         self.widget.cluster_find(peaks)
@@ -616,6 +610,19 @@ class AstroGUI(QMainWindow):
         self.widget.save_clusters()
 
     # Stars editing
+
+    def find_stars(self, n):
+        """Same as :meth:`find_clusters` but objects found are
+        registered as individual stars by GUI.
+
+        """
+        if not self._enable_photutil:
+            log.info('Photometry is disabled.')
+            return
+
+        log.info('Finding stars, please be patient...')
+        peaks = imageprep.find_peaks(np.flipud(self.file.data))[:n]
+        self.widget.star_find(peaks)
 
     def load_stars(self):
         """Retrieve locations of stars from file."""
@@ -705,7 +712,11 @@ class AboutPopup(QDialog):
 
 
 class RGBScalingPopup(QDialog):
-    """Popup window for user to enter RGB scaling factors."""
+    """Popup window for user to enter RGB scaling factors.
+
+    .. note:: Not used anymore.
+
+    """
     def __init__(self, parent=None):
         super(RGBScalingPopup, self).__init__(parent)
         self.setWindowTitle('RGB Scaling')
@@ -713,7 +724,7 @@ class RGBScalingPopup(QDialog):
         self._colors = ['red', 'green', 'blue']
         self._texts = {}
 
-        label = QLabel('Enter scaling factors for grayscale conversion:')
+        label = QLabel('Enter scaling factors for intensity conversion:')
         label.setWordWrap(True)
 
         vbox = QVBoxLayout()
@@ -953,10 +964,16 @@ def makeqimage(nparray, transformation, size):
     """
     npimage = nparray.copy()
     npimage[npimage < 0] = 0
-    npimage = q2a._normalize255(transformation(npimage), True)
-    qimage = q2a.gray2qimage(npimage, (0, 255))
+
+    if transformation is not None:
+        npimage = q2a._normalize255(transformation(npimage), True)
+        qimage = q2a.array2qimage(npimage, (0, 255))
+    else:
+        qimage = q2a.array2qimage(npimage, True)
+
     qimage = qimage.scaled(size, Qt.KeepAspectRatio)
     qimage = qimage.mirrored(False, True)
+
     return qimage
 
 
