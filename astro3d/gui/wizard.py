@@ -1241,7 +1241,7 @@ class MakeModelPage(QWizardPage):
 To accomodate MakerBot Replicator 2, it is recommended that the model to be split in halves.""")
         label.setWordWrap(True)
 
-        self.heightbox = QLineEdit('200')
+        self.heightbox = QLineEdit('150')
         self.heightbox.setMaxLength(4)
         self.heightbox.setFixedWidth(80)
         hgrid = QHBoxLayout()

@@ -61,7 +61,7 @@ from ..utils import imageprep, imageutils
 
 _gui_title = 'Astronomy 3D Model'
 __version__ = '0.2.0.dev'
-__vdate__ = '24-Nov-2014'
+__vdate__ = '26-Nov-2014'
 __author__ = 'STScI'
 
 

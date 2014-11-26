@@ -198,27 +198,20 @@ def make_model(image, region_masks=defaultdict(list), peaks={}, height=150.0,
 
     # Texture layer that is added later overwrites previous layers if overlap
     if has_texture:
-        texture_layer = np.zeros(image.shape)
 
         # Dots and lines
 
         if is_spiralgal:
-
             log.info('Adding textures for spiral arms and disk')
-
-            # Fill dust lanes for texture-only
-            if not has_intensity:
-                mask = image > 0
-                cur_texture = SMALL_DOTS(image, mask=mask)
-                texture_layer[mask] = cur_texture[mask]
 
             # At this point, unsuppressed regions that are not part of disk
             # means spiral arms
-            cur_texture = galaxy_texture(image, lmask=disk, cmask=cusp_mask)
-            mask = cur_texture > 0
-            texture_layer[mask] = cur_texture[mask]
+            texture_layer = galaxy_texture(
+                image, lmask=disk, cmask=cusp_mask, has_intensity=has_intensity)
 
         else:
+            texture_layer = np.zeros(image.shape)
+
             # Apply layers from bottom up
             for layer_key in layer_order[::-1]:
                 if layer_key == dots_key:
@@ -234,7 +227,7 @@ def make_model(image, region_masks=defaultdict(list), peaks={}, height=150.0,
 
                 log.info('Adding {0}'.format(layer_key))
                 for mask in region_masks[layer_key]:
-                    cur_texture = texture_func(image, mask=mask)
+                    cur_texture = texture_func(image, mask)
                     texture_layer[mask] = cur_texture[mask]
 
         image += texture_layer
@@ -578,10 +571,10 @@ def make_star_cluster(image, peak, max_intensity, r_fac_add=15, r_fac_mul=5,
     r = star.shape[0]
     dr = r / 2
     star_mask = star != -1
-    imx1 = int(x - diam)
-    imx2 = int(x + diam)
-    imy1 = int(y - diam)
-    imy2 = int(y + diam)
+    imx1 = max(int(x - diam), 0)
+    imx2 = min(int(x + diam), image.shape[1])
+    imy1 = max(int(y - diam), 0)
+    imy2 = min(int(y + diam), image.shape[0])
 
     if n_craters == 1:
         centers = [(y, x)]
@@ -594,24 +587,39 @@ def make_star_cluster(image, peak, max_intensity, r_fac_add=15, r_fac_mul=5,
     else:
         try:
             _max = np.percentile(image[imy1:imy2, imx1:imx2], h_percentile)
-        except (IndexError, ValueError) as e:
+        except ValueError as e:
             warnings.warn('Make star/cluster failed: {0}\n\timage[{1}:{2},'
                           '{3}:{4}]'.format(e, imy1, imy2, imx1, imx2),
                           AstropyUserWarning)
             return array
 
     for (cy, cx) in centers:
+        sx1 = 0
+        sx2 = star.shape[1]
+        sy1 = 0
+        sy2 = star.shape[0]
+
         xx1 = int(cx - dr)
         xx2 = xx1 + r
         yy1 = int(cy - dr)
         yy2 = yy1 + r
 
-        try:
-            array[yy1:yy2, xx1:xx2][star_mask] = _max + star[star_mask]
-        except (IndexError, ValueError) as e:
-            warnings.warn('Make cluster failed: {0}\n\tarray[{1}:{2},{3}:{4}]'
-                          ''.format(e, yy1, yy2, xx1, xx2), AstropyUserWarning)
-            return np.zeros(image.shape)
+        if xx1 < 0:
+            sx1 = -xx1
+            xx1 = 0
+        if xx2 > array.shape[1]:
+            sx2 -= (xx2 - array.shape[1])
+            xx2 = array.shape[1]
+        if yy1 < 0:
+            sy1 = -yy1
+            yy1 = 0
+        if yy2 > array.shape[0]:
+            sy2 -= (yy2 - array.shape[0])
+            yy2 = array.shape[0]
+
+        cur_smask = star_mask[sy1:sy2, sx1:sx2]
+        cur_star = star[sy1:sy2, sx1:sx2]
+        array[yy1:yy2, xx1:xx2][cur_smask] = _max + cur_star[cur_smask]
 
     if h_percentile is not None:
         filt = ndimage.filters.maximum_filter(array, fil_size)
@@ -645,8 +653,8 @@ def add_clusters(cluster1, cluster2):
     return cluster1
 
 
-def dots_from_mask(image, mask=None, hexgrid_spacing=7, dots_width=5,
-                   dots_scale=3.2, fil_size=25, fil_invscale=1.1):
+def dots_from_mask(image, mask, hexgrid_spacing=7, dots_width=5,
+                   dots_scale=3.2):
     """Apply dots texture to region marked by given mask.
 
     Parameters
@@ -656,7 +664,6 @@ def dots_from_mask(image, mask=None, hexgrid_spacing=7, dots_width=5,
 
     mask : ndarray
         Boolean mask of the region to be marked.
-        If not given, it is guessed from image values.
 
     hexgrid_spacing : int
         Spacing for :func:`~astro3d.utils.texture.hex_grid` to
@@ -668,14 +675,6 @@ def dots_from_mask(image, mask=None, hexgrid_spacing=7, dots_width=5,
     dots_scale : float
         Scaling for dot height.
 
-    fil_size : int
-        Filter size for :func:`~scipy.ndimage.filters.maximum_filter`.
-        Only used if ``mask`` is not given.
-
-    fil_invscale : float
-        Filter is divided by this number.
-        Only used if ``mask`` is not given.
-
     Returns
     -------
     dots : ndarray
@@ -686,43 +685,31 @@ def dots_from_mask(image, mask=None, hexgrid_spacing=7, dots_width=5,
     Texture for NGC 602 dust region:
 
     >>> gastex = dots_from_mask(
-    ...     image, mask=gasmask, hexgrid_spacing=7, dots_width=7,
+    ...     image, gasmask, hexgrid_spacing=7, dots_width=7,
     ...     dots_scale=1.0)
 
     Texture for NGC 602 dust and gas combined region:
 
     >>> dustgastex = dots_from_mask(
-    ...     image, mask=dustgasmask, hexgrid_spacing=10, dots_width=7,
+    ...     image, dustgasmask, hexgrid_spacing=10, dots_width=7,
     ...     dots_scale=3.0)
 
     Alternate texture for NGC 602 gas region:
 
     >>> dusttex = dots_from_mask(
-    ...     image, mask=dustmask, hexgrid_spacing=20, dots_width=7,
+    ...     image, dustmask, hexgrid_spacing=20, dots_width=7,
     ...     dots_scale=3.0)
 
     """
     dots = _texture.dots('linear', image.shape, dots_width, dots_scale,
                          _texture.hex_grid(image.shape, hexgrid_spacing))
-
-    if mask is None:
-        maxfilt = ndimage.filters.maximum_filter(image, fil_size)
-        dotmask = maxfilt / fil_invscale - image
-        dotmask[dotmask > 0] = 0
-        dotmask[dotmask < 0] = 1
-    else:
-        dotmask = np.zeros_like(dots)
-        dotmask[mask] = 1
-
-    # Exclude background
-    dotmask[image < 1] = 0
-
-    dots *= dotmask
-    return dots
+    dotmask = np.zeros_like(dots)
+    dotmask[mask] = 1
+    return dots * dotmask
 
 
-def lines_from_mask(image, mask=None, lines_width=10, lines_spacing=20,
-                    lines_scale=1.2, lines_orient=0, fil_size=25):
+def lines_from_mask(image, mask, lines_width=10, lines_spacing=20,
+                    lines_scale=1.2, lines_orient=0):
     """Apply lines texture to region marked by given mask.
 
     Parameters
@@ -743,10 +730,6 @@ def lines_from_mask(image, mask=None, lines_width=10, lines_spacing=20,
     lines_orient : float
         Orientation of the lines in degrees.
 
-    fil_size : int
-        Filter size for :func:`~scipy.ndimage.filters.maximum_filter`.
-        Only used if ``mask`` is not given.
-
     Returns
     -------
     lines : ndarray
@@ -757,32 +740,20 @@ def lines_from_mask(image, mask=None, lines_width=10, lines_spacing=20,
     Texture for NGC 602 dust region:
 
     >>> dusttex = lines_from_mask(
-    ...     image, mask=dustmask, lines_width=15, lines_spacing=25,
+    ...     image, dustmask, lines_width=15, lines_spacing=25,
     ...     lines_scale=0.7, lines_orient=0)
 
     """
     lines = _texture.lines('linear', image.shape, lines_width, lines_spacing,
                            lines_scale, lines_orient)
-
-    if mask is None:
-        imgmax = image.max()
-        maxfilt = ndimage.filters.maximum_filter(image, fil_size)
-        linemask = maxfilt + 5  # Magic?
-        linemask[linemask < imgmax] = 1
-        linemask[linemask > imgmax] = 0
-    else:
-        linemask = np.zeros_like(lines)
-        linemask[mask] = 1
-
-    # Exclude background
-    linemask[image < 1] = 0
-
-    lines *= linemask
-    return lines
+    linemask = np.zeros_like(lines)
+    linemask[mask] = 1
+    return lines * linemask
 
 
-def galaxy_texture(galaxy, lmask=None, cmask=None, scale=1.0,
-                   fil_size=25, fil_invscale=1.1):
+def galaxy_texture(galaxy, lmask=None, cmask=None, has_intensity=True,
+                   sd_percentile=60.0, scale=1.0, fil_size=25,
+                   fil_invscale=1.1):
     """Apply texture to the spiral arms and disk of galaxy.
 
     Lines to mark disk, and dots to mark spiral arms.
@@ -804,6 +775,13 @@ def galaxy_texture(galaxy, lmask=None, cmask=None, scale=1.0,
         Boolean masks for disk and cusp.
         If not given, it is guessed from image values.
 
+    has_intensity : bool
+        If `False`, will also add small dots to mark dust lanes.
+
+    sd_percentile : float
+        Percentile for intensity cut-off to populate small dots texture.
+        This is only used if `has_intensity=False`.
+
     scale : float
         Scaling for auto texture generation without mask.
         This is only used if ``lmask`` is not given.
@@ -820,10 +798,12 @@ def galaxy_texture(galaxy, lmask=None, cmask=None, scale=1.0,
         Output array with texture values.
 
     """
+    galmax = galaxy.max()
+    maxfilt = ndimage.filters.maximum_filter(galaxy, fil_size)
+
     # Try to automatically find disk if not given
     if lmask is None:
         log.info('No mask given; Attempting auto-find disk and spiral arms')
-        galmax = galaxy.max()
         fac = galmax - scale * galaxy.std()
         #fac = galmax - fil_invscale * galaxy.std()
         lmask = galaxy > fac
@@ -831,26 +811,45 @@ def galaxy_texture(galaxy, lmask=None, cmask=None, scale=1.0,
     else:
         dmask = ~lmask
 
-    # Mark spiral arms as dots.
-    dots = DOTS(galaxy, fil_size=fil_size, fil_invscale=fil_invscale)
+    # Mark spiral arms as dots
+    x = maxfilt / fil_invscale - galaxy
+    dotmask = (x <= 0) & dmask
+    dots = DOTS(galaxy, dotmask)
 
-    # Mark disk as lines.
-    lines = LINES(galaxy, fil_size=fil_size)
+    # Mark disk as lines, except for galactic center
+    x = maxfilt + 5  # Magic?
+    linemask = (x <= galmax) & lmask
+    lines = LINES(galaxy, linemask)
 
-    # Remove disk from spiral arms texture, and vice versa.
-    dots[lmask] = 0
-    lines[dmask] = 0
-    if cmask is not None:
-        lines[cmask] = 0
+    # Mark dust lanes at given percentile intensity contour
+    if has_intensity:
+        sdmask = None
+        small_dots = np.zeros_like(galaxy)
+    else:
+        sdmask = ((galaxy > np.percentile(galaxy, sd_percentile)) &
+                  (~linemask) & (~dotmask) & dmask)
+        small_dots = SMALL_DOTS(galaxy, sdmask)
+
     filt = ndimage.filters.maximum_filter(lines, fil_size - 15)  # 10
-    dots[filt != 0] = 0
+    fmask = filt != 0
+    dots[fmask] = 0
+    if sdmask is not None:
+        small_dots[fmask] = 0
 
     # Debug info
-    where = np.where(lines)
-    log.debug('line texture locations: {0}, '
-              '{1}'.format(where[0].ptp(), where[1].ptp()))
+    #where = np.where(lines)
+    #log.debug('line texture locations: {0}, '
+    #          '{1}'.format(where[0].ptp(), where[1].ptp()))
 
-    return dots + lines
+    # Exclude background and cusp
+    bgmask = galaxy < 1
+    dots[bgmask] = 0
+    small_dots[bgmask] = 0
+    textured_galaxy = small_dots + dots + lines
+    if cmask is not None:
+        textured_galaxy[cmask] = 0
+
+    return textured_galaxy
 
 
 def make_base(image, dist=60, height=10, snapoff=True):
