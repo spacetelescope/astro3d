@@ -51,10 +51,8 @@ def img2array(filename, rgb_scaling=None):
     filename : str
         Input filename. For example, a JPEG file.
 
-    rgb_scaling : tuple or `None`
-        If tuple is given, it must contain scaling factors for
-        red, green, and blue components, in that order.
-        If `None`, all the components are summed together.
+    rgb_scaling
+        See :func:`scale_rgb`.
 
     Returns
     -------
@@ -66,15 +64,8 @@ def img2array(filename, rgb_scaling=None):
     ndim = img.ndim
 
     if ndim == 3:
-        if rgb_scaling is None:
-            rgb_scaling = [1.0, 1.0, 1.0]
-        elif len(rgb_scaling) != 3:
-            raise ValueError('Must have one scaling factor for each RGB color')
-
-        log.info('RGB scaling is {0}'.format(rgb_scaling))
-        array = np.zeros_like(img[:, :, 0])
-        for i in range(ndim):
-            array += rgb_scaling[i] * img[:, :, i]
+        scaled_img = scale_rgb(img, rgb_scaling=rgb_scaling)
+        array = scaled_img.sum(axis=2)
 
     elif ndim == 2:
         array = img
@@ -83,6 +74,42 @@ def img2array(filename, rgb_scaling=None):
         raise ValueError('Invalid image ndim={0}'.format(ndim))
 
     return array
+
+
+def scale_rgb(image, rgb_scaling=None):
+    """Scale RGB values in given image cube.
+
+    Parameters
+    ----------
+    image : array_like
+        RGB image cube.
+
+    rgb_scaling : tuple or `None`
+        Scaling factors for red, green, and blue components, in that order.
+        If `None`, no change.
+
+    Returns
+    -------
+    scaled_image : array_like
+        Scaled RGB image cube.
+
+    """
+    rgb_ndim = 3
+
+    if image.ndim != rgb_ndim:
+        raise ValueError('Input must be RGB cube.')
+
+    if rgb_scaling is None:
+        return image
+    elif len(rgb_scaling) != rgb_ndim:
+        raise ValueError('Must have one scaling factor for each RGB color')
+
+    log.info('RGB scaling is {0}'.format(rgb_scaling))
+    scaled_image = np.empty_like(image)
+    for i in range(rgb_ndim):
+        scaled_image[:, :, i] = rgb_scaling[i] * image[:, :, i]
+
+    return scaled_image
 
 
 def compressImage(image, height):

@@ -336,8 +336,14 @@ class ImageResizePage(QWizardPage):
         return self.size_okay
 
     def nextId(self):
-        """Proceed to `IntensityScalePage`."""
-        return ThreeDModelWizard.PG_SCALE
+        """Proceed to intensity scaling page if applicable,
+        else skip to model type selection page.
+
+        """
+        if self.parent.transformation is None:
+            return ThreeDModelWizard.PG_TYPE
+        else:
+            return ThreeDModelWizard.PG_SCALE
 
 
 class IntensityScalePage(QWizardPage):
@@ -521,7 +527,7 @@ class RegionPage(QWizardPage):
         self.setTitle('Region Selection')
 
         msglabel = QLabel(
-            """Select region the drop-down box to draw or 'Load' to load from file. To draw, click on the image. If you are dissatisfied, press 'Clear'. Once you are satisfied, press 'Save'. Once saved, the region cannot be removed. To draw another region, you must explicitly select from the drop-down box again.""")
+            """Select region the drop-down box to draw or 'Load' to load from file. To draw, click on the image. If you are dissatisfied, press 'Clear'. Once you are satisfied, press 'Save'. To draw another region, you must explicitly select from the drop-down box again.""")
         msglabel.setWordWrap(True)
 
         self.draw = QComboBox(self)
@@ -579,6 +585,11 @@ class RegionPage(QWizardPage):
         self.status.setText('Status: Select region file(s) to load')
         self.status.repaint()
         text = self.parent.loadRegion()
+
+        if text is None:
+            self.status.setText('Status: No file(s) selected')
+            return
+
         self.save.setEnabled(True)
         self.clear.setEnabled(True)
         self.status.setText('Status: {0} loaded from file(s)'.format(text))
@@ -604,6 +615,7 @@ class RegionPage(QWizardPage):
         self.clear.setEnabled(False)
         self.save.setEnabled(False)
         self.status.setText('Status: Region cleared (not saved)!')
+        self._highlight_item()
 
     def createRegionList(self):
         """Create the region list, along with a number of
@@ -616,24 +628,42 @@ class RegionPage(QWizardPage):
         """
         self.reg_list = QListWidget()
         self.add_items()
-        self.reg_list.setSelectionMode(QAbstractItemView.ExtendedSelection)
-
-        # These do not work properly - disabled for now
-        #box = QDialogButtonBox(Qt.Vertical)
-        #self.show_ = box.addButton('Show', QDialogButtonBox.ActionRole)
-        #self.hide = box.addButton('Hide', QDialogButtonBox.ActionRole)
-        #self.delete = box.addButton('Delete', QDialogButtonBox.ActionRole)
-        #self.show_.clicked.connect(self.show_region)
-        #self.hide.clicked.connect(self.hide_region)
-        #self.delete.clicked.connect(self.delete_region)
-        #self.enableButtons()
-        #self.reg_list.itemSelectionChanged.connect(self.enableButtons)
+        self.reg_list.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.reg_list.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.reg_list.customContextMenuRequested.connect(self._show_item_menu)
+        self.reg_list.itemClicked.connect(self._highlight_item)
 
         hbox = QHBoxLayout()
         hbox.addWidget(self.reg_list)
-        #hbox.addWidget(box)
 
         return hbox
+
+    def _highlight_item(self, item=None):
+        """Highlight region when selected."""
+        self.parent.highlightRegion(self.getSelected()[3])
+
+    def _show_item_menu(self, pos):
+        """This is shown when user right-clicks on a selected item."""
+        item = self.reg_list.itemAt(pos)
+
+        if item is None:
+            return
+
+        menu = QMenu('Context Menu', self)
+        visAction = menu.addAction('Hide/Show')
+        renameAction = menu.addAction('Rename')
+        editrgAction = menu.addAction('Edit')
+        deleteAction = menu.addAction('Delete')
+        action = menu.exec_(self.reg_list.mapToGlobal(pos))
+
+        if action == visAction:
+            self.hideshow_region()
+        elif action == renameAction:
+            self.rename_region()
+        elif action == editrgAction:
+            self.edit_region()
+        elif action == deleteAction:
+            self.delete_region()
 
     def add_items(self):
         """Clear the region list, then adds all regions from
@@ -649,72 +679,100 @@ class RegionPage(QWizardPage):
 
         for key in sorted(self.parent.file.regions):
             reglist = self.parent.file.regions[key]
-            items += ['{0}_{1}'.format(key, i + 1) for i in range(len(reglist))]
+            for i, reg in enumerate(reglist, 1):
+                s = '{0}_{1} ({2})'.format(key, i, reg.description)
+                if hasattr(reg, 'visible') and not reg.visible:
+                    s += ' - HIDDEN'
+                items.append(s)
 
         self.reg_list.clear()
         self.reg_list.addItems(items)
 
-    #def enableButtons(self):
-    #    """Enable/disable the show, hide, and delete buttons
-    #    depending on which regions are selected.
-    #
-    #    * Show is enabled if any selected regions are hidden.
-    #    * Hide is enabled if any selected regions are visible.
-    #    * Delete is enabled as long as at least one region is selected.
-    #
-    #    """
-    #    selected = self.getSelected()
-    #    if selected:
-    #        self.delete.setEnabled(True)
-    #
-    #        if any([reg.visible for reg in selected]):
-    #            self.hide.setEnabled(True)
-    #        else:
-    #            self.hide.setEnabled(False)
-    #
-    #        if not all([reg.visible for reg in selected]):
-    #            self.show_.setEnabled(True)
-    #        else:
-    #            self.show_.setEnabled(False)
-    #    else:
-    #        self.show_.setEnabled(False)
-    #        self.hide.setEnabled(False)
-    #        self.delete.setEnabled(False)
+    def getSelected(self):
+        """Get all selected regions.
 
-    #def getSelected(self):
-    #    """Get all selected regions.
-    #
-    #    Returns
-    #    -------
-    #    output
-    #       A list of `~astro3d.gui.astroObjects.Region` objects
-    #       for all selected regions.
-    #
-    #    """
-    #    output = []
-    #    for item in self.reg_list.selectedItems():
-    #        key, val = item.split('_')
-    #        output.append(self.parent.file.regions[key][int(val)])
-    #    return output
+        Returns
+        -------
+        outrows : list
+            A list of row indices for the selected items.
 
-    #def show_region(self):
-    #    """Displays any hidden regions among the selected regions."""
-    #    self.parent.showRegion(self.getSelected())
-    #    self.enableButtons()
+        outkeys : list
+            A list of keys for the corresponding regions.
 
-    #def hide_region(self):
-    #    """Hides any displayed regions among the selected regions."""
-    #    self.parent.hideRegion(self.getSelected())
-    #    self.enableButtons()
+        outvals : list
+            A list of indices for the corresponding region lists.
 
-    #def delete_region(self):
-    #    """Deletes the selected region."""
-    #    self.parent.deleteRegion(self.getSelected())
-    #    self.add_items()
-    #    self.enableButtons()
-    #    self.status.setText('Status: Region deleted!')
-    #    self.status.repaint()
-    #    self.emit(SIGNAL('completeChanged()'))
+        output : list
+            A list of `~astro3d.gui.astroObjects.Region` objects
+            for all selected regions.
+
+        """
+        outrows = []
+        outkeys = []
+        outvals = []
+        output = []
+
+        for item in self.reg_list.selectedItems():
+            s = str(item.text()).split()[0].split('_')
+            key = '_'.join(s[:-1])
+            val = int(s[-1]) - 1
+            outrows.append(self.reg_list.row(item))
+            outkeys.append(key)
+            outvals.append(val)
+            output.append(self.parent.file.regions[key][val])
+
+        return outrows, outkeys, outvals, output
+
+    def hideshow_region(self):
+        """Hide or show selection regions."""
+        regions = self.getSelected()[3]
+        if len(regions) < 1:
+            return
+
+        self.parent.handleRegionVisibility(regions)
+
+        # Update visibility status
+        self.add_items()
+
+    def rename_region(self):
+        """Change region description."""
+        regions = self.getSelected()[3]
+        if len(regions) < 1:
+            return
+
+        for reg in regions:
+            self.parent.renameRegion(reg)
+
+        # Show new name
+        self.add_items()
+
+    def edit_region(self):
+        keys, vals, regions = self.getSelected()[1:]
+        if len(regions) != 1:
+            return
+        self.parent.editRegion(keys[0], vals[0])
+        self.save.setEnabled(True)
+        self.status.setText(
+            'Status: Click on image to edit {0}'.format(regions[0].description))
+
+    def delete_region(self):
+        """Delete the selected region."""
+        rows, keys, vals, regions = self.getSelected()
+        if len(rows) < 1:
+            return
+
+        item_names = []
+
+        for row, key, reg in zip(rows, keys, regions):
+            self.parent.deleteRegion(key, reg)
+            item = self.reg_list.takeItem(row)
+            item_names.append(str(item.text()))
+
+        self.status.setText('Status: {0} deleted!'.format(','.join(item_names)))
+        self.emit(SIGNAL('completeChanged()'))
+
+        # Relabel remaining regions
+        self.add_items()
 
     def isComplete(self):
         """Only proceed if there is at least one region saved."""
@@ -796,8 +854,13 @@ class LayerOrderPage(QWizardPage):
 
         self.names_list.clear()
         names = self.parent.file.texture_names()
-        if len(names) > 1:
-            self.names_list.addItems(names)
+        ordered_names = [''] * len(names)
+
+        for s in names:
+            i = self.parent.layer_order.index(s)
+            ordered_names[i] = s
+
+        self.names_list.addItems(ordered_names)
 
     def _enable_buttons(self):
         # Only one item selection allowed at a time
@@ -917,6 +980,15 @@ class IdentifyPeakPage(QWizardPage):
 
         self.setLayout(vbox)
 
+    def initializePage(self):
+        """Do this here because need values from parent."""
+        if self.parent._enable_photutil:
+            self.findbutton.setDisabled(False)
+            self.ntext.setDisabled(False)
+        else:
+            self.findbutton.setDisabled(True)
+            self.ntext.setDisabled(True)
+
     def do_find(self):
         """Find objects. Can take few seconds to a minute or so."""
         n = int(self.ntext.text())
@@ -1014,8 +1086,19 @@ class IdentifyStarPage(QWizardPage):
         self._proceed_ok = False
         self.setTitle("Identify Stars")
 
-        msglabel = QLabel("""Choose one: Load or manual. Click on existing circle to remove object, or click on new object to add. Once you are satisfied, click 'Next'.""")
+        msglabel = QLabel("""Choose one: Find, load, or manual. Click on existing circle to remove object, or click on new object to add. Once you are satisfied, click 'Next'.""")
         msglabel.setWordWrap(True)
+
+        self.findbutton = QPushButton('Find')
+        self.findbutton.clicked.connect(self.do_find)
+        self.ntext = QLineEdit('25')
+        self.ntext.setMaxLength(4)
+        self.ntext.setFixedWidth(80)
+        nobjgrid = QHBoxLayout()
+        nobjgrid.addWidget(self.findbutton)
+        nobjgrid.addWidget(self.ntext)
+        nobjgrid.addWidget(QLabel('objects (might take a while)'))
+        nobjgrid.addStretch()
 
         self.loadbutton = QPushButton('Load')
         self.loadbutton.clicked.connect(self.do_load)
@@ -1050,6 +1133,7 @@ class IdentifyStarPage(QWizardPage):
         vbox.setSpacing(1)
         vbox.addWidget(msglabel)
         vbox.addStretch()
+        vbox.addLayout(nobjgrid)
         vbox.addLayout(hbbox1)
         vbox.addLayout(hbbox2)
         vbox.addWidget(radframe)
@@ -1057,6 +1141,28 @@ class IdentifyStarPage(QWizardPage):
         vbox.addWidget(self.status)
 
         self.setLayout(vbox)
+
+    def initializePage(self):
+        """Do this here because need values from parent."""
+        if self.parent._enable_photutil:
+            self.findbutton.setDisabled(False)
+            self.ntext.setDisabled(False)
+        else:
+            self.findbutton.setDisabled(True)
+            self.ntext.setDisabled(True)
+
+    def do_find(self):
+        """Find objects. Can take few seconds to a minute or so."""
+        n = int(self.ntext.text())
+        self.status.setText(
+            'Status: Finding {0} object(s), please wait...'.format(n))
+        self.status.repaint()
+        self.parent.find_stars(n)
+        self.status.setText(
+            'Status: {0} object(s) found!'.format(
+                len(self.parent.file.peaks['stars'])))
+        self._proceed_ok = True
+        self.emit(SIGNAL('completeChanged()'))
 
     def do_load(self):
         """Load objects from file."""
@@ -1135,7 +1241,7 @@ class MakeModelPage(QWizardPage):
 To accomodate MakerBot Replicator 2, it is recommended that the model to be split in halves.""")
         label.setWordWrap(True)
 
-        self.heightbox = QLineEdit('200')
+        self.heightbox = QLineEdit('150')
         self.heightbox.setMaxLength(4)
         self.heightbox.setFixedWidth(80)
         hgrid = QHBoxLayout()

@@ -127,7 +127,8 @@ class File(object):
         for key, reglist in self.regions.iteritems():
             i = 1
             for reg in reglist:
-                rname = '{0}_{1}_{2}.reg'.format(prefix, key, i)
+                rname = '{0}_{1}_{2}_{3}.reg'.format(
+                    prefix, reg.description, key, i)
                 i += 1
                 reg.save(rname, _file=self)
                 log.info('{0} saved'.format(rname))
@@ -252,6 +253,9 @@ class Region(object):
     name, region
         Same as inputs.
 
+    description
+        Metadata to describe the region. This is for informational purpose only.
+
     visible : bool
         Visibility (shown/hidden) of the region.
 
@@ -259,6 +263,7 @@ class Region(object):
     def __init__(self, name, region):
         super(Region, self).__init__()
         self.name = name
+        self.description = name
         self.region = region
         self.visible = False
 
@@ -433,7 +438,7 @@ class Region(object):
             scale = 1.0
 
         with open(filename, 'w') as f:
-            f.write(unicode('{0}\n'.format(self.name)))
+            f.write(unicode('{0},{1}\n'.format(self.name, self.description)))
             for p in self.points():
                 f.write(unicode('{0} {1}\n'.format(p.x() * scale,
                                                    p.y() * scale)))
@@ -453,7 +458,7 @@ class Region(object):
 
         Returns
         -------
-        region : `Region`
+        newreg : `Region`
 
         """
         region = QPolygonF()
@@ -463,13 +468,26 @@ class Region(object):
             scale = 1.0
         name = ''
         with open(filename) as f:
-            name = f.readline().strip()
+            header = f.readline().strip()
+            s = header.split(',')
+            name = s[0]
+
+            if len(s) > 1:
+                description = s[1]
+            else:
+                description = name
+
             coords = ascii.read(f, data_start=1, names=['x', 'y'])
             scaled_x = coords['x'].astype(np.float32) * scale
             scaled_y = coords['y'].astype(np.float32) * scale
+
             for x, y in zip(scaled_x, scaled_y):
                 region << QPointF(x, y)
-        return cls(name, region)
+
+        newreg = cls(name, region)
+        newreg.description = description
+
+        return newreg
 
 
 class MergedRegion(Region):

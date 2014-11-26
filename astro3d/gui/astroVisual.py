@@ -34,7 +34,6 @@ from __future__ import division, print_function
 # STDLIB
 import os
 import platform
-import subprocess
 import sys
 import warnings
 from collections import OrderedDict
@@ -62,7 +61,7 @@ from ..utils import imageprep, imageutils
 
 _gui_title = 'Astronomy 3D Model'
 __version__ = '0.2.0.dev'
-__vdate__ = '05-Nov-2014'
+__vdate__ = '26-Nov-2014'
 __author__ = 'STScI'
 
 
@@ -146,6 +145,8 @@ class AstroGUI(QMainWindow):
         self._clus_r_fac_mul = 1
         self._star_r_fac_add = 15
         self._star_r_fac_mul = 1
+        self._disp_img = None
+        self._enable_photutil = True
 
         self.setGeometry(
             self._GEOM_X, self._GEOM_Y, self._GEOM_SZ, self._GEOM_SZ)
@@ -247,45 +248,35 @@ class AstroGUI(QMainWindow):
 
         if fname.isEmpty():
             return
+
         elif fnamestr.endswith(('fits', 'FITS')):
             data = fits.getdata(fnamestr)
-        else:  # grayscale
-            self._open_color_img(fnamestr)
-            rgb_popup = RGBScalingPopup(self)
-            rgb_popup.exec_()
-            data = imageutils.img2array(
-                fnamestr, rgb_scaling=rgb_popup.rgb_scaling)[::-1, ]
+            if data is None:
+                QMessageBox.warning(
+                    self, 'File Error', 'This file does not contain image data')
+                return
+            self._disp_img = data
 
-        if data is None:
-            QMessageBox.warning(
-                self, 'File Error', 'This file does not contain image data')
-            return
+        else:  # color display
+            # DISABLED - Used for grayscale display
+            #rgb_popup = RGBScalingPopup(self)
+            #rgb_popup.exec_()
+            #data = imageutils.img2array(
+            #    fnamestr, rgb_scaling=rgb_popup.rgb_scaling)[::-1, :]
+
+            self.transformation = None  # Not applicable to RGB layers
+            self._enable_photutil = False  # Photometry fails for this format
+            self._disp_img = np.array(
+                Image.open(fnamestr), dtype=np.float32)[::-1, :, :]
+            data = self._disp_img.sum(axis=2)
 
         name = os.path.basename(fnamestr)
         image = QPixmap()
         image = image.fromImage(
-            makeqimage(data, self.transformation, self.widget.size))
+            makeqimage(self._disp_img, self.transformation, self.widget.size))
         pic = self.widget.addImage(image)
         self.file = File(data, pic)
         self.statusBar().showMessage(name)
-
-    def _open_color_img(self, filename):
-        """Display color image with built-in software."""
-        sysname = platform.system().lower()
-
-        if sysname == 'windows':
-            cmd = [filename]
-        elif sysname == 'darwin':
-            cmd = ['open', filename]
-        else:  # linux
-            cmd = ['xdg-open', filename]
-
-        try:
-            log.info('Opening color image: {0}'.format(' '.join(cmd)))
-            subprocess.call(cmd)
-        except Exception as e:
-            warnings.warn('Cannot open {0}: {1}'.format(filename, str(e)),
-                          AstropyUserWarning)
 
     def fileSave(self, height=150.0, depth=10, split_halves=True,
                  save_all=True):
@@ -366,6 +357,29 @@ class AstroGUI(QMainWindow):
         """Clears a region that is currently being drawn."""
         self.widget.clear_region()
 
+    def renameRegion(self, region):
+        """Rename one region."""
+        text, ok = QInputDialog.getText(
+            self, 'Rename region', 'New region name:')
+
+        if ok:
+            region.description = str(text)
+
+    def editRegion(self, key, idx):
+        """Edit one existing region.
+
+        Parameters
+        ----------
+        key : str
+            Region key.
+
+        idx : int
+            Index of the region in the existing list of regions.
+
+        """
+        region = self.file.regions[key][idx]
+        self.widget.region_loader(region, overwrite=(key, idx))
+
     def deleteRegion(self, key, region):
         """Deletes a previously drawn region, removing it from
         ``regions`` and from the screen.
@@ -383,6 +397,15 @@ class AstroGUI(QMainWindow):
         else:
             self.hideRegion(region)
             self.file.regions[key].remove(region)
+
+    def handleRegionVisibility(self, region):
+        """Auto hide/show a region."""
+        if not isinstance(region, Region):
+            map(self.handleRegionVisibility, region)
+        elif region.visible:  # Hide
+            self.hideRegion(region)
+        else:  # Show
+            self.showRegion(region)
 
     def showRegion(self, region):
         """Displays the hidden region(s) passed in as the
@@ -428,6 +451,10 @@ class AstroGUI(QMainWindow):
         """
         self.widget.region_drawer(key)
 
+    def highlightRegion(self, region):
+        """Highlight selected region(s)."""
+        self.widget.highlight_region(region)
+
     def loadRegion(self):
         """Load region(s) from file."""
         flist = QFileDialog.getOpenFileNames(
@@ -438,9 +465,13 @@ class AstroGUI(QMainWindow):
 
         regions = [Region.fromfile(str(fname), _file=self.file)
                    for fname in flist]
-        self.widget.region_loader(regions)
+        if len(regions) == 1:
+            reg = regions[0]
+        else:
+            reg = regions
+        self.widget.region_loader(reg)
 
-        return ','.join([reg.name for reg in regions])
+        return ','.join([reg.description for reg in regions])
 
     def saveRegion(self):
         """Store selected region.
@@ -451,14 +482,18 @@ class AstroGUI(QMainWindow):
         which is added to ``regions``.
 
         """
-        names, regions = self.widget.save_region()
+        names, regions, descriptions, overwrite = self.widget.save_region()
 
         if not isinstance(regions, list):
             names = [names]
             regions = [regions]
+            descriptions = [descriptions]
+        elif overwrite is not None:
+            raise ValueError('Cannot overwrite multiple regions.')
 
-        for key, region in zip(names, regions):
+        for key, region, descrip in zip(names, regions, descriptions):
             reg = Region(key, region)
+            reg.description = descrip
 
             # Polygon must have at least 3 points
             if len(reg.points()) < 3:
@@ -470,13 +505,19 @@ class AstroGUI(QMainWindow):
             key = key.lower()
 
             if key in self.REGION_TEXTURES[self.is_spiral]:
-                self.file.regions[key].append(reg)
+                if overwrite is not None:
+                    okey, oidx = overwrite
+                    old_reg = self.file.regions[okey][oidx]
+                    self.hideRegion(old_reg)
+                    self.file.regions[okey][oidx] = reg
+                else:
+                    self.file.regions[key].append(reg)
             else:
                 warnings.warn('{0} is not a valid region texture'.format(key),
                               AstropyUserWarning)
                 continue
 
-            log.info('{0} saved'.format(key))
+            log.info('{0} ({1}) saved'.format(key, descrip))
             self.showRegion(reg)
 
     # Image Transformations
@@ -488,7 +529,7 @@ class AstroGUI(QMainWindow):
 
         """
         pic = QPixmap().fromImage(
-            makeqimage(self.file.data, self.transformation, self.widget.size))
+            makeqimage(self._disp_img, self.transformation, self.widget.size))
         self.file.image = pic
         self.widget.setImage()
 
@@ -521,7 +562,6 @@ class AstroGUI(QMainWindow):
         """
         image = Image.fromarray(self.file.data).resize((width, height))
         self.file.data = np.array(image, dtype=np.float64)
-        self.remake_image()
 
     # Clusters editing
 
@@ -538,6 +578,10 @@ class AstroGUI(QMainWindow):
            Max number of objects to find.
 
         """
+        if not self._enable_photutil:
+            log.info('Photometry is disabled.')
+            return
+
         log.info('Finding star clusters, please be patient...')
         peaks = imageprep.find_peaks(np.flipud(self.file.data))[:n]
         self.widget.cluster_find(peaks)
@@ -566,6 +610,19 @@ class AstroGUI(QMainWindow):
         self.widget.save_clusters()
 
     # Stars editing
+
+    def find_stars(self, n):
+        """Same as :meth:`find_clusters` but objects found are
+        registered as individual stars by GUI.
+
+        """
+        if not self._enable_photutil:
+            log.info('Photometry is disabled.')
+            return
+
+        log.info('Finding stars, please be patient...')
+        peaks = imageprep.find_peaks(np.flipud(self.file.data))[:n]
+        self.widget.star_find(peaks)
 
     def load_stars(self):
         """Retrieve locations of stars from file."""
@@ -655,7 +712,11 @@ class AboutPopup(QDialog):
 
 
 class RGBScalingPopup(QDialog):
-    """Popup window for user to enter RGB scaling factors."""
+    """Popup window for user to enter RGB scaling factors.
+
+    .. note:: Not used anymore.
+
+    """
     def __init__(self, parent=None):
         super(RGBScalingPopup, self).__init__(parent)
         self.setWindowTitle('RGB Scaling')
@@ -663,7 +724,7 @@ class RGBScalingPopup(QDialog):
         self._colors = ['red', 'green', 'blue']
         self._texts = {}
 
-        label = QLabel('Enter scaling factors for grayscale conversion:')
+        label = QLabel('Enter scaling factors for intensity conversion:')
         label.setWordWrap(True)
 
         vbox = QVBoxLayout()
@@ -781,15 +842,23 @@ class MainPanel(QWidget):
         draw_scene = RegionStarScene(self, self.parent.file.image, name)
         self.update_scene(draw_scene)
 
-    def region_loader(self, reg):
+    def region_loader(self, reg, overwrite=None):
         """Sets the scene to display region loaded from file.
 
         Parameters
         ----------
         reg : `~astro3d.gui.astroObjects.Region` or list
 
+        overwrite : tuple or `None`
+            ``(key, index)`` to identify am existing region to replace.
+
         """
-        draw_scene = RegionFileScene(self, self.parent.file.image, reg)
+        if isinstance(reg, list):
+            draw_scene = RegionFileScene(self, self.parent.file.image, reg)
+        else:
+            draw_scene = RegionStarScene.from_region(
+                self, self.parent.file.image, reg)
+        draw_scene.overwrite = overwrite
         self.update_scene(draw_scene)
 
     def save_region(self):
@@ -798,14 +867,20 @@ class MainPanel(QWidget):
 
         Returns
         -------
-        name : str
+        name : str or list
 
         region : QPolygonF or list
 
+        description : str or list
+
+        overwrite
+            See :meth:`region_loader`.
+
         """
-        name, region = self.current_scene.getRegion()
+        name, region, description = self.current_scene.getRegion()
+        overwrite = self.current_scene.overwrite
         self.update_scene(self.main_scene)
-        return name, region
+        return name, region, description, overwrite
 
     def clear_region(self):
         """Clears the currently displayed region."""
@@ -831,6 +906,11 @@ class MainPanel(QWidget):
 
         """
         self.main_scene.delReg(region)
+        self.update_scene(self.main_scene)
+
+    def highlight_region(self, region):
+        """Highlight selected region(s) in a different color."""
+        self.main_scene.draw(selected=region)
         self.update_scene(self.main_scene)
 
     def cluster_find(self, peaks=None):
@@ -884,10 +964,16 @@ def makeqimage(nparray, transformation, size):
     """
     npimage = nparray.copy()
     npimage[npimage < 0] = 0
-    npimage = q2a._normalize255(transformation(npimage), True)
-    qimage = q2a.gray2qimage(npimage, (0, 255))
+
+    if transformation is not None:
+        npimage = q2a._normalize255(transformation(npimage), True)
+        qimage = q2a.array2qimage(npimage, (0, 255))
+    else:
+        qimage = q2a.array2qimage(npimage, True)
+
     qimage = qimage.scaled(size, Qt.KeepAspectRatio)
     qimage = qimage.mirrored(False, True)
+
     return qimage
 
 
