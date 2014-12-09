@@ -2,22 +2,18 @@
 from __future__ import division, print_function
 
 # STDLIB
+import os
 from collections import defaultdict
 from copy import deepcopy
 
 # Anaconda
 import numpy as np
 from astropy import log
-from astropy.io import ascii
-from matplotlib.path import Path
-from PyQt4.QtGui import *
-from PyQt4.QtCore import *
-from scipy import ndimage
 
 # LOCAL
 from ..utils.imageprep import combine_masks, make_model
 from ..utils.meshcreator import to_mesh
-from ..utils.imageutils import split_image
+from ..utils.imageutils import resize_image, split_image
 
 
 class File(object):
@@ -54,13 +50,39 @@ class File(object):
         self.peaks = {}
         self._orig_shape = self.data.shape
 
+    @property
+    def scaled_height(self):
+        """Height of data that is scaled for processing (not display)."""
+        return self.data.shape[0]
+
+    @property
+    def scaled_width(self):
+        """Width of data that is scaled for processing (not display)."""
+        return self.data.shape[1]
+
+    @property
+    def original_height(self):
+        """Height of data originally read from file."""
+        return self._orig_shape[0]
+
+    @property
+    def original_width(self):
+        """Width of data originally read from file."""
+        return self._orig_shape[1]
+
+    @property
+    def displayed_height(self):
+        """Height of displayed data."""
+        return self.image.height()
+
+    @property
+    def displayed_width(self):
+        """Width of displayed data."""
+        return self.image.width()
+
     def scale(self):
         """Return the ratio by which the image has been scaled."""
-        return self.image.height() / self.data.shape[0]
-
-    def orig_scale(self):
-        """Return the ratio between display and original size."""
-        return self.image.height() / self._orig_shape[0]
+        return self.displayed_height / self.scaled_height
 
     def texture_names(self):
         """Return region texture names, except for the one used
@@ -87,10 +109,10 @@ class File(object):
     def scaleMasks(self):
         """Create masks scaled to actual data.
 
-        Scale the coordinates of all regions from the display
-        image to the corresponding locations on the actual data.
-        Then, create masks for them. For dots and lines, their
-        respective regions are combined to a single mask.
+        Scale the masks of all regions from the display
+        image to the dimension of actual data.
+        For dots and lines, their respective regions are
+        combined to a single mask.
 
         Returns
         -------
@@ -102,8 +124,7 @@ class File(object):
         scaled_masks = defaultdict(list)
 
         for key, reglist in self.regions.iteritems():
-            masklist = [reg.scaledRegion(self).to_mask(self.data)
-                        for reg in reglist]
+            masklist = [reg.scaled_mask(self) for reg in reglist]
 
             if key not in self._smooth_keys:
                 scaled_masks[key] = [combine_masks(masklist)]
@@ -113,10 +134,11 @@ class File(object):
         return scaled_masks
 
     def save_regions(self, prefix):
-        """Save ``regions`` to text files.
+        """Save ``regions`` to files using :meth:`Region.save`.
 
         Coordinates are transformed to match original image.
-        One output file per region, each name ``<prefix>_<type>_<n>.reg``.
+        One output file per region, each named
+        ``<prefixpath>/<type>/<prefixname>_<n>_<description>.npz``.
 
         Parameters
         ----------
@@ -124,14 +146,15 @@ class File(object):
             Prefix of output files.
 
         """
+        prefixpath, prefixname = os.path.split(prefix)
         for key, reglist in self.regions.iteritems():
-            i = 1
-            for reg in reglist:
-                rname = '{0}_{1}_{2}_{3}.reg'.format(
-                    prefix, reg.description, key, i)
-                i += 1
+            rpath = os.path.join(prefixpath, '_'.join(['region', key]))
+            if not os.path.exists(rpath):
+                os.mkdir(rpath)
+            for i, reg in enumerate(reglist, 1):
+                rname = os.path.join(rpath, '_'.join(
+                    map(str, [prefixname, i, reg.description])) + '.npz')
                 reg.save(rname, _file=self)
-                log.info('{0} saved'.format(rname))
 
     def save_peaks(self, prefix):
         """Save ``peaks`` to text files.
@@ -140,7 +163,7 @@ class File(object):
         One output file per table, each named ``<prefix>_<type>.txt``.
 
         """
-        scale = self._orig_shape[0] / self.data.shape[0]
+        scale = self.original_height / self.scaled_height
 
         for key, tab in self.peaks.iteritems():
             if len(tab) < 1:
@@ -161,8 +184,7 @@ class File(object):
                 is_spiralgal=False, split_halves=True):
         """Generate STL file.
 
-        #. Scale regions.
-        #. Create boolean masks for the regions.
+        #. Scale regions and their boolean masks.
         #. Use :func:`~astro3d.utils.imageprep.make_model` to perform
            transformations on the array and obtains a new array ready
            for STL creator.
@@ -245,8 +267,8 @@ class Region(object):
     name : str
         Region type.
 
-    region : QPolygonF
-        Shape of the region.
+    region : array_like
+        Boolean mask of the region.
 
     Attributes
     ----------
@@ -267,85 +289,8 @@ class Region(object):
         self.region = region
         self.visible = False
 
-    def points(self, scale=1):
-        """Return a list of all points that are part of the polygon.
-
-        Parameters
-        ----------
-        scale : float
-            Not used.
-
-        Returns
-        -------
-        points : list of QPointF
-
-        """
-        i = 0
-        p = None
-        points = []
-        if self.region is not None:
-            while p != self.region.last():
-                p = self.region.at(i)
-                points.append(p)
-                i += 1
-        return points
-
-    def contains(self, x, y, scaled=1):
-        """Check whether a certain point is inside the region.
-
-        .. note::
-
-            Maybe this is no longer needed because its capability
-            is replaced by :meth:`to_mask`.
-
-        Parameters
-        ----------
-        x, y : float
-            Location of the point.
-
-        scaled : float
-            Scale the location to match region.
-
-        Returns
-        -------
-        is_within : bool
-
-        """
-        x *= scaled
-        y *= scaled
-        p = QPointF(x, y)
-        return QGraphicsPolygonItem(self.region).contains(p)
-
-    def get_bounding_box(self):
-        """Return the min/max X and Y coordinates of all
-        points in polygon.
-
-        .. note::
-
-            Maybe this is no longer needed.
-
-        Returns
-        -------
-        xmin, ymin, xmax, ymax : int
-
-        """
-        xmin = float('inf')
-        xmax = float('-inf')
-        ymin = float('inf')
-        ymax = float('-inf')
-        for p in self.points():
-            if p.x() < xmin:
-                xmin = p.x()
-            elif p.x() > xmax:
-                xmax = p.x()
-            if p.y() < ymin:
-                ymin = p.y()
-            elif p.y() > ymax:
-                ymax = p.y()
-        return int(xmin), int(ymin), int(xmax), int(ymax)
-
-    def scaledRegion(self, _file):
-        """Return a new region scaled to match the `File` data.
+    def scaled_mask(self, _file):
+        """Return mask of the region scaled to match `File` data.
 
         Parameters
         ----------
@@ -353,74 +298,15 @@ class Region(object):
 
         Returns
         -------
-        region : `Region`
+        mask : array_like
+            Boolean mask.
 
         """
-        scale = 1.0 / _file.scale()
-        region = QPolygonF()
-        for point in self.points():
-            p = QPointF(point.x() * scale, point.y() * scale)
-            region << p
-        return Region(self.name, region)
-
-    def to_mask(self, image, interpolate=True, fil_size=3):
-        """Uses `matplotlib.path.Path` to generate a
-        Numpy boolean array, which can then be used as
-        a mask for the region.
-
-        Parameters
-        ----------
-        image : ndarray
-            Image to apply mask to.
-
-        interpolate : `True`, number, or tuple
-            For filter used in mask generation.
-
-        fil_size : int
-            Filter size for :func:`~scipy.ndimage.filters.maximum_filter`.
-
-        Returns
-        -------
-        mask : ndarray
-            Boolean mask for the region.
-
-        """
-        y, x = np.indices(image.shape)
-        y, x = y.flatten(), x.flatten()
-        points = np.vstack((x, y)).T
-        polygon = Path([(p.x(), p.y()) for p in self.points()])
-        mask = polygon.contains_points(points).reshape(image.shape)
-
-        if interpolate:
-            if interpolate == True:  # Magic?
-                interpolate = (np.percentile(image[mask], 50),
-                               np.percentile(image[mask], 75))
-            elif np.isscalar(interpolate):
-                interpolate = (np.percentile(image[mask], 0),
-                               np.percentile(image[mask], interpolate))
-            else:
-                interpolate = (np.percentile(image[mask], interpolate[0]),
-                               np.percentile(image[mask], interpolate[1]))
-
-            nmin, nmax = interpolate
-            filtered = np.zeros(mask.shape)
-            filtered[mask] = 1
-
-            # Cannot have data type to be numpy.int64
-            # https://github.com/scipy/scipy/issues/4106
-            radius = int(min(axis.ptp() for axis in np.where(mask)))
-
-            filtered = ndimage.filters.maximum_filter(
-                filtered, min(radius, image.shape[0] / 33))  # Magic?
-            filtered = image * filtered
-            mask = mask | ((filtered > nmin) & (filtered < nmax))
-            maxfilt = ndimage.filters.maximum_filter(mask.astype(int), fil_size)
-            mask = maxfilt != 0
-
-        return mask
+        return resize_image(self.region, _file.scaled_height,
+                            width=_file.scaled_width)
 
     def save(self, filename, _file=None):
-        """Save the region to a text file.
+        """Save the region using :func:`numpy.savez`.
 
         Parameters
         ----------
@@ -433,15 +319,13 @@ class Region(object):
 
         """
         if _file is not None:
-            scale = 1.0 / _file.orig_scale()
+            mask = resize_image(self.region, _file.original_height,
+                                width=_file.original_width)
         else:
-            scale = 1.0
+            mask = self.region
 
-        with open(filename, 'w') as f:
-            f.write(unicode('{0},{1}\n'.format(self.name, self.description)))
-            for p in self.points():
-                f.write(unicode('{0} {1}\n'.format(p.x() * scale,
-                                                   p.y() * scale)))
+        np.savez(filename, data=mask, name=self.name, descrip=self.description)
+        log.info('{0} saved'.format(filename))
 
     @classmethod
     def fromfile(cls, filename, _file=None):
@@ -461,52 +345,65 @@ class Region(object):
         newreg : `Region`
 
         """
-        region = QPolygonF()
+        dat = np.load(filename)
+        orig_mask = dat['data']
+
         if _file is not None:
-            scale = _file.orig_scale()
+            mask = resize_image(orig_mask, _file.displayed_height,
+                                width=_file.displayed_width)
         else:
-            scale = 1.0
-        name = ''
-        with open(filename) as f:
+            mask = orig_mask
+
+        newreg = cls(dat['name'].tostring(), mask)
+        newreg.description = dat['descrip'].tostring()
+        return newreg
+
+
+def _regions_old2new(oldfiles, image_shape):
+    """Convert old-style regions that store polygon data to new-style
+    that store boolean masks.
+
+    This is for interim use only when existing test data already have
+    old-style region files saved.
+
+    Parameters
+    ----------
+    oldfiles : list
+        List of ``.reg`` files to convert.
+
+    image_shape : tuple
+        Shape of the corresponding image.
+
+    """
+    from astropy.io import ascii
+    from matplotlib.path import Path
+
+    y, x = np.indices(image_shape)
+    y, x = y.flatten(), x.flatten()
+    points = np.vstack((x, y)).T
+
+    for oldfile in oldfiles:
+        prefix = oldfile.split('.')[0]
+        old_points = []
+
+        # Read from old file
+        with open(oldfile) as f:
             header = f.readline().strip()
             s = header.split(',')
             name = s[0]
-
             if len(s) > 1:
                 description = s[1]
             else:
                 description = name
-
             coords = ascii.read(f, data_start=1, names=['x', 'y'])
-            scaled_x = coords['x'].astype(np.float32) * scale
-            scaled_y = coords['y'].astype(np.float32) * scale
+            in_x = coords['x'].astype(np.float32)
+            in_y = coords['y'].astype(np.float32)
+            for xx, yy in zip(in_x, in_y):
+                old_points.append((xx, yy))
 
-            for x, y in zip(scaled_x, scaled_y):
-                region << QPointF(x, y)
+        polygon = Path(old_points)
+        mask = polygon.contains_points(points).reshape(image_shape)
 
-        newreg = cls(name, region)
-        newreg.description = description
-
-        return newreg
-
-
-class MergedRegion(Region):
-    """Class to represent a merging of two or more regions.
-
-    .. note::
-
-        This does not currently work, and not supported by GUI.
-
-    """
-    def __init__(self, list_of_regions):
-        super(MergedRegion, self).__init__()  # Will raise error, no arguments
-        self.name = list_of_regions[0].name
-        self.region = [region.region for region in list_of_regions]
-        self.originals = list_of_regions
-        self.visible = False
-
-    def contains(self, x, y, scaled=False):
-        return any(map(lambda reg: reg.contains(x, y, scaled), self.region))
-
-    def split(self):
-        return self.originals
+        newregion = Region(name, mask)
+        newregion.description = description
+        newregion.save(prefix)
