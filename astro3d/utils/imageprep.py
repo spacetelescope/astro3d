@@ -800,20 +800,26 @@ def galaxy_texture(galaxy, lmask=None, cmask=None, has_intensity=True,
     linemask = (x <= galmax) & lmask
     lines = LINES(galaxy, linemask)
 
-    # Mark dust lanes at given percentile intensity contour
     if has_intensity:
-        sdmask = None
-        small_dots = np.zeros_like(galaxy)
+        # No small dots at all
+        #sdmask = None
+
+        # Small dots mark everything
+        sdmask = (~linemask) & (~dotmask) & dmask
     else:
+        # Mark dust lanes at given percentile intensity contour
         sdmask = ((galaxy > np.percentile(galaxy, sd_percentile)) &
                   (~linemask) & (~dotmask) & dmask)
+
+    if sdmask is not None:
         small_dots = SMALL_DOTS(galaxy, sdmask)
+    else:
+        small_dots = np.zeros_like(galaxy)
 
     filt = ndimage.filters.maximum_filter(lines, fil_size - 15)  # 10
     fmask = filt != 0
     dots[fmask] = 0
-    if sdmask is not None:
-        small_dots[fmask] = 0
+    small_dots[fmask] = 0
 
     # Debug info
     #where = np.where(lines)
