@@ -950,7 +950,7 @@ def find_peaks(image, remove=0, num=None, threshold=8, npix=10, minpeaks=35):
 DOTS = partial(
     dots_from_mask, hexgrid_spacing=7, dots_width=5, dots_scale=3.2)
 SMALL_DOTS = partial(
-    dots_from_mask, hexgrid_spacing=4, dots_width=5, dots_scale=1.0)
+    dots_from_mask, hexgrid_spacing=4.5, dots_width=5, dots_scale=0.8)
 LINES = partial(lines_from_mask, lines_width=10, lines_spacing=20,
                 lines_scale=1.2, lines_orient=0)
 
