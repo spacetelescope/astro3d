@@ -853,13 +853,8 @@ class LayerOrderPage(QWizardPage):
             return
 
         self.names_list.clear()
-        names = self.parent.file.texture_names()
-        ordered_names = [''] * len(names)
-
-        for s in names:
-            i = self.parent.layer_order.index(s)
-            ordered_names[i] = s
-
+        ordered_names = sorted(
+            self.parent.file.texture_names(), key=self.parent.layer_order.index)
         self.names_list.addItems(ordered_names)
 
     def _enable_buttons(self):
@@ -894,8 +889,10 @@ class LayerOrderPage(QWizardPage):
 
     def validatePage(self):
         """Pass the selected values to GUI parent."""
-        self.parent.layer_order = [str(self.names_list.item(i).text())
-                                   for i in range(self.names_list.count())]
+        s = [str(self.names_list.item(i).text())
+             for i in range(self.names_list.count())]
+        self.parent.layer_order.sort(
+            key = lambda x: s.index(x) if x in s else 99)
         return True
 
     def nextId(self):

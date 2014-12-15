@@ -8,12 +8,51 @@ user input upon mouse click.
 from __future__ import division, print_function
 
 # STDLIB
+import warnings
 from collections import defaultdict
 
 # Anaconda
+import numpy as np
+from astropy import log
 from astropy.table import Table
+from astropy.utils.exceptions import AstropyUserWarning
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
+
+# THIRD-PARTY
+from qimage2ndarray import array2qimage
+
+# Local
+from ..utils import imageutils
+from ..utils.imageprep import combine_masks
+from ..utils.imageutils import calc_insertion_pos
+
+
+def mask2pixmap(mask, alpha, i_layer):
+    """Convert mask to semi-transparent pixmap item for display.
+
+    Parameters
+    ----------
+    mask : array_like
+        Boolean mask to convert.
+
+    alpha : int
+        Alpha value for transparency.
+
+    i_layer : {0, 1, 2}
+        Index for RGB layer that sets the color of the display.
+
+    Returns
+    -------
+    item : QGraphicsPixmapItem
+
+    """
+    im = np.zeros((mask.shape[0], mask.shape[1], 4))  # RGBA
+    im[:, :, i_layer][mask] = 255
+    im[:, :, 3][mask] = alpha
+    pixmap = QPixmap()
+    pixmap = pixmap.fromImage(array2qimage(im))
+    return QGraphicsPixmapItem(pixmap)
 
 
 class StarScene(QGraphicsScene):
@@ -41,8 +80,8 @@ class StarScene(QGraphicsScene):
         Contains region type and a list of `~astro3d.gui.astroObjects.Region`, which provides `StarScene` with a pointer to each region, allowing them to be removed if necessary. ``Region.name`` must contain region type.
 
     """
-    _SCENE_COLOR = QColor(0, 100, 200)
-    _SELECTED_COLOR = QColor(255, 0, 0)
+    _MASK_ALPHA = 40
+    _SELECTED_ALPHA = 60
 
     def __init__(self, parent, width, height):
         super(StarScene, self).__init__(parent)
@@ -130,21 +169,25 @@ class StarScene(QGraphicsScene):
         if self.pixmap is not None:
             self.addItem(self.pixmap)
 
+        reg_masks = []
+        sel_masks = []
         for reglist in self.regions.itervalues():
             for reg in reglist:
                 if reg in selected:
-                    continue
-                r = QGraphicsPolygonItem(reg.region)
-                r.setPen(self._SCENE_COLOR)
-                self.addItem(r)
+                    sel_masks.append(reg.region)
+                else:
+                    reg_masks.append(reg.region)
+
+        reg_masks = combine_masks(reg_masks)
+        if len(reg_masks) > 0:
+            item = mask2pixmap(reg_masks, self._MASK_ALPHA, 1)  # Green
+            self.addItem(item)
 
         # Highlight selected regions last
-        for reglist in self.regions.itervalues():
-            for reg in reglist:
-                if reg in selected:
-                    r = QGraphicsPolygonItem(reg.region)
-                    r.setPen(self._SELECTED_COLOR)
-                    self.addItem(r)
+        sel_masks = combine_masks(sel_masks)
+        if len(sel_masks) > 0:
+            item = mask2pixmap(sel_masks, self._SELECTED_ALPHA, 0)  # Red
+            self.addItem(item)
 
 
 class RegionStarScene(QGraphicsScene):
@@ -152,6 +195,8 @@ class RegionStarScene(QGraphicsScene):
     Every time the user clicks on the image, it generates a point
     and adds it to a ``QPolygon``, allowing it to display that
     polygon as a region.
+
+    .. note:: Not used.
 
     Parameters
     ----------
@@ -335,6 +380,8 @@ class RegionStarScene(QGraphicsScene):
 class RegionStarSceneItem(QGraphicsEllipseItem):
     """Class to handle data points in `RegionStarScene`.
 
+    .. note:: Not used.
+
     Parameters
     ----------
     pos : QPointF
@@ -374,8 +421,11 @@ class RegionStarSceneItem(QGraphicsEllipseItem):
 
 
 class RegionFileScene(QGraphicsScene):
-    """Like `RegionStarScene` but multiple regions are pre-loaded from files."""
-    _REGION_COLOR = QColor(0, 100, 200)
+    """Like `RegionBrushScene` but multiple regions are
+    pre-loaded from files.
+
+    """
+    _MASK_ALPHA = 50
 
     def __init__(self, parent, pixmap, regions):
         super(RegionFileScene, self).__init__(parent)
@@ -386,17 +436,23 @@ class RegionFileScene(QGraphicsScene):
         self.item = QGraphicsPixmapItem(pixmap)
         self.addItem(self.item)
         self.name = []
-        self.shape = []
+        self._mask = []
         self.description = []
         self.overwrite = None  # Not allowed here
+        masklist = []
 
         for reg in regions:
             self.name.append(reg.name)
-            self.shape.append(reg.region)
+            self._mask.append(reg.region)
             self.description.append(reg.description)
-            display_shape = QGraphicsPolygonItem(reg.region)
-            display_shape.setPen(QPen(self._REGION_COLOR))
-            self.addItem(display_shape)
+
+        self.show_mask(self._mask)
+
+    def show_mask(self, masklist):
+        """Semi-transparent masks for display."""
+        mask = combine_masks(masklist)
+        item = mask2pixmap(mask, self._MASK_ALPHA, 1)  # Green
+        self.addItem(item)
 
     def getRegion(self):
         """Return information of region(s) to save.
@@ -406,20 +462,279 @@ class RegionFileScene(QGraphicsScene):
         name :list of str
             Name (key) of the region.
 
-        shape : list of QPolygonF
-            Shape of the region.
+        mask : list of array_like
+            Boolean mask of the region.
 
         description : list of str
             Description of the region.
 
         """
-        return self.name, self.shape, self.description
+        return self.name, self._mask, self.description
 
     def clear(self):
         """Removes all items from the display except the image."""
         for i in self.items():
             self.removeItem(i)
         self.addItem(self.item)
+
+
+class RegionBrushScene(QGraphicsScene):
+    """An interactive  subclass of ``QGraphicsScene``.
+    Instead of defining each data point to build a polygon,
+    user uses brush strokes to draw the region.
+
+    .. note::
+
+        This replaces `RegionStarScene`.
+
+    """
+    _REGION_COLOR = QColor(0, 255, 0)
+    _BRUSH_COLOR = QColor(255, 0, 0)
+    _BRUSH_BUFFPIX = 2  # 2 pix buffer on each end for gradient calculations
+    _BRUSH_SIZE_MIN = 5
+    _BRUSH_SIZE_MAX = 100
+    _BRUSH_SIZE_STEP = 5
+    _MASK_ALPHA = 50
+
+    def __init__(self, parent, pixmap, name, radius=15):
+        super(RegionBrushScene, self).__init__(parent)
+        self.name = name
+        self.description = name
+        self.item = QGraphicsPixmapItem(pixmap)
+        self.overwrite = None
+
+        self.radius = radius
+        self._height = pixmap.height()
+        self._width = pixmap.width()
+        self._mask = None
+        self._mode = None
+        self._oldx = -1
+        self._oldy = -1
+        self._brushgraphics = None
+
+        self.draw()
+
+    @classmethod
+    def from_region(cls, parent, pixmap, region):
+        """Generate scene from existing region."""
+        newcls = cls(parent, pixmap, region.name)
+        newcls.description = region.description
+        newcls._mask = region.region
+        newcls.draw()
+        return newcls
+
+    def mousePressEvent(self, event):
+        """First click sets up initial brush.
+        Subsequent clicks edit the region.
+
+        """
+        pos = event.scenePos()
+        self._oldx = int(pos.x())
+        self._oldy = int(pos.y())
+
+        if self._mask is None:
+            self._mask = np.zeros((self._height, self._width), dtype=np.bool)
+            ix1, ix2, iy1, iy2, mx1, mx2, my1, my2 = calc_insertion_pos(
+                self._mask, self.brush, self._oldx - self.radius,
+                self._oldy - self.radius)
+            self._mask[iy1:iy2, ix1:ix2] = self.brush[my1:my2, mx1:mx2]
+
+        elif self._mask[self._oldy, self._oldx]:
+            self._mode = 'inside'
+
+        else:
+            self._mode = 'outside'
+
+    def mouseMoveEvent(self, event):
+        """Edit the region with brush.
+
+        Construct a mask indicating coverage of a moving circle
+        with center starting at old and finishing at new positions.
+        The size of the mask is buffered by 2 extra pixels on all sides
+        to facilitate the edge highlighting step.
+
+        """
+        if self._mode is None:
+            return
+
+        pos = event.scenePos()
+        x = int(pos.x())
+        y = int(pos.y())
+
+        # Make grid arrays
+        diam = 2 * self.radius + 1
+        xsize = 2 * self._BRUSH_BUFFPIX + diam + np.abs(x - self._oldx)
+        ysize = 2 * self._BRUSH_BUFFPIX + diam + np.abs(y - self._oldy)
+        beg = -self.radius - self._BRUSH_BUFFPIX
+        ygrid, xgrid = np.mgrid[beg:beg+ysize, beg:beg+xsize]
+        p = np.zeros((ysize, xsize, 2), dtype=np.float32)
+        p[:, :, 0] = ygrid
+        p[:, :, 1] = xgrid
+
+        # Ensure move positions are always positive
+        xmin = min(x, self._oldx)
+        ymin = min(y, self._oldy)
+
+        movemask = imageutils.in_rectangle(
+            p, (y - ymin, x - xmin), (self._oldy - ymin, self._oldx - xmin),
+            self.radius)
+
+        for xx, yy in [(self._oldx, self._oldy), (x, y)]:
+            yy1 = yy + self._BRUSH_BUFFPIX - ymin
+            yy2 = yy1 + diam
+            xx1 = xx + self._BRUSH_BUFFPIX - xmin
+            xx2 = xx1 + diam
+            movemask[yy1:yy2, xx1:xx2] = movemask[yy1:yy2, xx1:xx2] | self.brush
+
+        # Update the image mask (inplace) by using the supplied position of the
+        # drawing mask to either extend it (mode="inside"), or erode it
+        # (mode="outside").
+
+        ix1, ix2, iy1, iy2, mx1, mx2, my1, my2 = calc_insertion_pos(
+            self._mask, movemask, x + self._BRUSH_BUFFPIX - self.radius,
+            y + self._BRUSH_BUFFPIX - self.radius)
+        icommon = self._mask[iy1:iy2, ix1:ix2]
+        dmask = movemask[my1:my2, mx1:mx2]
+
+        # Check for overlap; if not, nothing will change
+        if np.any(icommon & dmask):
+            if self._mode == 'inside':
+                np.logical_or(icommon, dmask, out=icommon)
+            elif self._mode == 'outside':
+                icommon[np.logical_and(icommon, dmask)] = False
+            else:
+                warnings.warn(
+                    'Invalid brush mode={0}; must be "inside" or '
+                    '"outside"'.format(self._mode), AstropyUserWarning)
+
+        self.set_brush(pos=(y, x))  # Display brush
+        self.draw()
+
+        self._oldx = x
+        self._oldy = y
+
+    def mouseReleaseEvent(self, event):
+        """Done editing."""
+        self._mode = None
+        self.set_brush()  # Hide brush
+        self.draw()
+
+    def keyPressEvent(self, event):
+        """Change brush size with Alt+Plus or Alt+Minus."""
+        size_change_mode = False
+        if (event.modifiers() & Qt.AltModifier):
+            # Increase brush size
+            if event.key() == Qt.Key_Plus:
+                size_change_mode = True
+                r = self.radius + self._BRUSH_SIZE_STEP
+                if r <= self._BRUSH_SIZE_MAX:
+                    self.radius = r
+            # Decrease brush size
+            elif event.key() == Qt.Key_Minus:
+                size_change_mode = True
+                r = self.radius - self._BRUSH_SIZE_STEP
+                if r >= self._BRUSH_SIZE_MIN:
+                    self.radius = r
+        if size_change_mode:
+            log.info('Brush radius is {0}'.format(self.radius))
+
+    @property
+    def graphicspoints(self):
+        """Data points of the edges generated from mask."""
+        gp = []
+        if self._mask is not None:
+            # Compute differentials to detect mask edges
+            idx = np.where(self._mask[1:, 1:] ^ self._mask[:-1, :-1])
+            for x, y in zip(idx[1], idx[0]):
+                p = QGraphicsRectItem(x, y, 1, 1)
+                p.setPen(self._REGION_COLOR)
+                gp.append(p)
+        return gp
+
+    @property
+    def maskgraphics(self):
+        """Semi-transparent mask for display."""
+        if self._mask is None:
+            item = None
+        else:
+            item = mask2pixmap(self._mask, self._MASK_ALPHA, 1)  # Green
+        return item
+
+    @property
+    def brush(self):
+        """Circular mask that defines the brush."""
+        diam = 2 * np.ceil(self.radius) + 1
+        return imageutils.circular_mask(
+            (diam, diam), self.radius, self.radius, self.radius)
+
+    def set_brush(self, pos=None):
+        """Handle brush graphics.
+
+        Parameters
+        ----------
+        pos : tuple or `None`
+            If ``(y,x)`` is given, re-draw brush at that position.
+            Else, just remove the existing brush graphics.
+
+        """
+        if pos is None:
+            self._brushgraphics = None
+        else:
+            y, x = pos
+            diam = 2 * self.radius + self._BRUSH_BUFFPIX
+            self._brushgraphics = QGraphicsEllipseItem(
+                x - self.radius + 2 * self._BRUSH_BUFFPIX,
+                y - self.radius + 2 * self._BRUSH_BUFFPIX, diam, diam)
+            self._brushgraphics.setPen(self._BRUSH_COLOR)
+
+    def draw(self):
+        """Draw polygon."""
+        for i in self.items():
+            self.removeItem(i)
+
+        self.addItem(self.item)
+
+        # DISABLED - Only draw mask edges
+        #for gp in self.graphicspoints:
+        #    self.addItem(gp)
+
+        # Draw semi-transparent mask
+        if self.maskgraphics is not None:
+            self.addItem(self.maskgraphics)
+
+        if self._brushgraphics is not None:
+            self.addItem(self._brushgraphics)
+
+    def getRegion(self):
+        """Return information of region to save.
+
+        Returns
+        -------
+        name : str
+            Name (key) of the region.
+
+        mask : array_like
+            Boolean mask of the region.
+
+        description : str
+            Description of the region.
+
+        """
+        return self.name, self._mask, self.description
+
+    def clear(self):
+        """Removes all items from the display except the image.
+        Resets all instance variables except for ``item``.
+
+        """
+        for i in self.items():
+            self.removeItem(i)
+        self.addItem(self.item)
+        self._mask = None
+        self._mode = None
+        self._oldx = -1
+        self._oldy = -1
+        self._brushgraphics = None
 
 
 class ClusterStarScene(QGraphicsScene):

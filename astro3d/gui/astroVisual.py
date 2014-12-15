@@ -48,20 +48,20 @@ from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 
 # THIRD-PARTY
-import qimage2ndarray as q2a
 import photutils.utils as putils
+import qimage2ndarray as q2a
 
 # LOCAL
 from .astroObjects import File, Region
-from .star_scenes import (StarScene, RegionStarScene, RegionFileScene,
+from .star_scenes import (StarScene, RegionBrushScene, RegionFileScene,
                           ClusterStarScene)
 from .wizard import ThreeDModelWizard
 from ..utils import imageprep, imageutils
 
 
 _gui_title = 'Astronomy 3D Model'
-__version__ = '0.2.0.dev'
-__vdate__ = '26-Nov-2014'
+__version__ = '0.3.0.dev'
+__vdate__ = '11-Dec-2014'
 __author__ = 'STScI'
 
 
@@ -458,13 +458,14 @@ class AstroGUI(QMainWindow):
     def loadRegion(self):
         """Load region(s) from file."""
         flist = QFileDialog.getOpenFileNames(
-            self, '3D Model Creator - Load Regions', '', 'Region files (*.reg)')
+            self, '3D Model Creator - Load Regions', '', 'Region files (*.npz)')
 
         if flist.isEmpty():
             return
 
         regions = [Region.fromfile(str(fname), _file=self.file)
                    for fname in flist]
+
         if len(regions) == 1:
             reg = regions[0]
         else:
@@ -494,13 +495,6 @@ class AstroGUI(QMainWindow):
         for key, region, descrip in zip(names, regions, descriptions):
             reg = Region(key, region)
             reg.description = descrip
-
-            # Polygon must have at least 3 points
-            if len(reg.points()) < 3:
-                warnings.warn(
-                    '{0} not saved - Insufficient points'.format(key),
-                    AstropyUserWarning)
-                continue
 
             key = key.lower()
 
@@ -830,6 +824,8 @@ class MainPanel(QWidget):
         self.current_scene = scene
         self.view.setScene(self.current_scene)
 
+    # Region Editing
+
     def region_drawer(self, name):
         """Sets the scene to an interactive drawing scene,
         allowing the user to draw regions.
@@ -839,7 +835,7 @@ class MainPanel(QWidget):
         name : str
 
         """
-        draw_scene = RegionStarScene(self, self.parent.file.image, name)
+        draw_scene = RegionBrushScene(self, self.parent.file.image, name)
         self.update_scene(draw_scene)
 
     def region_loader(self, reg, overwrite=None):
@@ -856,7 +852,7 @@ class MainPanel(QWidget):
         if isinstance(reg, list):
             draw_scene = RegionFileScene(self, self.parent.file.image, reg)
         else:
-            draw_scene = RegionStarScene.from_region(
+            draw_scene = RegionBrushScene.from_region(
                 self, self.parent.file.image, reg)
         draw_scene.overwrite = overwrite
         self.update_scene(draw_scene)
@@ -913,6 +909,8 @@ class MainPanel(QWidget):
         self.main_scene.draw(selected=region)
         self.update_scene(self.main_scene)
 
+    # Cluster Editing
+
     def cluster_find(self, peaks=None):
         """Highlights the locations of clusters to allow
         the user to add new or remove 'invalid' clusters
@@ -931,6 +929,8 @@ class MainPanel(QWidget):
     def save_clusters(self):
         """Sets the scene to the non-interactive main scene."""
         self.update_scene(self.main_scene)
+
+    # Stars Editing
 
     def star_find(self, peaks=None):
         """Like :meth:`cluster_find` but for stars."""
@@ -953,7 +953,7 @@ def makeqimage(nparray, transformation, size):
     ----------
     nparray : ndarray
 
-    transformation : func
+    transformation : func or `None`
 
     size : QSize
 

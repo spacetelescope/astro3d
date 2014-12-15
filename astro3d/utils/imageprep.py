@@ -594,29 +594,8 @@ def make_star_cluster(image, peak, max_intensity, r_fac_add=15, r_fac_mul=5,
             return array
 
     for (cy, cx) in centers:
-        sx1 = 0
-        sx2 = star.shape[1]
-        sy1 = 0
-        sy2 = star.shape[0]
-
-        xx1 = int(cx - dr)
-        xx2 = xx1 + r
-        yy1 = int(cy - dr)
-        yy2 = yy1 + r
-
-        if xx1 < 0:
-            sx1 = -xx1
-            xx1 = 0
-        if xx2 > array.shape[1]:
-            sx2 -= (xx2 - array.shape[1])
-            xx2 = array.shape[1]
-        if yy1 < 0:
-            sy1 = -yy1
-            yy1 = 0
-        if yy2 > array.shape[0]:
-            sy2 -= (yy2 - array.shape[0])
-            yy2 = array.shape[0]
-
+        xx1, xx2, yy1, yy2, sx1, sx2, sy1, sy2 = iutils.calc_insertion_pos(
+            array, star, int(cx - dr), int(cy - dr))
         cur_smask = star_mask[sy1:sy2, sx1:sx2]
         cur_star = star[sy1:sy2, sx1:sx2]
         array[yy1:yy2, xx1:xx2][cur_smask] = _max + cur_star[cur_smask]
@@ -821,20 +800,26 @@ def galaxy_texture(galaxy, lmask=None, cmask=None, has_intensity=True,
     linemask = (x <= galmax) & lmask
     lines = LINES(galaxy, linemask)
 
-    # Mark dust lanes at given percentile intensity contour
     if has_intensity:
-        sdmask = None
-        small_dots = np.zeros_like(galaxy)
+        # No small dots at all
+        #sdmask = None
+
+        # Small dots mark everything
+        sdmask = (~linemask) & (~dotmask) & dmask
     else:
+        # Mark dust lanes at given percentile intensity contour
         sdmask = ((galaxy > np.percentile(galaxy, sd_percentile)) &
                   (~linemask) & (~dotmask) & dmask)
+
+    if sdmask is not None:
         small_dots = SMALL_DOTS(galaxy, sdmask)
+    else:
+        small_dots = np.zeros_like(galaxy)
 
     filt = ndimage.filters.maximum_filter(lines, fil_size - 15)  # 10
     fmask = filt != 0
     dots[fmask] = 0
-    if sdmask is not None:
-        small_dots[fmask] = 0
+    small_dots[fmask] = 0
 
     # Debug info
     #where = np.where(lines)
@@ -965,7 +950,7 @@ def find_peaks(image, remove=0, num=None, threshold=8, npix=10, minpeaks=35):
 DOTS = partial(
     dots_from_mask, hexgrid_spacing=7, dots_width=5, dots_scale=3.2)
 SMALL_DOTS = partial(
-    dots_from_mask, hexgrid_spacing=5, dots_width=5, dots_scale=1.0)
+    dots_from_mask, hexgrid_spacing=4.5, dots_width=5, dots_scale=0.8)
 LINES = partial(lines_from_mask, lines_width=10, lines_spacing=20,
                 lines_scale=1.2, lines_orient=0)
 
@@ -1248,7 +1233,7 @@ def _prepareImg(filename, height=30, filter_radius=None, crop=False,
             img = remove_background(img, 1.0)
 
     if compress and img.shape[0] > 500:
-        img = iutils.compressImage(img, 500)
+        img = iutils.resize_image(img, 500)
     if filter_radius:
         img = ndimage.filters.gaussian_filter(img, filter_radius)
     img = img - img.min()
