@@ -10,11 +10,11 @@ from __future__ import division, print_function
 # STDLIB
 import warnings
 from collections import defaultdict
+from copy import deepcopy
 
 # Anaconda
 import numpy as np
 from astropy import log
-from astropy.table import Table
 from astropy.utils.exceptions import AstropyUserWarning
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
@@ -28,7 +28,7 @@ from ..utils.imageprep import combine_masks
 from ..utils.imageutils import calc_insertion_pos
 
 
-def mask2pixmap(mask, alpha, i_layer):
+def mask2pixmap(mask, alpha, i_layer, size=None):
     """Convert mask to semi-transparent pixmap item for display.
 
     Parameters
@@ -52,7 +52,110 @@ def mask2pixmap(mask, alpha, i_layer):
     im[:, :, 3][mask] = alpha
     pixmap = QPixmap()
     pixmap = pixmap.fromImage(array2qimage(im))
+
+    if size is not None:
+        pixmap = pixmap.scaled(size, Qt.KeepAspectRatio)
+
     return QGraphicsPixmapItem(pixmap)
+
+
+class PreviewScene(QGraphicsScene):
+    """Display preview image.
+
+    Intensity will be monochrome image.
+    Each texture is displayed as semi-transparent overlay with
+    a pre-defined color.
+
+    Parameters
+    ----------
+    parent : `~astro3d.gui.astroVisual.PreviewWindow`
+        The instantiating class.
+
+    width, height : int
+        The size of the `~astro3d.gui.astroVisual.PreviewWindow`,
+        which allows `PreviewScene` to scale the image appropriately.
+
+    """
+    _MASK_ALPHA = 20
+    _ELLIPSE_SZ = 10
+    _ELLIPSE_RAD = _ELLIPSE_SZ // 2
+    _CLUSTER_COLOR = QColor(200, 50, 50)
+    _STAR_COLOR = QColor(50, 50, 200)
+
+    def __init__(self, parent, width, height):
+        super(PreviewScene, self).__init__(parent)
+        self.width = width
+        self.height = height
+        self.size = QSize(self.width, self.height)
+
+        # Set later
+        self.model3d = None
+        self.pixmap = None
+
+    def set_model(self, model3d):
+        """Set 3D model object."""
+        self.model3d = model3d
+
+    def clear(self):
+        """Clear the display."""
+        for i in self.items():
+            self.removeItem(i)
+
+    def _add_image(self):
+        """Scale and display intensity image."""
+        self.pixmap = QPixmap().fromImage(imageutils.makeqimage(
+            self.model3d.preview_intensity, None, self.size))
+        self.addItem(QGraphicsPixmapItem(self.pixmap))
+
+    def _add_point(self, xcen, ycen, color):
+        """Add a point."""
+        x = xcen - self._ELLIPSE_RAD
+        y = ycen - self._ELLIPSE_RAD
+        item = QGraphicsEllipseItem(x, y, self._ELLIPSE_SZ, self._ELLIPSE_SZ)
+        item.setPen(QPen(color))
+        self.addItem(item)
+
+    def draw(self):
+        """Render the preview."""
+        log.info('Generating preview...')
+        self.clear()
+        self._add_image()
+
+        # Small dots (red)
+        sdmask = self.model3d.get_preview_mask(self.model3d.small_dots_key)
+        if np.any(sdmask):
+            item = mask2pixmap(sdmask, self._MASK_ALPHA, 0, size=self.size)
+            self.addItem(item)
+
+        # Dots (green)
+        dmask = self.model3d.get_preview_mask(self.model3d.dots_key)
+        if np.any(dmask):
+            item = mask2pixmap(dmask, self._MASK_ALPHA, 1, size=self.size)
+            self.addItem(item)
+
+        # Lines (blue)
+        lmask = self.model3d.get_preview_mask(self.model3d.lines_key)
+        if np.any(lmask):
+            item = mask2pixmap(lmask, self._MASK_ALPHA, 2, size=self.size)
+            self.addItem(item)
+
+        scale = self.pixmap.height() / self.model3d.preview_intensity.shape[0]
+
+        # Star clusters
+        clusters = self.model3d.get_final_clusters()
+        if len(clusters) > 0:
+            xcen = clusters['xcen'] * scale
+            ycen = clusters['ycen'] * scale
+            for x, y in zip(xcen, ycen):
+                self._add_point(x, y, self._CLUSTER_COLOR)
+
+        # Stars
+        stars = self.model3d.get_final_stars()
+        if len(stars) > 0:
+            xcen = stars['xcen'] * scale
+            ycen = stars['ycen'] * scale
+            for x, y in zip(xcen, ycen):
+                self._add_point(x, y, self._STAR_COLOR)
 
 
 class StarScene(QGraphicsScene):
@@ -79,15 +182,24 @@ class StarScene(QGraphicsScene):
     regions : dict
         Contains region type and a list of `~astro3d.gui.astroObjects.Region`, which provides `StarScene` with a pointer to each region, allowing them to be removed if necessary. ``Region.name`` must contain region type.
 
+    clusters, stars : list or Table
+        Contains star clusters and stars to display.
+
     """
     _MASK_ALPHA = 40
     _SELECTED_ALPHA = 60
+    _ELLIPSE_SZ = 10
+    _ELLIPSE_RAD = _ELLIPSE_SZ // 2
+    _CLUSTER_COLOR = QColor(200, 50, 50)
+    _STAR_COLOR = QColor(50, 50, 200)
 
     def __init__(self, parent, width, height):
         super(StarScene, self).__init__(parent)
         self.size = QSize(width, height)
         self.pixmap = None
         self.regions = defaultdict(list)
+        self.clusters = []
+        self.stars = []
 
     def addImg(self, pixmap):
         """Scales the input pixmap to appropriate size for the
@@ -111,6 +223,7 @@ class StarScene(QGraphicsScene):
         scaledPixmap = pixmap.scaled(self.size, Qt.KeepAspectRatio)
         self.pixmap = QGraphicsPixmapItem(scaledPixmap)
         self.draw()
+        self._pixmap = scaledPixmap
         return scaledPixmap
 
     def addReg(self, region):
@@ -151,6 +264,22 @@ class StarScene(QGraphicsScene):
             self.regions[region.name].remove(region)
             self.draw()
 
+    def set_clusters(self, clusters, orig_height):
+        """Save selected clusters for display."""
+        scale = self._pixmap.height() / orig_height
+        self.clusters = deepcopy(clusters)
+        self.clusters['xcen'] *= scale
+        self.clusters['ycen'] *= scale
+        self.draw()
+
+    def set_stars(self, stars, orig_height):
+        """Save selected stars for display."""
+        scale = self._pixmap.height() / orig_height
+        self.stars = deepcopy(stars)
+        self.stars['xcen'] *= scale
+        self.stars['ycen'] *= scale
+        self.draw()
+
     def clear(self):
         """Removes all items from the display without destroying
         instance variables.
@@ -158,6 +287,14 @@ class StarScene(QGraphicsScene):
         """
         for i in self.items():
             self.removeItem(i)
+
+    def _add_point(self, xcen, ycen, color):
+        """Add a point."""
+        x = xcen - self._ELLIPSE_RAD
+        y = ycen - self._ELLIPSE_RAD
+        item = QGraphicsEllipseItem(x, y, self._ELLIPSE_SZ, self._ELLIPSE_SZ)
+        item.setPen(QPen(color))
+        self.addItem(item)
 
     def draw(self, selected=[]):
         """Draw scene. Highlight selected region(s)."""
@@ -189,8 +326,18 @@ class StarScene(QGraphicsScene):
             item = mask2pixmap(sel_masks, self._SELECTED_ALPHA, 0)  # Red
             self.addItem(item)
 
+        # Star clusters
+        if len(self.clusters) > 0:
+            for x, y in zip(self.clusters['xcen'], self.clusters['ycen']):
+                self._add_point(x, y, self._CLUSTER_COLOR)
 
-class RegionStarScene(QGraphicsScene):
+        # Stars
+        if len(self.stars) > 0:
+            for x, y in zip(self.stars['xcen'], self.stars['ycen']):
+                self._add_point(x, y, self._STAR_COLOR)
+
+
+class _RegionStarScene(QGraphicsScene):
     """This is an interactive subclass of ``QGraphicsScene``.
     Every time the user clicks on the image, it generates a point
     and adds it to a ``QPolygon``, allowing it to display that
@@ -377,7 +524,7 @@ class RegionStarScene(QGraphicsScene):
         self.graphicspoints = []
 
 
-class RegionStarSceneItem(QGraphicsEllipseItem):
+class _RegionStarSceneItem(QGraphicsEllipseItem):
     """Class to handle data points in `RegionStarScene`.
 
     .. note:: Not used.
@@ -478,14 +625,11 @@ class RegionFileScene(QGraphicsScene):
         self.addItem(self.item)
 
 
+# This replaces RegionStarScene
 class RegionBrushScene(QGraphicsScene):
     """An interactive  subclass of ``QGraphicsScene``.
     Instead of defining each data point to build a polygon,
     user uses brush strokes to draw the region.
-
-    .. note::
-
-        This replaces `RegionStarScene`.
 
     """
     _REGION_COLOR = QColor(0, 255, 0)
@@ -750,18 +894,18 @@ class ClusterStarScene(QGraphicsScene):
     parent : `~astro3d.gui.astroVisual.MainPanel`
         The instantiating class.
 
-    _file : `~astro3d.gui.astroObjects.File`
-        File object.
+    pixmap : QPixmap
+        Background image pixmap.
 
-    data : `astropy.table.Table`
-        Table data to add.
+    model3d : `~astro3d.utils.imageprep.ModelFor3D`
+        Handles 3D model generation. Can have existing point sources already.
 
     key : {'clusters', 'stars'}
         Type of ``File.peaks`` table to process.
 
     Attributes
     ----------
-    _file, key
+    model3d, key
         Same as inputs.
 
     scale : float
@@ -776,26 +920,23 @@ class ClusterStarScene(QGraphicsScene):
     _ELLIPSE_COLOR = QColor(200, 50, 50)
     _FLUX_RAD = 5
 
-    def __init__(self, parent, _file, data=None, key='clusters'):
+    def __init__(self, parent, pixmap, model3d, key):
         super(ClusterStarScene, self).__init__(parent)
-        self._file = _file
+        self.model3d = model3d
         self.key = key
-        self.scale = self._file.scale()
+        self.scale = pixmap.height() / model3d.orig_img.shape[0]
         self.graphicspoints = []
 
         # Display static background image
-        self.addItem(QGraphicsPixmapItem(_file.image))
+        self.addItem(QGraphicsPixmapItem(pixmap))
 
-        if data is None:
-            data = Table(names=['xcen', 'ycen', 'flux'])
-        else:
-            data.keep_columns(['xcen', 'ycen', 'flux'])
+        # Display existing point sources, if any
+        data = model3d.peaks[key]
+        if len(data) > 0:
             xcen = data['xcen'] * self.scale
             ycen = data['ycen'] * self.scale
             for x, y in zip(xcen, ycen):
                 self.add_point(x, y)
-
-        self._file.peaks[self.key] = data
 
     def add_point(self, xcen, ycen):
         """Add a point to graphics scene.
@@ -834,7 +975,7 @@ class ClusterStarScene(QGraphicsScene):
                 is_removed = True
                 self.removeItem(gp)
                 self.graphicspoints.remove(gp)
-                self._file.peaks[self.key].remove_row(i)
+                self.model3d.peaks[self.key].remove_row(i)
                 break
 
         if not is_removed:
@@ -845,10 +986,10 @@ class ClusterStarScene(QGraphicsScene):
 
             # Estimate flux at selected point
             ix1 = max(int(xcen - self._FLUX_RAD), 0)
-            ix2 = min(int(xcen + self._FLUX_RAD), self._file.data.shape[1])
+            ix2 = min(int(xcen + self._FLUX_RAD), self.model3d.orig_img.shape[1])
             iy1 = max(int(ycen - self._FLUX_RAD), 0)
-            iy2 = min(int(ycen + self._FLUX_RAD), self._file.data.shape[0])
-            flux = self._file.data[iy1:iy2, ix1:ix2].sum()
+            iy2 = min(int(ycen + self._FLUX_RAD), self.model3d.orig_img.shape[0])
+            flux = self.model3d.orig_img[iy1:iy2, ix1:ix2].sum()
 
             self.add_point(xdisp, ydisp)
-            self._file.peaks[self.key].add_row([xcen, ycen, flux])
+            self.model3d.peaks[self.key].add_row([xcen, ycen, flux])

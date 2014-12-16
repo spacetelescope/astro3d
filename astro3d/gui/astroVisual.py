@@ -41,27 +41,25 @@ from collections import OrderedDict
 # Anaconda
 import numpy as np
 from astropy import log
-from astropy.io import ascii, fits
+from astropy.io import ascii
 from astropy.utils.exceptions import AstropyUserWarning
-from PIL import Image
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 
 # THIRD-PARTY
 import photutils.utils as putils
-import qimage2ndarray as q2a
 
 # LOCAL
-from .astroObjects import File, Region
-from .star_scenes import (StarScene, RegionBrushScene, RegionFileScene,
-                          ClusterStarScene)
+from .astroObjects import Region
+from .star_scenes import (PreviewScene, StarScene, RegionBrushScene,
+                          RegionFileScene, ClusterStarScene)
 from .wizard import ThreeDModelWizard
 from ..utils import imageprep, imageutils
 
 
 _gui_title = 'Astronomy 3D Model'
 __version__ = '0.3.0.dev'
-__vdate__ = '11-Dec-2014'
+__vdate__ = '26-Jan-2015'
 __author__ = 'STScI'
 
 
@@ -86,32 +84,23 @@ class AstroGUI(QMainWindow):
 
     Attributes
     ----------
-    file : `~astro3d.gui.astroObjects.File`
-        Image file object.
+    model3d : `~astro3d.utils.imageprep.ModelFor3D`
+        This stores info necessary to make the STL.
 
     transformation : func
         Provides the transformation (linear, log, or sqrt) applied to the
         image before it is displayed. Applied for visualization and display
         purposes only.
 
-    model_type : int
-        Type of 3D model to make.
-
-    is_spiral : bool
-        Special processing for single spiral galaxy.
-
-    layer_order : list
-        Order of non-galaxy texture layers (dots, lines) to apply. Top/foreground layer overwrites the bottom/background.
-
     widget : `MainPanel`
         Initialized in :meth:`createWidgets`. Displays the image.
 
+    preview : `PreviewWindow`
+        Displays the preview.
+
     """
-    _GEOM_X = 300
+    _GEOM_X = 0
     _GEOM_Y = 150
-    _GEOM_SZ = 800
-    _NEWSZ_W = 840
-    _NEWSZ_H = 860
     IMG_TRANSFORMATIONS = OrderedDict(
         [(0, 'Linear'), (1, 'Logarithmic'), (2, 'Sqrt')])
     TRANS_FUNCS = {
@@ -125,33 +114,20 @@ class AstroGUI(QMainWindow):
          (3, 'Textured intensity map (one-sided)'),
          (4, 'Textured intensity map (two-sided)')])
 
-    # Maps self.is_spiral to textures
-    REGION_TEXTURES = {
-        False: ['dots', 'dots_small', 'lines', 'smooth'],
-        True: ['spiral', 'disk', 'remove_star']}
-
     def __init__(self, argv=None):
         super(AstroGUI, self).__init__()
         self.setWindowTitle(_gui_title)
         log.info('Started {0} v{1} ({2}) by {3}'.format(
             _gui_title, __version__, __vdate__, __author__))
 
-        self.file = None
+        self.model3d = None
         self.transformation = self.TRANS_FUNCS['Linear']
-        self.model_type = 0
-        self.is_spiral = False
-        self.layer_order = ['lines', 'dots', 'dots_small']
-        self._clus_r_fac_add = 15
-        self._clus_r_fac_mul = 1
-        self._star_r_fac_add = 15
-        self._star_r_fac_mul = 1
-        self._disp_img = None
+        self._model_type = 0
+        self._pixmap = None
         self._enable_photutil = True
 
-        self.setGeometry(
-            self._GEOM_X, self._GEOM_Y, self._GEOM_SZ, self._GEOM_SZ)
         self.createWidgets()
-        self.resize(self._NEWSZ_W, self._NEWSZ_H)
+        self.move(self._GEOM_X, self._GEOM_Y)
 
         if argv and argv[0] == 'debug':
             debug = True
@@ -161,18 +137,56 @@ class AstroGUI(QMainWindow):
             debug = False
 
         wizard = ThreeDModelWizard(self, debug=debug)
-        wizard.move(self._GEOM_X + self._NEWSZ_W,
-                    self._GEOM_Y + self._NEWSZ_H * 0.25)
+        wizard.move(self._GEOM_X + self.widget.width() + self.preview.width(),
+                    self._GEOM_Y + self.widget.height() * 0.25)
         self.show()
 
         self.statusBar().showMessage('')
+
+    @property
+    def model_type(self):
+        """Type of 3D model to make."""
+        return self._model_type
+
+    @model_type.setter
+    def model_type(self, val):
+        """Set model type and associated attributes."""
+        if val not in self.MODEL_TYPES:
+            raise ValueError('Invalid model type')
+
+        self._model_type = val
+
+        if self.model3d is not None:
+            # Single- or double-sided
+            if val in (0, 1, 3):
+                self.model3d.double = False
+            else:
+                self.model3d.double = True
+
+            # Add textures?
+            if val in (0, 3, 4):
+                self.model3d.has_texture = True
+            else:
+                self.model3d.has_texture = False
+
+            # Add intensity?
+            if val > 0:
+                self.model3d.has_intensity = True
+            else:
+                self.model3d.has_intensity = False
 
     # GUI Menu Bar
 
     def createWidgets(self):
         """Create menus."""
         self.widget = MainPanel(self)
-        self.setCentralWidget(self.widget)
+        self.preview = PreviewWindow(self)
+        self.mainLayout = QHBoxLayout()
+        self.mainLayout.addWidget(self.widget)
+        self.mainLayout.addWidget(self.preview)
+        self.centralWidget = QWidget()
+        self.centralWidget.setLayout(self.mainLayout)
+        self.setCentralWidget(self.centralWidget)
 
         # Special menu for Mac or it will be absorbed into built-in menu
         # system that is not intuitive. It is important to avoid naming
@@ -233,11 +247,10 @@ class AstroGUI(QMainWindow):
         """Load image file from FITS, JPEG, or TIFF.
 
         After file data is converted to Numpy array, it uses
-        :func:`makeqimage` to create a ``QImage``. Then, it
-        creates a ``QPixmap``, which is passed to the ``widget``.
-        A `~astro3d.gui.astroObjects.File` object is also created
-        to store information.
-
+        :func:`~astro3d.utils.imageutils.makeqimage` to create
+        a ``QImage``. Then, it creates a ``QPixmap``, which is passed
+        to the ``widget``. A `~astro3d.utils.imageprep.ModelFor3D`
+        object is also created to store information.
 
         """
         fname = QFileDialog.getOpenFileName(
@@ -250,12 +263,7 @@ class AstroGUI(QMainWindow):
             return
 
         elif fnamestr.endswith(('fits', 'FITS')):
-            data = fits.getdata(fnamestr)
-            if data is None:
-                QMessageBox.warning(
-                    self, 'File Error', 'This file does not contain image data')
-                return
-            self._disp_img = data
+            self.model3d = imageprep.ModelFor3D.from_fits(fnamestr)
 
         else:  # color display
             # DISABLED - Used for grayscale display
@@ -266,23 +274,17 @@ class AstroGUI(QMainWindow):
 
             self.transformation = None  # Not applicable to RGB layers
             self._enable_photutil = False  # Photometry fails for this format
-            self._disp_img = np.array(
-                Image.open(fnamestr), dtype=np.float32)[::-1, :, :]
-            data = self._disp_img.sum(axis=2)
+            self.model3d = imageprep.ModelFor3D.from_rgb(fnamestr)
 
-        name = os.path.basename(fnamestr)
-        image = QPixmap()
-        image = image.fromImage(
-            makeqimage(self._disp_img, self.transformation, self.widget.size))
-        pic = self.widget.addImage(image)
-        self.file = File(data, pic)
-        self.statusBar().showMessage(name)
+        self._pixmap = self.widget.addImage(QPixmap().fromImage(
+            imageutils.makeqimage(self.model3d.orig_img, self.transformation,
+                                  self.widget.scene_size)))
+        self.preview.scene.set_model(self.model3d)
+        self.statusBar().showMessage(os.path.basename(fnamestr))
 
     def fileSave(self, height=150.0, depth=10, split_halves=True,
                  save_all=True):
-        """Get save file location and instructs the
-        `~astro3d.gui.astroObjects.File` object to construct
-        a 3D model.
+        """Save files and make 3D model.
 
         See :func:`~astro3d.utils.meshcreator.to_mesh` for more details.
 
@@ -306,48 +308,25 @@ class AstroGUI(QMainWindow):
             Status message.
 
         """
-        _ascii = False  # Binary STL
-
-        # Single- or double-sided
-        if self.model_type in (0, 1, 3):
-            double = False
-        else:
-            double = True
-
-        # Add textures?
-        if self.model_type in (0, 3, 4):
-            has_texture = True
-        else:
-            has_texture = False
-
-        # Add intensity?
-        if self.model_type > 0:
-            has_intensity = True
-        else:
-            has_intensity = False
+        self.model3d.height = height
+        self.model3d.base_thickness = depth
 
         path = QFileDialog.getSaveFileName(
             self, '3D Model Creator - Save STL', '')
+
         if path.isEmpty():
             return 'ERROR - No filename given!'
-        else:
-            fname = str(path)
-            prefix = os.path.join(os.path.dirname(fname),
-                                  os.path.basename(fname).split('.')[0])
+
+        fname = str(path)
+        prefix = os.path.join(os.path.dirname(fname),
+                              os.path.basename(fname).split('.')[0])
 
         if save_all:
-            self.file.save_regions(prefix)
-            self.file.save_peaks(prefix)
+            self.model3d.save_regions(prefix)
+            self.model3d.save_peaks(prefix)
 
-        self.file.make_3d(
-            fname, height=height, depth=depth,
-            clus_r_fac_add=self._clus_r_fac_add,
-            clus_r_fac_mul=self._clus_r_fac_mul,
-            star_r_fac_add=self._star_r_fac_add,
-            star_r_fac_mul=self._star_r_fac_mul, layer_order=self.layer_order,
-            double=double, _ascii=_ascii, has_texture=has_texture,
-            has_intensity=has_intensity, is_spiralgal=self.is_spiral,
-            split_halves=split_halves)
+        self.model3d.make()
+        self.model3d.save_stl(fname, split_halves=split_halves)
 
         return 'Done!'
 
@@ -377,7 +356,7 @@ class AstroGUI(QMainWindow):
             Index of the region in the existing list of regions.
 
         """
-        region = self.file.regions[key][idx]
+        region = self.model3d.region_masks[key][idx]
         self.widget.region_loader(region, overwrite=(key, idx))
 
     def deleteRegion(self, key, region):
@@ -396,7 +375,7 @@ class AstroGUI(QMainWindow):
                 self.deleteRegion(key, reg)
         else:
             self.hideRegion(region)
-            self.file.regions[key].remove(region)
+            self.model3d.region_masks[key].remove(region)
 
     def handleRegionVisibility(self, region):
         """Auto hide/show a region."""
@@ -463,8 +442,9 @@ class AstroGUI(QMainWindow):
         if flist.isEmpty():
             return
 
-        regions = [Region.fromfile(str(fname), _file=self.file)
-                   for fname in flist]
+        regions = [Region.fromfile(
+            str(fname), image_shape=(self._pixmap.height(),
+                                     self._pixmap.width())) for fname in flist]
 
         if len(regions) == 1:
             reg = regions[0]
@@ -498,14 +478,14 @@ class AstroGUI(QMainWindow):
 
             key = key.lower()
 
-            if key in self.REGION_TEXTURES[self.is_spiral]:
+            if key in self.model3d.allowed_textures():
                 if overwrite is not None:
                     okey, oidx = overwrite
-                    old_reg = self.file.regions[okey][oidx]
+                    old_reg = self.model3d.region_masks[okey][oidx]
                     self.hideRegion(old_reg)
-                    self.file.regions[okey][oidx] = reg
+                    self.model3d.region_masks[okey][oidx] = reg
                 else:
-                    self.file.regions[key].append(reg)
+                    self.model3d.region_masks[key].append(reg)
             else:
                 warnings.warn('{0} is not a valid region texture'.format(key),
                               AstropyUserWarning)
@@ -522,9 +502,9 @@ class AstroGUI(QMainWindow):
         change the image display.
 
         """
-        pic = QPixmap().fromImage(
-            makeqimage(self._disp_img, self.transformation, self.widget.size))
-        self.file.image = pic
+        self._pixmap = QPixmap().fromImage(
+            imageutils.makeqimage(self.model3d.orig_img, self.transformation,
+                                  self.widget.scene_size))
         self.widget.setImage()
 
     def setTransformation(self, trans='Linear'):
@@ -546,16 +526,14 @@ class AstroGUI(QMainWindow):
         self.transformation = self.TRANS_FUNCS[trans]
         self.remake_image()
 
-    def resizeImage(self, width, height):
-        """Uses PIL (or Pillow) to resize an array to the
-        given dimensions.
-
-        The width and height are given by the user in the
-        wizard.
-
-        """
-        image = Image.fromarray(self.file.data).resize((width, height))
-        self.file.data = np.array(image, dtype=np.float64)
+    # OBSOLETE - Kept for debugging.
+    #def resizeImage(self, width, height):
+    #    """Uses PIL (or Pillow) to resize an array to the
+    #    given dimensions.
+    #    The width and height are given by the user in the
+    #    wizard."""
+    #    image = Image.fromarray(self.file.data).resize((width, height))
+    #    self.file.data = np.array(image, dtype=np.float64)
 
     # Clusters editing
 
@@ -577,8 +555,8 @@ class AstroGUI(QMainWindow):
             return
 
         log.info('Finding star clusters, please be patient...')
-        peaks = imageprep.find_peaks(np.flipud(self.file.data))[:n]
-        self.widget.cluster_find(peaks)
+        self.model3d.find_peaks(self.model3d.clusters_key, n)
+        self.widget.cluster_find()
 
     def load_clusters(self):
         """Retrieve locations of star clusters from file."""
@@ -589,11 +567,8 @@ class AstroGUI(QMainWindow):
         if fname.isEmpty():
             return
 
-        scale = self.file.data.shape[0] / self.file._orig_shape[0]
-        peaks = ascii.read(str(fname), data_start=1)
-        peaks['xcen'] *= scale
-        peaks['ycen'] *= scale
-        self.widget.cluster_find(peaks)
+        self.model3d.load_peaks(self.model3d.clusters_key, str(fname))
+        self.widget.cluster_find()
 
     def manual_clusters(self):
         """Select locations from display."""
@@ -615,8 +590,8 @@ class AstroGUI(QMainWindow):
             return
 
         log.info('Finding stars, please be patient...')
-        peaks = imageprep.find_peaks(np.flipud(self.file.data))[:n]
-        self.widget.star_find(peaks)
+        self.model3d.find_peaks(self.model3d.stars_key, n)
+        self.widget.star_find()
 
     def load_stars(self):
         """Retrieve locations of stars from file."""
@@ -627,11 +602,8 @@ class AstroGUI(QMainWindow):
         if fname.isEmpty():
             return
 
-        scale = self.file.data.shape[0] / self.file._orig_shape[0]
-        peaks = ascii.read(str(fname), data_start=1)
-        peaks['xcen'] *= scale
-        peaks['ycen'] *= scale
-        self.widget.star_find(peaks)
+        self.model3d.load_peaks(self.model3d.stars_key, str(fname))
+        self.widget.star_find()
 
     def manual_stars(self):
         """Select locations from display."""
@@ -640,6 +612,15 @@ class AstroGUI(QMainWindow):
     def save_stars(self):
         """Done selecting stars."""
         self.widget.save_stars()
+
+    # Preview
+    def render_preview(self):
+        """Preview model."""
+        self.statusBar().showMessage('Rendering preview, please wait...')
+        self.repaint()
+        self.model3d.make()
+        self.preview.draw()
+        self.statusBar().showMessage('Preview is on the right')
 
     # For DEBUG PURPOSES ONLY
     def run_auto_login_script(self):
@@ -656,7 +637,7 @@ class AstroGUI(QMainWindow):
         #name = os.path.basename(fname)
         #data = fits.getdata(fname)
         #image = QPixmap().fromImage(
-        #    makeqimage(data, self.transformation, self.widget.size))
+        #    makeqimage(data, self.transformation, self.widget.scene_size))
         #pic = self.widget.addImage(image)
         #self.file = File(data, pic)
         #self.resizeImage(2000, 2000)
@@ -705,7 +686,7 @@ class AboutPopup(QDialog):
         self.setLayout(vbox)
 
 
-class RGBScalingPopup(QDialog):
+class _RGBScalingPopup(QDialog):
     """Popup window for user to enter RGB scaling factors.
 
     .. note:: Not used anymore.
@@ -771,6 +752,9 @@ class MainPanel(QWidget):
     a pointer to the current scene.
 
     """
+    _GEOM_SZ = 810
+    _SCENE_SZ = 800
+
     def __init__(self, parent=None):
         super(MainPanel, self).__init__(parent)
 
@@ -781,11 +765,12 @@ class MainPanel(QWidget):
         layout = QGridLayout(self)
         layout.addWidget(self.view, 0, 0)
         self.setLayout(layout)
-        self.size = QSize(parent.width(), parent.height())
+        self.size = QSize(self._GEOM_SZ, self._GEOM_SZ)
         self.view.setMinimumSize(self.size)
         self.resize(self.size)
 
-        self.main_scene = StarScene(self, self.view.width(), self.view.height())
+        self.scene_size = QSize(self._SCENE_SZ, self._SCENE_SZ)
+        self.main_scene = StarScene(self, self._SCENE_SZ, self._SCENE_SZ)
         self.current_scene = self.main_scene
         self.view.setScene(self.current_scene)
 
@@ -809,7 +794,7 @@ class MainPanel(QWidget):
 
     def setImage(self):
         """Sets the image to currently selected image."""
-        self.main_scene.addImg(self.parent.file.image)
+        self.main_scene.addImg(self.parent._pixmap)
         self.update_scene(self.main_scene)
 
     def update_scene(self, scene):
@@ -835,7 +820,7 @@ class MainPanel(QWidget):
         name : str
 
         """
-        draw_scene = RegionBrushScene(self, self.parent.file.image, name)
+        draw_scene = RegionBrushScene(self, self.parent._pixmap, name)
         self.update_scene(draw_scene)
 
     def region_loader(self, reg, overwrite=None):
@@ -850,10 +835,10 @@ class MainPanel(QWidget):
 
         """
         if isinstance(reg, list):
-            draw_scene = RegionFileScene(self, self.parent.file.image, reg)
+            draw_scene = RegionFileScene(self, self.parent._pixmap, reg)
         else:
             draw_scene = RegionBrushScene.from_region(
-                self, self.parent.file.image, reg)
+                self, self.parent._pixmap, reg)
         draw_scene.overwrite = overwrite
         self.update_scene(draw_scene)
 
@@ -911,70 +896,74 @@ class MainPanel(QWidget):
 
     # Cluster Editing
 
-    def cluster_find(self, peaks=None):
+    def cluster_find(self):
         """Highlights the locations of clusters to allow
         the user to add new or remove 'invalid' clusters
         (e.g., foreground stars, etc) using the interactive
         `~astro3d.gui.star_scenes.ClusterStarScene`.
 
-        Parameters
-        ----------
-        peaks : `astropy.table.Table`
-            Table data to add.
-
         """
-        cluster_scene = ClusterStarScene(self, self.parent.file, data=peaks)
+        cluster_scene = ClusterStarScene(
+            self, self.parent._pixmap, self.parent.model3d,
+            self.parent.model3d.clusters_key)
         self.update_scene(cluster_scene)
 
     def save_clusters(self):
         """Sets the scene to the non-interactive main scene."""
+        self.main_scene.set_clusters(
+            self.parent.model3d.peaks[self.parent.model3d.clusters_key],
+            self.parent.model3d.orig_img.shape[0])
         self.update_scene(self.main_scene)
 
     # Stars Editing
 
-    def star_find(self, peaks=None):
+    def star_find(self):
         """Like :meth:`cluster_find` but for stars."""
         markstar_scene = ClusterStarScene(
-            self, self.parent.file, data=peaks, key='stars')
+            self, self.parent._pixmap, self.parent.model3d,
+            self.parent.model3d.stars_key)
         self.update_scene(markstar_scene)
 
     def save_stars(self):
         """Sets the scene to the non-interactive main scene."""
+        self.main_scene.set_stars(
+            self.parent.model3d.peaks[self.parent.model3d.stars_key],
+            self.parent.model3d.orig_img.shape[0])
         self.update_scene(self.main_scene)
 
 
-def makeqimage(nparray, transformation, size):
-    """Performs various transformations (linear, log, sqrt, etc.)
-    on the image. Clips and scales pixel values between 0 and 255.
-    Scales and inverts the image. All transformations are
-    non-destructive (performed on a copy of the input array).
+class PreviewWindow(QWidget):
+    """Class to handle preview of the final product.
 
-    Parameters
-    ----------
-    nparray : ndarray
-
-    transformation : func or `None`
-
-    size : QSize
-
-    Returns
-    -------
-    qimage : QImage
+    Preview window will show intensity as monochrome image with
+    texture masks overlay in different colors.
 
     """
-    npimage = nparray.copy()
-    npimage[npimage < 0] = 0
+    _GEOM_SZ = 810
+    _SCENE_SZ = 800
 
-    if transformation is not None:
-        npimage = q2a._normalize255(transformation(npimage), True)
-        qimage = q2a.array2qimage(npimage, (0, 255))
-    else:
-        qimage = q2a.array2qimage(npimage, True)
+    def __init__(self, parent=None):
+        super(PreviewWindow, self).__init__(parent)
 
-    qimage = qimage.scaled(size, Qt.KeepAspectRatio)
-    qimage = qimage.mirrored(False, True)
+        self.parent = parent
+        self.view = QGraphicsView(self)
+        self.view.setAlignment(Qt.AlignCenter)
 
-    return qimage
+        layout = QGridLayout(self)
+        layout.addWidget(self.view, 0, 0)
+        self.setLayout(layout)
+        self.size = QSize(self._GEOM_SZ, self._GEOM_SZ)
+        self.view.setMinimumSize(self.size)
+        self.resize(self.size)
+
+        self.scene = PreviewScene(self, self._SCENE_SZ, self._SCENE_SZ)
+        self.view.setScene(self.scene)
+
+        self.show()
+
+    def draw(self):
+        """Render preview."""
+        self.scene.draw()
 
 
 def main(argv):

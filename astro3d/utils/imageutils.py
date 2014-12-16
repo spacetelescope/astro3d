@@ -6,7 +6,45 @@ import numpy as np
 from astropy import log
 from astropy.io import fits
 from PIL import Image
+from PyQt4.QtCore import Qt
 from scipy.misc import imresize
+
+# THIRD-PARTY
+import qimage2ndarray as q2a
+
+
+def makeqimage(nparray, transformation, size):
+    """Performs various transformations (linear, log, sqrt, etc.)
+    on the image. Clips and scales pixel values between 0 and 255.
+    Scales and inverts the image. All transformations are
+    non-destructive (performed on a copy of the input array).
+
+    Parameters
+    ----------
+    nparray : ndarray
+
+    transformation : func or `None`
+
+    size : QSize
+
+    Returns
+    -------
+    qimage : QImage
+
+    """
+    npimage = nparray.copy()
+    npimage[npimage < 0] = 0
+
+    if transformation is not None:
+        npimage = q2a._normalize255(transformation(npimage), True)
+        qimage = q2a.array2qimage(npimage, (0, 255))
+    else:
+        qimage = q2a.array2qimage(npimage, True)
+
+    qimage = qimage.scaled(size, Qt.KeepAspectRatio)
+    qimage = qimage.mirrored(False, True)
+
+    return qimage
 
 
 def im2file(im, filename):
