@@ -989,7 +989,9 @@ class ClusterStarScene(QGraphicsScene):
             ix2 = min(int(xcen + self._FLUX_RAD), self.model3d.orig_img.shape[1])
             iy1 = max(int(ycen - self._FLUX_RAD), 0)
             iy2 = min(int(ycen + self._FLUX_RAD), self.model3d.orig_img.shape[0])
-            flux = self.model3d.orig_img[iy1:iy2, ix1:ix2].sum()
+            flux = np.flipud(self.model3d.orig_img)[iy1:iy2, ix1:ix2].sum()
 
             self.add_point(xdisp, ydisp)
             self.model3d.peaks[self.key].add_row([xcen, ycen, flux])
+            log.info('Added X={0:.1f} Y={1:.2f} FLUX={2:.3f}'.format(
+                xcen, ycen, flux))

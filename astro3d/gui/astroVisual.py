@@ -50,16 +50,16 @@ from PyQt4.QtCore import *
 import photutils.utils as putils
 
 # LOCAL
-from .astroObjects import Region
 from .star_scenes import (PreviewScene, StarScene, RegionBrushScene,
                           RegionFileScene, ClusterStarScene)
 from .wizard import ThreeDModelWizard
 from ..utils import imageprep, imageutils
+from ..utils.imageprep import Region
 
 
 _gui_title = 'Astronomy 3D Model'
 __version__ = '0.3.0.dev'
-__vdate__ = '26-Jan-2015'
+__vdate__ = '29-Jan-2015'
 __author__ = 'STScI'
 
 
@@ -493,6 +493,29 @@ class AstroGUI(QMainWindow):
 
             log.info('{0} ({1}) saved'.format(key, descrip))
             self.showRegion(reg)
+
+    def findRegion(self, lo, hi):
+        """Automatically find spiral arms and gas.
+
+        Parameters
+        ----------
+        lo, hi : float
+            Percentiles for gas and spiral arms, respectively.
+
+        """
+        keys = [self.model3d.dots_key, self.model3d.small_dots_key]
+
+        # Delete any existing spiral arms and gas
+        for key in keys:
+            reglist = self.model3d.region_masks[key]
+            self.deleteRegion(key, reglist)
+
+        # Auto find and show results
+        shape = (self._pixmap.height(), self._pixmap.width())
+        self.model3d.auto_spiralarms(
+            shape=shape, percentile_hi=hi, percentile_lo=lo)
+        for key in keys:
+            self.showRegion(self.model3d.region_masks[key][0])
 
     # Image Transformations
 

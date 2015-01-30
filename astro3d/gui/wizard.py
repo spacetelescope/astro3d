@@ -43,9 +43,9 @@ class ThreeDModelWizard(QWizard):
         :meth:`~astro3d.gui.AstroGUI.run_auto_login_script`.
 
     """
-    NUM_PAGES = 8
+    NUM_PAGES = 9
 
-    (PG_LOAD, PG_SCALE, PG_TYPE, PG_REG, PG_LAYER, PG_CLUS, PG_STAR,
+    (PG_LOAD, PG_SCALE, PG_TYPE, PG_REG, PG_GALREG, PG_LAYER, PG_CLUS, PG_STAR,
      PG_MAKE) = range(NUM_PAGES)
 
     def __init__(self, parent=None, debug=False):
@@ -60,6 +60,7 @@ class ThreeDModelWizard(QWizard):
             self.setPage(self.PG_SCALE, IntensityScalePage(parent, wizard=self))
             self.setPage(self.PG_TYPE, ModelTypePage(parent, wizard=self))
             self.setPage(self.PG_REG, RegionPage(parent, wizard=self))
+            self.setPage(self.PG_GALREG, GalaxyRegionPage(parent, wizard=self))
             self.setPage(self.PG_LAYER, LayerOrderPage(parent, wizard=self))
             self.setPage(self.PG_CLUS, IdentifyPeakPage(parent, wizard=self))
             self.setPage(self.PG_STAR, IdentifyStarPage(parent, wizard=self))
@@ -115,6 +116,19 @@ To erase the region that is just drawn or loaded without saving, click 'Clear'. 
 To draw another region, you must explicitly select a texture from the drop-down box again.
 
 For a saved region, left-click on it in the list to highlight it on the display. You can also right-click on it for options to hide/show, rename (this does not change the texture), edit, or delete. To edit a region, use the brush as described above.""")
+        elif page_id == self.PG_GALREG:
+            msg = self.tr("""You can either draw a new region by selecting the texture from the drop-down box, or load existing region(s) with the 'Load' button.
+Note that 'smooth' or 'remove_star' is not a real texture, but rather used to mark an area to be smoothed over (e.g., foreground star or background galaxy).
+
+To draw, click once on the image and a circular brush will appear. Adjust brush size using Alt+Plus or Alt+Minus to increase or decrease radius by 5 pixels, respectively. Left-click and drag the mouse from inside the region to draw, or from outside to erase.
+
+To erase the region that is just drawn or loaded without saving, click 'Clear'. To save it, click 'Save'.
+
+To draw another region, you must explicitly select a texture from the drop-down box again.
+
+For a saved region, left-click on it in the list to highlight it on the display. You can also right-click on it for options to hide/show, rename (this does not change the texture), edit, or delete. To edit a region, use the brush as described above.
+
+To automatically detect spiral arms and gas regions, draw or load the disk region first, enter the desired percentile numbers, and then click 'Auto Masks'. This overwrites any saved spiral arms and gas masks. Automatically generated masks can be manipulated like other masks as above.""")
         elif page_id == self.PG_LAYER:
             msg = self.tr("""In the final model, textures cannot overlap. Therefore, when two regions of different textures overlap, the layer ordering is used to determine which texture should be given higher priority. For example, if you have:
 
@@ -151,15 +165,14 @@ When you click on 'Make Model' button, only enter the prefix of the output file(
     def hidePreviewButton(self):
         """Hide preview button."""
         self.setButtonLayout(
-            [QWizard.HelpButton, QWizard.Stretch, QWizard.BackButton,
+            [QWizard.HelpButton, QWizard.Stretch,
              QWizard.NextButton, QWizard.FinishButton, QWizard.CancelButton])
 
     def showPreviewButton(self):
         """Show preview button."""
         self.setButtonLayout(
             [QWizard.HelpButton, QWizard.CustomButton1, QWizard.Stretch,
-             QWizard.BackButton, QWizard.NextButton, QWizard.FinishButton,
-             QWizard.CancelButton])
+             QWizard.NextButton, QWizard.FinishButton, QWizard.CancelButton])
 
 
 class ImageLoadPage(QWizardPage):
@@ -218,7 +231,7 @@ Click the button below to load an image. Currently, only FITS, JPEG, and TIFF ar
             return ThreeDModelWizard.PG_SCALE
 
 
-class ImageResizePage(QWizardPage):
+class _ImageResizePage(QWizardPage):
     """Allows the user to change the image dimensions.
 
     .. note:: NOT USED.
@@ -585,7 +598,10 @@ class ModelTypePage(QWizardPage):
 
     def nextId(self):
         """Proceed to `RegionPage`."""
-        return ThreeDModelWizard.PG_REG
+        if self.parent.model3d.is_spiralgal:
+            return ThreeDModelWizard.PG_GALREG
+        else:
+            return ThreeDModelWizard.PG_REG
 
 
 class RegionPage(QWizardPage):
@@ -630,33 +646,42 @@ class RegionPage(QWizardPage):
         self.wizard = wizard
         self.setTitle('Region Selection')
 
+        self._button_width = 110
+        self.draw = QComboBox(self)
+        self.draw.setFixedWidth(self._button_width)
+        self.draw.activated[str].connect(self.drawRegion)
+        self.load = QPushButton('Load')
+        self.load.setFixedWidth(self._button_width)
+        self.load.clicked.connect(self.loadRegion)
+        self.clear = QPushButton('Clear')
+        self.clear.setFixedWidth(self._button_width)
+        self.clear.clicked.connect(self.clearRegion)
+        self.clear.setEnabled(False)
+        self.save = QPushButton('Save')
+        self.save.setFixedWidth(self._button_width)
+        self.save.clicked.connect(self.saveRegion)
+        self.save.setEnabled(False)
+
+        self.buttongrid = QVBoxLayout()
+        self.buttongrid.addWidget(self.draw)
+        self.buttongrid.addWidget(self.load)
+        self.buttongrid.addWidget(self.clear)
+        self.buttongrid.addWidget(self.save)
+
+        self.status = QLabel('Status: Ready!')
+        self.status.setWordWrap(True)
+
+        self.initUI()
+
+    def initUI(self):
+        """Create the layout."""
         msglabel = QLabel(
             """Select texture from the drop-down box to draw or 'Load' to load from file. To draw another region, you must explicitly select from the drop-down box again. Click 'Help' for more info.""")
         msglabel.setWordWrap(True)
 
-        self.draw = QComboBox(self)
-        self.draw.activated[str].connect(self.drawRegion)
-        self.load = QPushButton('Load')
-        self.load.clicked.connect(self.loadRegion)
-        self.clear = QPushButton('Clear')
-        self.clear.clicked.connect(self.clearRegion)
-        self.clear.setEnabled(False)
-        self.save = QPushButton('Save')
-        self.save.clicked.connect(self.saveRegion)
-        self.save.setEnabled(False)
-
-        buttongrid = QVBoxLayout()
-        buttongrid.addWidget(self.draw)
-        buttongrid.addWidget(self.load)
-        buttongrid.addWidget(self.clear)
-        buttongrid.addWidget(self.save)
-
         hbox = QHBoxLayout()
-        hbox.addLayout(buttongrid)
+        hbox.addLayout(self.buttongrid)
         hbox.addLayout(self.createRegionList())
-
-        self.status = QLabel('Status: Ready!')
-        self.status.setWordWrap(True)
 
         vbox = QVBoxLayout()
         vbox.addWidget(msglabel)
@@ -899,13 +924,93 @@ class RegionPage(QWizardPage):
         layer ordering or cluster selection page.
 
         """
-        if self.parent.model_type in (1, 2):  # No texture
+        if not self.parent.model3d.has_texture:
             return ThreeDModelWizard.PG_MAKE
         elif (self.parent.model3d.is_spiralgal or
               len(self.parent.model3d.texture_names()) < 2):
             return ThreeDModelWizard.PG_CLUS
         else:
             return ThreeDModelWizard.PG_LAYER
+
+
+class GalaxyRegionPage(RegionPage):
+    """Like `RegionPage` but with extra options for automatically
+    generating masks for spiral arms and gas.
+
+    """
+    def initUI(self):
+        """Create the layout."""
+        msglabel = QLabel(
+            """Select texture from the drop-down box to draw or 'Load' to load from file. To draw another region, you must explicitly select from the drop-down box again. To use 'Auto Masks', draw/load disk first. Click 'Help' for more info.""")
+        msglabel.setWordWrap(True)
+
+        hbox = QHBoxLayout()
+        hbox.addLayout(self.buttongrid)
+        hbox.addLayout(self.createRegionList())
+
+        vbox = QVBoxLayout()
+        vbox.addWidget(msglabel)
+        vbox.addLayout(hbox)
+        vbox.addLayout(self.createAutoMasksLayout())
+        vbox.addStretch()
+        vbox.addWidget(self.status)
+
+        self.setLayout(vbox)
+
+    def createAutoMasksLayout(self):
+        """Create the layout for automatic masks generation."""
+        self.find = QPushButton('Auto Masks')
+        self.find.setFixedWidth(self._button_width)
+        self.find.clicked.connect(self.findRegion)
+        self.ptile_hi_text = QLineEdit('75')
+        self.ptile_hi_text.setFixedWidth(40)
+        self.ptile_lo_text = QLineEdit('55')
+        self.ptile_lo_text.setFixedWidth(40)
+
+        hbox = QHBoxLayout()
+        hbox.addWidget(self.find)
+        hbox.addStretch()
+        hbox.addWidget(QLabel('Spiral arms %tile:'))
+        hbox.addWidget(self.ptile_hi_text)
+        hbox.addStretch()
+        hbox.addWidget(QLabel('Gas %tile:'))
+        hbox.addWidget(self.ptile_lo_text)
+        hbox.addStretch()
+
+        return hbox
+
+    def findRegion(self):
+        """Automatically find spiral arms and gas."""
+        if (len(self.parent.model3d.region_masks[
+                self.parent.model3d.lines_key]) < 1):
+            self.status.setText('Status: ERROR - Define the disk first!')
+            return
+
+        hi_text = self.ptile_hi_text.text()
+        lo_text = self.ptile_lo_text.text()
+
+        if hi_text.isEmpty() or lo_text.isEmpty():
+            return
+
+        try:
+            hi = float(hi_text)
+        except ValueError:
+            self.status.setText(
+                'Status: ERROR - Invalid spiral arms percentile!')
+            return
+
+        try:
+            lo = float(lo_text)
+        except ValueError:
+            self.status.setText('Status: ERROR - Invalid gas percentile!')
+            return
+
+        self.parent.findRegion(lo, hi)
+        self.save.setEnabled(False)
+        self.clear.setEnabled(False)
+        self.add_items()
+        self.status.setText('Status: Automatically added spiral arms and gas')
+        self.emit(SIGNAL('completeChanged()'))
 
 
 # http://stackoverflow.com/questions/9166087/move-row-up-and-down-in-pyqt4
