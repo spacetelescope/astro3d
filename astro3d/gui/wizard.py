@@ -14,13 +14,13 @@ class ThreeDModelWizard(QWizard):
     of a 3D STL file from a 2D image. It contains:
 
     #. Load Image - Allows the user to load an image.
-    #. Resize Image - Allows the user to resize the image to
-       the appropriate dimensions.
     #. Scale Intensity - Allows the user to view the image after
        linear, logarithmic, or square root filters are applied.
+       **(Shown for FITS only.)**
     #. Model Type Selection - Allows the user to select which type
        of model to make.
     #. Region Selection - Allows the user to draw and save regions.
+       Preview button is available on this page and after.
     #. Region Layer Ordering - Allows the user to order texture layers,
        except the one used for smoothing. Where they overlap, the one
        in the foreground will take precedence.
@@ -45,7 +45,7 @@ class ThreeDModelWizard(QWizard):
     """
     NUM_PAGES = 9
 
-    (PG_LOAD, PG_RESIZE, PG_SCALE, PG_TYPE, PG_REG, PG_LAYER, PG_CLUS, PG_STAR,
+    (PG_LOAD, PG_SCALE, PG_TYPE, PG_REG, PG_GALREG, PG_LAYER, PG_CLUS, PG_STAR,
      PG_MAKE) = range(NUM_PAGES)
 
     def __init__(self, parent=None, debug=False):
@@ -55,22 +55,124 @@ class ThreeDModelWizard(QWizard):
         if debug:
             self.addPage(MakeModelPage(parent))
         else:
-            self.setPage(self.PG_LOAD, ImageLoadPage(parent))
-            self.setPage(self.PG_RESIZE, ImageResizePage(parent))
-            self.setPage(self.PG_SCALE, IntensityScalePage(parent))
-            self.setPage(self.PG_TYPE, ModelTypePage(parent))
-            self.setPage(self.PG_REG, RegionPage(parent))
-            self.setPage(self.PG_LAYER, LayerOrderPage(parent))
-            self.setPage(self.PG_CLUS, IdentifyPeakPage(parent))
-            self.setPage(self.PG_STAR, IdentifyStarPage(parent))
-            self.setPage(self.PG_MAKE, MakeModelPage(parent))
+            self.setPage(self.PG_LOAD, ImageLoadPage(parent, wizard=self))
+            #self.setPage(self.PG_RESIZE, ImageResizePage(parent, wizard=self))
+            self.setPage(self.PG_SCALE, IntensityScalePage(parent, wizard=self))
+            self.setPage(self.PG_TYPE, ModelTypePage(parent, wizard=self))
+            self.setPage(self.PG_REG, RegionPage(parent, wizard=self))
+            self.setPage(self.PG_GALREG, GalaxyRegionPage(parent, wizard=self))
+            self.setPage(self.PG_LAYER, LayerOrderPage(parent, wizard=self))
+            self.setPage(self.PG_CLUS, IdentifyPeakPage(parent, wizard=self))
+            self.setPage(self.PG_STAR, IdentifyStarPage(parent, wizard=self))
+            self.setPage(self.PG_MAKE, MakeModelPage(parent, wizard=self))
 
         self.setWindowTitle('Astronomy 3D Model Wizard')
         self.setVisible(True)
 
+        # Help button
+        self.setOption(QWizard.HaveHelpButton, True)
+        self.helpRequested.connect(self._showHelp)
+
+        # Custom preview button
+        self.setButtonText(QWizard.CustomButton1, self.tr('&Preview'))
+        self.setOption(QWizard.HaveCustomButton1, True)
+        self.customButtonClicked.connect(self._previewButtonClicked)
+
         # Quit entire GUI when done
         self.button(QWizard.FinishButton).clicked.connect(
             QCoreApplication.instance().quit)
+
+    def _showHelp(self):
+        """Do this when help button is clicked."""
+        page_id = self.currentId()
+        title = self.tr('Astronomy 3D Model Wizard Help')
+
+        if page_id == self.PG_LOAD:
+            msg = self.tr(
+                'Select a FITS or a file with RGB layers (e.g., JPEG or TIFF). '
+                'If RGB image is selected, the monochrome intensity is '
+                'calculated by summing all the color layers.')
+        #elif page_id == self.PG_RESIZE:
+        #    msg = self.tr(
+        #        """Resize the image to roughly 1k x 1k pixels so that the resultant STL file(s) will not have too many triangles that could crash MakerBot software. If the original dimension is already acceptable, you can skip this step.""")
+        elif page_id == self.PG_SCALE:
+            msg = self.tr(
+                'Scale the intensity such that it is the easiest for you to '
+                'mark regions and point sources. This only affects the '
+                'display, not the final result.')
+        elif page_id == self.PG_TYPE:
+            msg = self.tr(
+                """A texture map has no intensity. A smooth intensity map has no texture. A textured intensity map has both.
+
+Check the 'special processing' box if the image contains a single spiral galaxy.""")
+        elif page_id == self.PG_REG:
+            msg = self.tr("""You can either draw a new region by selecting the texture from the drop-down box, or load existing region(s) with the 'Load' button.
+Note that 'smooth' or 'remove_star' is not a real texture, but rather used to mark an area to be smoothed over (e.g., foreground star or background galaxy).
+
+To draw, click once on the image and a circular brush will appear. Adjust brush size using Alt+Plus or Alt+Minus to increase or decrease radius by 5 pixels, respectively. Left-click and drag the mouse from inside the region to draw, or from outside to erase.
+
+To erase the region that is just drawn or loaded without saving, click 'Clear'. To save it, click 'Save'.
+
+To draw another region, you must explicitly select a texture from the drop-down box again.
+
+For a saved region, left-click on it in the list to highlight it on the display. You can also right-click on it for options to hide/show, rename (this does not change the texture), edit, or delete. To edit a region, use the brush as described above.""")
+        elif page_id == self.PG_GALREG:
+            msg = self.tr("""You can either draw a new region by selecting the texture from the drop-down box, or load existing region(s) with the 'Load' button.
+Note that 'smooth' or 'remove_star' is not a real texture, but rather used to mark an area to be smoothed over (e.g., foreground star or background galaxy).
+
+To draw, click once on the image and a circular brush will appear. Adjust brush size using Alt+Plus or Alt+Minus to increase or decrease radius by 5 pixels, respectively. Left-click and drag the mouse from inside the region to draw, or from outside to erase.
+
+To erase the region that is just drawn or loaded without saving, click 'Clear'. To save it, click 'Save'.
+
+To draw another region, you must explicitly select a texture from the drop-down box again.
+
+For a saved region, left-click on it in the list to highlight it on the display. You can also right-click on it for options to hide/show, rename (this does not change the texture), edit, or delete. To edit a region, use the brush as described above.
+
+To automatically detect spiral arms and gas regions, draw or load the disk region first, enter the desired percentile numbers, and then click 'Auto Masks'. This overwrites any saved spiral arms and gas masks. Automatically generated masks can be manipulated like other masks as above.""")
+        elif page_id == self.PG_LAYER:
+            msg = self.tr("""In the final model, textures cannot overlap. Therefore, when two regions of different textures overlap, the layer ordering is used to determine which texture should be given higher priority. For example, if you have:
+
+    lines
+    dots
+    dots_small
+
+When a 'lines' region is drawn in the middle of another region marked for 'dots', the area of overlap will only have 'lines' texture because in the order above, 'lines' has the highest priority. If the order is reversed, the area of overlap will only show 'dots'.""")
+        elif page_id == self.PG_CLUS:
+            msg = self.tr(
+                'This page will be revamped soon. Help is unavailable.')
+        elif page_id == self.PG_STAR:
+            msg = self.tr(
+                'This page will be revamped soon. Help is unavailable.')
+        elif page_id == self.PG_MAKE:
+            msg = self.tr("""Model height of 150 corresponds maximum intensity printed as 4.5??? cm for an one-sided intensity map on MakerBot Replicator 2 when a model is split in halves, each half oriented such that its longer side rests on the plate, and scaled to maximum size on MakerBot Desktop. This mean, it would be XXX cm for a two-sided intensity map. For texture map, this number does not affect the printed height, but it is still used for internal calculations.
+
+Base thickness of 20 corresponds to 6 mm (regardless if it is one- or two-sided) when the model is split, oriented, and scaled as above. You want a base that is thick enough so that the model would not topple while being printed on its side, and thin enough so that it is easy to remove model from the plate. MakerBot Replicator 2 glass plate can be 'sticky' to PLA plastic.
+
+To accomodate MakerBot Replicator 2, it is recommended that the model to be split in halves. Otherwise, textures might not be rendered properly even on maximum scale in MakerBot Desktop. In addition, this also prevents MakerBot Desktop from crashing by keeping the STL file for each half under 100 MB. When a model is split, there will be two STL files per model (i.e., '_1.stl' and '_2.stl').
+
+Checking 'save intermediate files' will also generate one '.npz' per region (saved in a sub-directory corresponding to texture name), a text file with a list of stars (if applicable), and a text file with a list of clusters (if applicable).
+
+When you click on 'Make Model' button, only enter the prefix of the output file(s) you wish to save, as suffix and file extension will be automatically added.""")
+        else:
+            msg = self.tr('Help unavailable.')
+
+        QMessageBox.information(self, title, msg)
+
+    def _previewButtonClicked(self):
+        """Do this when preview button is clicked."""
+        self.parent.render_preview()
+
+    def hidePreviewButton(self):
+        """Hide preview button."""
+        self.setButtonLayout(
+            [QWizard.HelpButton, QWizard.Stretch,
+             QWizard.NextButton, QWizard.FinishButton, QWizard.CancelButton])
+
+    def showPreviewButton(self):
+        """Show preview button."""
+        self.setButtonLayout(
+            [QWizard.HelpButton, QWizard.CustomButton1, QWizard.Stretch,
+             QWizard.NextButton, QWizard.FinishButton, QWizard.CancelButton])
 
 
 class ImageLoadPage(QWizardPage):
@@ -82,14 +184,15 @@ class ImageLoadPage(QWizardPage):
         The instantiating widget.
 
     """
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, wizard=None):
         super(ImageLoadPage, self).__init__()
         self.parent = parent
+        self.wizard = wizard
         self.setTitle('Load an Image')
 
         label = QLabel("""This wizard will help you create a 3D model from a 2D image.
 
-Click the button below to load an image of a galaxy. Currently, only FITS, JPEG, and TIFF are supported.""")
+Click the button below to load an image. Currently, only FITS, JPEG, and TIFF are supported.""")
         label.setWordWrap(True)
 
         button = QPushButton('Load Image')
@@ -107,6 +210,10 @@ Click the button below to load an image of a galaxy. Currently, only FITS, JPEG,
 
         self.setLayout(vbox)
 
+    def initializePage(self):
+        """This is done right before page is shown."""
+        self.wizard.hidePreviewButton()
+
     def do_load(self):
         """Load image from file."""
         self.parent.fileLoad()
@@ -114,15 +221,20 @@ Click the button below to load an image of a galaxy. Currently, only FITS, JPEG,
 
     def isComplete(self):
         """Only proceed when image is loaded."""
-        return self.parent.file is not None
+        return self.parent.model3d is not None
 
     def nextId(self):
         """Proceed to `ImageResizePage`."""
-        return ThreeDModelWizard.PG_RESIZE
+        if self.parent.transformation is None:
+            return ThreeDModelWizard.PG_TYPE
+        else:
+            return ThreeDModelWizard.PG_SCALE
 
 
-class ImageResizePage(QWizardPage):
+class _ImageResizePage(QWizardPage):
     """Allows the user to change the image dimensions.
+
+    .. note:: NOT USED.
 
     Contains an input box for image width, while automatically
     generating the correct height for the image aspect ratio.
@@ -191,9 +303,10 @@ class ImageResizePage(QWizardPage):
     _MIN_PIXELS = 8.1e5  # 900 x 900
     _MAX_PIXELS = 1.69e6  # 1300 x 1300
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, wizard=None):
         super(ImageResizePage, self).__init__()
         self.parent = parent
+        self.wizard = wizard
         self.setTitle('Adjust Image Resolution')
 
         # See initializePage()
@@ -364,9 +477,10 @@ class IntensityScalePage(QWizardPage):
         Contains the three checkboxes. It ensures that the boxes are exclusive and sets an ID for each box so it knows which one is checked.
 
     """
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, wizard=None):
         super(IntensityScalePage, self).__init__()
         self.parent = parent
+        self.wizard = wizard
         self.setTitle('Scale Image Intensities')
 
         label = QLabel("""Select a scaling option to better view the image. This is for display only; It does not affect output.""")
@@ -438,9 +552,10 @@ class ModelTypePage(QWizardPage):
        Mutually exclusive selection buttons.
 
     """
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, wizard=None):
         super(ModelTypePage, self).__init__()
         self.parent = parent
+        self.wizard = wizard
         self.setTitle('Select Model Type')
 
         label = QLabel('Select the type of 3D model to print:')
@@ -477,12 +592,16 @@ class ModelTypePage(QWizardPage):
     def validatePage(self):
         """Pass the selected values to GUI parent."""
         self.parent.model_type = self.bgroup.checkedId()
-        self.parent.is_spiral = self.is_spiral.checkState() == Qt.Checked
+        self.parent.model3d.is_spiralgal = (self.is_spiral.checkState() ==
+                                            Qt.Checked)
         return True
 
     def nextId(self):
         """Proceed to `RegionPage`."""
-        return ThreeDModelWizard.PG_REG
+        if self.parent.model3d.is_spiralgal:
+            return ThreeDModelWizard.PG_GALREG
+        else:
+            return ThreeDModelWizard.PG_REG
 
 
 class RegionPage(QWizardPage):
@@ -521,38 +640,48 @@ class RegionPage(QWizardPage):
         Deletes a selected region. (Disabled for now.)
 
     """
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, wizard=None):
         super(RegionPage, self).__init__(parent)
         self.parent = parent
+        self.wizard = wizard
         self.setTitle('Region Selection')
 
-        msglabel = QLabel(
-            """Select region the drop-down box to draw or 'Load' to load from file. To draw, click on the image. If you are dissatisfied, press 'Clear'. Once you are satisfied, press 'Save'. To draw another region, you must explicitly select from the drop-down box again.""")
-        msglabel.setWordWrap(True)
-
+        self._button_width = 110
         self.draw = QComboBox(self)
+        self.draw.setFixedWidth(self._button_width)
         self.draw.activated[str].connect(self.drawRegion)
         self.load = QPushButton('Load')
+        self.load.setFixedWidth(self._button_width)
         self.load.clicked.connect(self.loadRegion)
         self.clear = QPushButton('Clear')
+        self.clear.setFixedWidth(self._button_width)
         self.clear.clicked.connect(self.clearRegion)
         self.clear.setEnabled(False)
         self.save = QPushButton('Save')
+        self.save.setFixedWidth(self._button_width)
         self.save.clicked.connect(self.saveRegion)
         self.save.setEnabled(False)
 
-        buttongrid = QVBoxLayout()
-        buttongrid.addWidget(self.draw)
-        buttongrid.addWidget(self.load)
-        buttongrid.addWidget(self.clear)
-        buttongrid.addWidget(self.save)
-
-        hbox = QHBoxLayout()
-        hbox.addLayout(buttongrid)
-        hbox.addLayout(self.createRegionList())
+        self.buttongrid = QVBoxLayout()
+        self.buttongrid.addWidget(self.draw)
+        self.buttongrid.addWidget(self.load)
+        self.buttongrid.addWidget(self.clear)
+        self.buttongrid.addWidget(self.save)
 
         self.status = QLabel('Status: Ready!')
         self.status.setWordWrap(True)
+
+        self.initUI()
+
+    def initUI(self):
+        """Create the layout."""
+        msglabel = QLabel(
+            """Select texture from the drop-down box to draw or 'Load' to load from file. To draw another region, you must explicitly select from the drop-down box again. Click 'Help' for more info.""")
+        msglabel.setWordWrap(True)
+
+        hbox = QHBoxLayout()
+        hbox.addLayout(self.buttongrid)
+        hbox.addLayout(self.createRegionList())
 
         vbox = QVBoxLayout()
         vbox.addWidget(msglabel)
@@ -564,9 +693,14 @@ class RegionPage(QWizardPage):
 
     def initializePage(self):
         """Do this here because need value set by previous page."""
+        self.wizard.showPreviewButton()
         self.draw.clear()
-        for key in self.parent.REGION_TEXTURES[self.parent.is_spiral]:
+        for key in self.parent.model3d.allowed_textures():
             self.draw.addItem(key)
+
+    def cleanupPage(self):
+        """Do this when Back button is pressed."""
+        self.wizard.hidePreviewButton()
 
     def drawRegion(self, qtext):
         """Start an interactive `~astro3d.gui.star_scenes.RegionStarScene`.
@@ -672,13 +806,13 @@ class RegionPage(QWizardPage):
         such as when regions are added or deleted.
 
         """
-        if self.parent.file is None:
+        if self.parent.model3d is None:
             return
 
         items = []
 
-        for key in sorted(self.parent.file.regions):
-            reglist = self.parent.file.regions[key]
+        for key in sorted(self.parent.model3d.region_masks):
+            reglist = self.parent.model3d.region_masks[key]
             for i, reg in enumerate(reglist, 1):
                 s = '{0}_{1} ({2})'.format(key, i, reg.description)
                 if hasattr(reg, 'visible') and not reg.visible:
@@ -719,7 +853,7 @@ class RegionPage(QWizardPage):
             outrows.append(self.reg_list.row(item))
             outkeys.append(key)
             outvals.append(val)
-            output.append(self.parent.file.regions[key][val])
+            output.append(self.parent.model3d.region_masks[key][val])
 
         return outrows, outkeys, outvals, output
 
@@ -778,7 +912,7 @@ class RegionPage(QWizardPage):
         """Only proceed if there is at least one region saved."""
         has_region = False
 
-        for reglist in self.parent.file.regions.itervalues():
+        for reglist in self.parent.model3d.region_masks.itervalues():
             if len(reglist) > 0:
                 has_region = True
                 break
@@ -790,12 +924,93 @@ class RegionPage(QWizardPage):
         layer ordering or cluster selection page.
 
         """
-        if self.parent.model_type in (1, 2):  # No texture
+        if not self.parent.model3d.has_texture:
             return ThreeDModelWizard.PG_MAKE
-        elif self.parent.is_spiral or len(self.parent.file.texture_names()) < 2:
+        elif (self.parent.model3d.is_spiralgal or
+              len(self.parent.model3d.texture_names()) < 2):
             return ThreeDModelWizard.PG_CLUS
         else:
             return ThreeDModelWizard.PG_LAYER
+
+
+class GalaxyRegionPage(RegionPage):
+    """Like `RegionPage` but with extra options for automatically
+    generating masks for spiral arms and gas.
+
+    """
+    def initUI(self):
+        """Create the layout."""
+        msglabel = QLabel(
+            """Select texture from the drop-down box to draw or 'Load' to load from file. To draw another region, you must explicitly select from the drop-down box again. To use 'Auto Masks', draw/load disk first. Click 'Help' for more info.""")
+        msglabel.setWordWrap(True)
+
+        hbox = QHBoxLayout()
+        hbox.addLayout(self.buttongrid)
+        hbox.addLayout(self.createRegionList())
+
+        vbox = QVBoxLayout()
+        vbox.addWidget(msglabel)
+        vbox.addLayout(hbox)
+        vbox.addLayout(self.createAutoMasksLayout())
+        vbox.addStretch()
+        vbox.addWidget(self.status)
+
+        self.setLayout(vbox)
+
+    def createAutoMasksLayout(self):
+        """Create the layout for automatic masks generation."""
+        self.find = QPushButton('Auto Masks')
+        self.find.setFixedWidth(self._button_width)
+        self.find.clicked.connect(self.findRegion)
+        self.ptile_hi_text = QLineEdit('75')
+        self.ptile_hi_text.setFixedWidth(40)
+        self.ptile_lo_text = QLineEdit('55')
+        self.ptile_lo_text.setFixedWidth(40)
+
+        hbox = QHBoxLayout()
+        hbox.addWidget(self.find)
+        hbox.addStretch()
+        hbox.addWidget(QLabel('Spiral arms %tile:'))
+        hbox.addWidget(self.ptile_hi_text)
+        hbox.addStretch()
+        hbox.addWidget(QLabel('Gas %tile:'))
+        hbox.addWidget(self.ptile_lo_text)
+        hbox.addStretch()
+
+        return hbox
+
+    def findRegion(self):
+        """Automatically find spiral arms and gas."""
+        if (len(self.parent.model3d.region_masks[
+                self.parent.model3d.lines_key]) < 1):
+            self.status.setText('Status: ERROR - Define the disk first!')
+            return
+
+        hi_text = self.ptile_hi_text.text()
+        lo_text = self.ptile_lo_text.text()
+
+        if hi_text.isEmpty() or lo_text.isEmpty():
+            return
+
+        try:
+            hi = float(hi_text)
+        except ValueError:
+            self.status.setText(
+                'Status: ERROR - Invalid spiral arms percentile!')
+            return
+
+        try:
+            lo = float(lo_text)
+        except ValueError:
+            self.status.setText('Status: ERROR - Invalid gas percentile!')
+            return
+
+        self.parent.findRegion(lo, hi)
+        self.save.setEnabled(False)
+        self.clear.setEnabled(False)
+        self.add_items()
+        self.status.setText('Status: Automatically added spiral arms and gas')
+        self.emit(SIGNAL('completeChanged()'))
 
 
 # http://stackoverflow.com/questions/9166087/move-row-up-and-down-in-pyqt4
@@ -811,9 +1026,10 @@ class LayerOrderPage(QWizardPage):
     _UP = -1
     _DOWN = 1
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, wizard=None):
         super(LayerOrderPage, self).__init__()
         self.parent = parent
+        self.wizard = wizard
         self.setTitle('Texture Layers Ordering')
 
         label = QLabel("""Order the texture layers such that the top layer will overwrite the following layer(s).""")
@@ -849,12 +1065,13 @@ class LayerOrderPage(QWizardPage):
 
     def initializePage(self):
         """Do this here because need values from parent."""
-        if self.parent is None or self.parent.file is None:
+        if self.parent is None or self.parent.model3d is None:
             return
 
         self.names_list.clear()
         ordered_names = sorted(
-            self.parent.file.texture_names(), key=self.parent.layer_order.index)
+            self.parent.model3d.texture_names(),
+            key=self.parent.model3d.layer_order.index)
         self.names_list.addItems(ordered_names)
 
     def _enable_buttons(self):
@@ -891,8 +1108,9 @@ class LayerOrderPage(QWizardPage):
         """Pass the selected values to GUI parent."""
         s = [str(self.names_list.item(i).text())
              for i in range(self.names_list.count())]
-        self.parent.layer_order.sort(
-            key = lambda x: s.index(x) if x in s else 99)
+        new_order = sorted(self.parent.model3d.layer_order,
+                           key=lambda x: s.index(x) if x in s else 99)
+        self.parent.model3d.layer_order = new_order
         return True
 
     def nextId(self):
@@ -915,9 +1133,10 @@ class IdentifyPeakPage(QWizardPage):
         The instantiating widget.
 
     """
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, wizard=None):
         super(IdentifyPeakPage, self).__init__()
         self.parent = parent
+        self.wizard = wizard
         self._proceed_ok = False
         self.setTitle("Identify Star Clusters")
 
@@ -995,7 +1214,7 @@ class IdentifyPeakPage(QWizardPage):
         self.parent.find_clusters(n)
         self.status.setText(
             'Status: {0} object(s) found!'.format(
-                len(self.parent.file.peaks['clusters'])))
+                len(self.parent.model3d.peaks['clusters'])))
         self._proceed_ok = True
         self.emit(SIGNAL('completeChanged()'))
 
@@ -1006,13 +1225,13 @@ class IdentifyPeakPage(QWizardPage):
 
         self.parent.load_clusters()
 
-        if ('clusters' not in self.parent.file.peaks or
-                len(self.parent.file.peaks['clusters']) < 1):
+        if ('clusters' not in self.parent.model3d.peaks or
+                len(self.parent.model3d.peaks['clusters']) < 1):
             self.status.setText('Status: No clusters loaded!')
         else:
             self.status.setText(
                 'Status: {0} object(s) loaded!'.format(
-                    len(self.parent.file.peaks['clusters'])))
+                    len(self.parent.model3d.peaks['clusters'])))
 
         self._proceed_ok = True
         self.emit(SIGNAL('completeChanged()'))
@@ -1045,8 +1264,8 @@ class IdentifyPeakPage(QWizardPage):
                 'Status: ERROR - Invalid radius multiplicative factor!')
             return False
 
-        self.parent._clus_r_fac_add = radd
-        self.parent._clus_r_fac_mul = rmul
+        self.parent.model3d.clus_r_fac_add = radd
+        self.parent.model3d.clus_r_fac_mul = rmul
         self.parent.save_clusters()
         return True
 
@@ -1055,7 +1274,7 @@ class IdentifyPeakPage(QWizardPage):
         to `IdentifyStarPage`.
 
         """
-        if self.parent.is_spiral:
+        if self.parent.model3d.is_spiralgal:
             return ThreeDModelWizard.PG_MAKE
         else:
             return ThreeDModelWizard.PG_STAR
@@ -1077,9 +1296,10 @@ class IdentifyStarPage(QWizardPage):
         The instantiating widget.
 
     """
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, wizard=None):
         super(IdentifyStarPage, self).__init__()
         self.parent = parent
+        self.wizard = wizard
         self._proceed_ok = False
         self.setTitle("Identify Stars")
 
@@ -1157,7 +1377,7 @@ class IdentifyStarPage(QWizardPage):
         self.parent.find_stars(n)
         self.status.setText(
             'Status: {0} object(s) found!'.format(
-                len(self.parent.file.peaks['stars'])))
+                len(self.parent.model3d.peaks['stars'])))
         self._proceed_ok = True
         self.emit(SIGNAL('completeChanged()'))
 
@@ -1168,13 +1388,13 @@ class IdentifyStarPage(QWizardPage):
 
         self.parent.load_stars()
 
-        if ('stars' not in self.parent.file.peaks or
-                len(self.parent.file.peaks['stars']) < 1):
+        if ('stars' not in self.parent.model3d.peaks or
+                len(self.parent.model3d.peaks['stars']) < 1):
             self.status.setText('Status: No stars loaded!')
         else:
             self.status.setText(
                 'Status: {0} object(s) loaded!'.format(
-                    len(self.parent.file.peaks['stars'])))
+                    len(self.parent.model3d.peaks['stars'])))
 
         self._proceed_ok = True
         self.emit(SIGNAL('completeChanged()'))
@@ -1207,8 +1427,8 @@ class IdentifyStarPage(QWizardPage):
                 'Status: ERROR - Invalid radius multiplicative factor!')
             return False
 
-        self.parent._star_r_fac_add = radd
-        self.parent._star_r_fac_mul = rmul
+        self.parent.model3d.star_r_fac_add = radd
+        self.parent.model3d.star_r_fac_mul = rmul
         self.parent.save_stars()
         return True
 
@@ -1227,15 +1447,16 @@ class MakeModelPage(QWizardPage):
         The instantiating widget.
 
     """
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, wizard=None):
         super(MakeModelPage, self).__init__()
         self.parent = parent
+        self.wizard = wizard
         self.setTitle('Create STL file(s)')
         self._proceed_ok = False
 
-        label = QLabel("""If there are no more changes you would like to make, enter the max height above base for scaled intensity, and then press the 'Make Model' button to create your STL file(s)!
-
-To accomodate MakerBot Replicator 2, it is recommended that the model to be split in halves.""")
+        label = QLabel(
+            'Adjust some final values below and click the \'Make Model\' '
+            'button to create your STL file(s)! Click \'Help\' for more info.')
         label.setWordWrap(True)
 
         self.heightbox = QLineEdit('150')
@@ -1246,7 +1467,7 @@ To accomodate MakerBot Replicator 2, it is recommended that the model to be spli
         hgrid.addWidget(self.heightbox)
         hgrid.addStretch()
 
-        self.depthbox = QLineEdit('10')
+        self.depthbox = QLineEdit('20')
         self.depthbox.setMaxLength(3)
         self.depthbox.setFixedWidth(80)
         dgrid = QHBoxLayout()
