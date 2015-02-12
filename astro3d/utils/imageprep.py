@@ -12,7 +12,7 @@ from functools import partial
 import numpy as np
 from astropy import log
 from astropy.io import ascii, fits
-from astropy.table import Table
+from astropy.table import Column, Table
 from astropy.utils.exceptions import AstropyUserWarning
 from PIL import Image
 from scipy import ndimage
@@ -231,12 +231,12 @@ class ModelFor3D(object):
         import glob
 
         for filename in glob.iglob(search_string):
-            reg = Region.from_file(filename)
+            reg = Region.fromfile(filename)
             if reg.name not in self.allowed_textures():
                 warnings.warn('{0} not allowed, skipping {1}'.format(
                     reg.name, filename), AstropyUserWarning)
                 continue
-            self.region_masks[key].append(reg)
+            self.region_masks[reg.name].append(reg)
             log.info('{0} loaded from {1}'.format(reg.name, filename))
 
     def save_regions(self, prefix):
@@ -255,7 +255,7 @@ class ModelFor3D(object):
                 os.mkdir(rpath)
             for i, reg in enumerate(reglist, 1):
                 rname = os.path.join(rpath, '_'.join(
-                    map(str, [prefixname, i, reg.description])) + '.npz')
+                    map(str, [prefixname, reg.description, i])) + '.npz')
                 reg.save(rname, self.orig_img.shape)
 
     def _store_peaks(self, key, tab):
@@ -277,7 +277,7 @@ class ModelFor3D(object):
             Maximum number of sources allowed.
 
         """
-        tab = find_peaks(np.flipud(self.model3d.orig_img))[:n]
+        tab = find_peaks(np.flipud(self.orig_img))[:n]
         self._store_peaks(key, tab)
 
     def load_peaks(self, key, filename):
@@ -579,7 +579,14 @@ class ModelFor3D(object):
 
         if self.is_spiralgal and disk is not None:
             log.info('Scaling top')
-            image = scale_top(image, mask=disk)
+
+            # Use a mask that covers high SNR region
+            rgrid = self._rad_from_center(
+                image.shape, image.shape[1] // 2, image.shape[0] // 2)
+            rlim = rgrid.max() / 2
+            bigdisk = rgrid < rlim
+
+            image = scale_top(image, mask=bigdisk, percent=90)
             image = iutils.normalize(image, True)
 
         # Only works for single-disk image.
@@ -590,14 +597,14 @@ class ModelFor3D(object):
 
         if disk is not None:
             log.info('Replacing cusp')
-            cusp_rad = 20  # For 1k image
+            cusp_rad = 25  # For 1k image
             cusp_texture = replace_cusp(
                 image, mask=disk, radius=cusp_rad, height=40, percent=10)
             cusp_mask = cusp_texture > 0
 
             if not self.has_intensity:
                 cusp_texture_flat = replace_cusp(
-                    image, mask=disk, radius=cusp_rad, height=10, percent=None)
+                    image, mask=disk, radius=cusp_rad, height=20, percent=None)
 
             image[cusp_mask] = cusp_texture[cusp_mask]
 
@@ -627,6 +634,9 @@ class ModelFor3D(object):
         image = ndimage.filters.median_filter(image, 10)  # For 1k image
         image = ndimage.filters.gaussian_filter(image, 3)  # Magic?
         image = np.ma.masked_equal(image, 0)
+        image = iutils.normalize(image, True, self.height)
+
+        # Renormalize again so that height is more predictable
         image = iutils.normalize(image, True, self.height)
 
         # Generate monochrome intensity for GUI preview
@@ -678,6 +688,8 @@ class ModelFor3D(object):
             # Stars and star clusters
 
             clustexarr = None
+            order_w = 10
+            order_dw = order_w // 2
 
             if self.has_intensity:
                 h_percentile = 75
@@ -692,7 +704,17 @@ class ModelFor3D(object):
 
             if len(clusters) > 0:
                 maxclusflux = max(clusters['flux'])
-                clusters.sort('flux')  # Lower flux added first
+
+                # Sort so that lower cluster height added first
+                order_dat = []
+                for cluster in clusters:
+                    ix1 = cluster['xcen'] - order_dw
+                    ix2 = ix1 + order_w
+                    iy1 = cluster['ycen'] - order_dw
+                    iy2 = iy1 + order_w
+                    order_dat.append(image[iy1:iy2, ix1:ix2].mean())
+                clusters.add_column(Column(name='order', data=order_dat))
+                clusters.sort('order')
 
             for cluster in clusters:
                 c1 = make_star_cluster(
@@ -715,7 +737,17 @@ class ModelFor3D(object):
 
             if len(markstars) > 0:
                 maxstarflux = max(markstars['flux'])
-                markstars.sort('flux')  # Lower flux added first
+
+                # Sort so that lower star height added first
+                order_dat = []
+                for mstar in markstars:
+                    ix1 = mstar['xcen'] - order_dw
+                    ix2 = ix1 + order_w
+                    iy1 = mstar['ycen'] - order_dw
+                    iy2 = iy1 + order_w
+                    order_dat.append(image[iy1:iy2, ix1:ix2].mean())
+                markstars.add_column(Column(name='order', data=order_dat))
+                markstars.sort('order')
 
             for mstar in markstars:
                 s1 = make_star_cluster(
@@ -746,9 +778,6 @@ class ModelFor3D(object):
                 self._texture_layer[cusp_mask] = cusp_texture_flat[cusp_mask]
 
         # endif has_texture
-
-        # Renormalize again so that height is more predictable
-        image = iutils.normalize(image, True, self.height)
 
         if isinstance(image, np.ma.core.MaskedArray):
             image = image.data
@@ -836,13 +865,17 @@ class ModelFor3D(object):
         # Don't want to change input
         image = deepcopy(self._preproc_img)
 
-        # Smooth image
-        image = ndimage.filters.median_filter(image, size=10)  # For 1k image
-
         # Scale and combine masks
         scaled_masks, disk, spiralarms = self._process_masks()
         if disk is None:
             raise ValueError('You must define the disk first')
+
+        log.info('Smoothing {0} region(s)'.format(
+                len(scaled_masks[self.smooth_key])))
+        image = remove_stars(image, scaled_masks[self.smooth_key])
+
+        # Smooth image
+        image = ndimage.filters.median_filter(image, size=10)  # For 1k image
 
         # Apply weighted radial map
         xcen, ycen = self._find_galaxy_center(image, disk)
@@ -1874,9 +1907,9 @@ def find_peaks(image, remove=0, num=None, threshold=8, npix=10, minpeaks=35):
 DOTS = partial(
     dots_from_mask, hexgrid_spacing=7, dots_width=5, dots_scale=3.2)
 SMALL_DOTS = partial(
-    dots_from_mask, hexgrid_spacing=4.5, dots_width=5, dots_scale=0.8)
-LINES = partial(lines_from_mask, lines_width=10, lines_spacing=20,
-                lines_scale=1.2, lines_orient=0)
+    dots_from_mask, hexgrid_spacing=4.5, dots_width=5, dots_scale=1.8)
+LINES = partial(lines_from_mask, lines_width=13, lines_spacing=20,
+                lines_scale=2.0, lines_orient=0)
 NO_TEXTURE = lambda im, msk : np.zeros_like(im)
 
 

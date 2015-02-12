@@ -1211,6 +1211,7 @@ class IdentifyPeakPage(QWizardPage):
         self.status.setText(
             'Status: Finding {0} object(s), please wait...'.format(n))
         self.status.repaint()
+        self.emit(SIGNAL('completeChanged()'))  # So status would refresh
         self.parent.find_clusters(n)
         self.status.setText(
             'Status: {0} object(s) found!'.format(

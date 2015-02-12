@@ -59,7 +59,7 @@ from ..utils.imageprep import Region
 
 _gui_title = 'Astronomy 3D Model'
 __version__ = '0.3.0.dev'
-__vdate__ = '29-Jan-2015'
+__vdate__ = '10-Feb-2015'
 __author__ = 'STScI'
 
 
