@@ -46,20 +46,18 @@ from astropy.utils.exceptions import AstropyUserWarning
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 
-# THIRD-PARTY
-import photutils.utils as putils
-
 # LOCAL
 from .star_scenes import (PreviewScene, StarScene, RegionBrushScene,
                           RegionFileScene, ClusterStarScene)
 from .wizard import ThreeDModelWizard
-from ..utils import imageprep, imageutils
+from ..utils import imageprep
+from ..utils import imutils
 from ..utils.imageprep import Region
 
 
 _gui_title = 'Astronomy 3D Model'
 __version__ = '0.3.0.dev'
-__vdate__ = '10-Feb-2015'
+__vdate__ = '23-Feb-2015'
 __author__ = 'STScI'
 
 
@@ -104,9 +102,9 @@ class AstroGUI(QMainWindow):
     IMG_TRANSFORMATIONS = OrderedDict(
         [(0, 'Linear'), (1, 'Logarithmic'), (2, 'Sqrt')])
     TRANS_FUNCS = {
-        'Linear': lambda img: putils.scale_linear(img, percent=99),
-        'Logarithmic': lambda img: putils.scale_log(img, percent=99),
-        'Sqrt': lambda img: putils.scale_sqrt(img, percent=99)}
+        'Linear': imutils.scale_linear,
+        'Logarithmic': imutils.scale_log,
+        'Sqrt': imutils.scale_sqrt}
     MODEL_TYPES = OrderedDict(
         [(0, 'Flat texture map (one-sided only)'),
          (1, 'Smooth intensity map (one-sided)'),
@@ -247,7 +245,7 @@ class AstroGUI(QMainWindow):
         """Load image file from FITS, JPEG, or TIFF.
 
         After file data is converted to Numpy array, it uses
-        :func:`~astro3d.utils.imageutils.makeqimage` to create
+        :func:`~astro3d.utils.imutils.makeqimage` to create
         a ``QImage``. Then, it creates a ``QPixmap``, which is passed
         to the ``widget``. A `~astro3d.utils.imageprep.ModelFor3D`
         object is also created to store information.
@@ -269,7 +267,7 @@ class AstroGUI(QMainWindow):
             # DISABLED - Used for grayscale display
             #rgb_popup = RGBScalingPopup(self)
             #rgb_popup.exec_()
-            #data = imageutils.img2array(
+            #data = imutils.img2array(
             #    fnamestr, rgb_scaling=rgb_popup.rgb_scaling)[::-1, :]
 
             self.transformation = None  # Not applicable to RGB layers
@@ -277,8 +275,8 @@ class AstroGUI(QMainWindow):
             self.model3d = imageprep.ModelFor3D.from_rgb(fnamestr)
 
         self._pixmap = self.widget.addImage(QPixmap().fromImage(
-            imageutils.makeqimage(self.model3d.orig_img, self.transformation,
-                                  self.widget.scene_size)))
+            imutils.makeqimage(self.model3d.orig_img, self.transformation,
+                               self.widget.scene_size)))
         self.preview.scene.set_model(self.model3d)
         self.statusBar().showMessage(os.path.basename(fnamestr))
 
@@ -526,12 +524,12 @@ class AstroGUI(QMainWindow):
 
         """
         self._pixmap = QPixmap().fromImage(
-            imageutils.makeqimage(self.model3d.orig_img, self.transformation,
-                                  self.widget.scene_size))
+            imutils.makeqimage(self.model3d.orig_img, self.transformation,
+                               self.widget.scene_size))
         self.widget.setImage()
 
     def setTransformation(self, trans='Linear'):
-        """Use methods from ``photutils.utils`` to scale
+        """Use methods from ``imageutils`` to scale
         image intensity values, which allows better visualization
         of the images.
 

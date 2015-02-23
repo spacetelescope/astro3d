@@ -21,7 +21,7 @@ from scipy import ndimage
 import photutils
 
 # LOCAL
-from . import imageutils as iutils
+from . import imutils
 from . import texture as _texture
 from .meshcreator import to_mesh
 
@@ -70,7 +70,7 @@ class Region(object):
             Boolean mask.
 
         """
-        return iutils.resize_image(self.region, shape[0], width=shape[1])
+        return imutils.resize_image(self.region, shape[0], width=shape[1])
 
     def save(self, filename, image_shape=None):
         """Save the region using :func:`numpy.savez`.
@@ -86,7 +86,7 @@ class Region(object):
 
         """
         if image_shape is not None:
-            mask = iutils.resize_image(
+            mask = imutils.resize_image(
                 self.region, image_shape[0], width=image_shape[1])
         else:
             mask = self.region
@@ -116,7 +116,7 @@ class Region(object):
         orig_mask = dat['data']
 
         if image_shape is not None:
-            mask = iutils.resize_image(
+            mask = imutils.resize_image(
                 orig_mask, image_shape[0], width=image_shape[1])
         else:
             mask = orig_mask
@@ -463,7 +463,7 @@ class ModelFor3D(object):
         # Depth is set to 1 here because it is accounted for in make()
         depth = 1
         if split_halves:
-            model1, model2 = iutils.split_image(model, axis='horizontal')
+            model1, model2 = imutils.split_image(model, axis='horizontal')
             to_mesh(model1, fname + '_1', depth, self.double, _ascii)
             to_mesh(model2, fname + '_2', depth, self.double, _ascii)
         else:
@@ -575,7 +575,7 @@ class ModelFor3D(object):
         log.info('Filtering image (first pass)')
         image = ndimage.filters.median_filter(image, size=10)  # For 1k image
         image = np.ma.masked_equal(image, 0.0)
-        image = iutils.normalize(image, True)
+        image = imutils.normalize(image, True)
 
         if self.is_spiralgal and disk is not None:
             log.info('Scaling top')
@@ -587,7 +587,7 @@ class ModelFor3D(object):
             bigdisk = rgrid < rlim
 
             image = scale_top(image, mask=bigdisk, percent=90)
-            image = iutils.normalize(image, True)
+            image = imutils.normalize(image, True)
 
         # Only works for single-disk image.
         # Do this even for smooth intensity map to avoid sharp peak in model.
@@ -613,7 +613,7 @@ class ModelFor3D(object):
             image, scaled_masks[self.small_dots_key] +
             scaled_masks[self.dots_key] + scaled_masks[self.lines_key])
 
-        image, iy1, iy2, ix1, ix2 = iutils.crop_image(image, _max=1.0)
+        image, iy1, iy2, ix1, ix2 = imutils.crop_image(image, _max=1.0)
         log.info('Cropped image shape: {0}'.format(image.shape))
 
         # Also crop masks and lists
@@ -634,10 +634,10 @@ class ModelFor3D(object):
         image = ndimage.filters.median_filter(image, 10)  # For 1k image
         image = ndimage.filters.gaussian_filter(image, 3)  # Magic?
         image = np.ma.masked_equal(image, 0)
-        image = iutils.normalize(image, True, self.height)
+        image = imutils.normalize(image, True, self.height)
 
         # Renormalize again so that height is more predictable
-        image = iutils.normalize(image, True, self.height)
+        image = imutils.normalize(image, True, self.height)
 
         # Generate monochrome intensity for GUI preview
         self._preview_intensity = deepcopy(image.data)
@@ -896,8 +896,8 @@ class ModelFor3D(object):
 
         # Resize and save them as Region
         if shape is not None:
-            dmask = iutils.resize_image(dmask, shape[0], width=shape[1])
-            sdmask = iutils.resize_image(sdmask, shape[0], width=shape[1])
+            dmask = imutils.resize_image(dmask, shape[0], width=shape[1])
+            sdmask = imutils.resize_image(sdmask, shape[0], width=shape[1])
         self.region_masks[self.dots_key] = [Region(self.dots_key, dmask)]
         self.region_masks[self.small_dots_key] = [
             Region(self.small_dots_key, sdmask)]
@@ -979,7 +979,7 @@ def make_model(image, region_masks=defaultdict(list), peaks={}, height=150.0,
     image from a Numpy array.
 
     Boundaries are set by :func:`emphasize_regions` and
-    :func:`~astro3d.utils.imageutils.crop_image`.
+    :func:`~astro3d.utils.imutils.crop_image`.
 
     .. note:: Not used.
 
@@ -1062,12 +1062,12 @@ def make_model(image, region_masks=defaultdict(list), peaks={}, height=150.0,
     fil_size = int(0.01 * imsz)  # imsz / 100
     image = ndimage.filters.median_filter(image, size=fil_size)
     image = np.ma.masked_equal(image, 0.0)
-    image = iutils.normalize(image, True)
+    image = imutils.normalize(image, True)
 
     if is_spiralgal:
         log.info('Scaling top')
         image = scale_top(image, mask=disk)
-        image = iutils.normalize(image, True)
+        image = imutils.normalize(image, True)
 
     # Only works for single-disk image.
     # Do this even for smooth intensity map to avoid sharp peak in model.
@@ -1092,7 +1092,7 @@ def make_model(image, region_masks=defaultdict(list), peaks={}, height=150.0,
         region_masks[lines_key])
 
     log.info('Cropping image')
-    image, iy1, iy2, ix1, ix2 = iutils.crop_image(image, _max=1.0)
+    image, iy1, iy2, ix1, ix2 = imutils.crop_image(image, _max=1.0)
     log.info('Current image shape: {0}'.format(image.shape))
 
     log.info('Cropping region masks')
@@ -1143,7 +1143,7 @@ def make_model(image, region_masks=defaultdict(list), peaks={}, height=150.0,
     image = ndimage.filters.median_filter(image, fil_size)  # 10
     image = ndimage.filters.gaussian_filter(image, 3)  # Magic?
     image = np.ma.masked_equal(image, 0)
-    image = iutils.normalize(image, True, height)
+    image = imutils.normalize(image, True, height)
 
     # Texture layer that is added later overwrites previous layers if overlap
     if has_texture:
@@ -1252,7 +1252,7 @@ def make_model(image, region_masks=defaultdict(list), peaks={}, height=150.0,
     # endif has_texture
 
     # Renormalize again so that height is more predictable
-    image = iutils.normalize(image, True, height)
+    image = imutils.normalize(image, True, height)
 
     if isinstance(image, np.ma.core.MaskedArray):
         image = image.data
@@ -1548,7 +1548,7 @@ def make_star_cluster(image, peak, max_intensity, r_fac_add=15, r_fac_mul=5,
             return array
 
     for (cy, cx) in centers:
-        xx1, xx2, yy1, yy2, sx1, sx2, sy1, sy2 = iutils.calc_insertion_pos(
+        xx1, xx2, yy1, yy2, sx1, sx2, sy1, sy2 = imutils.calc_insertion_pos(
             array, star, int(cx - dr), int(cy - dr))
         cur_smask = star_mask[sy1:sy2, sx1:sx2]
         cur_star = star[sy1:sy2, sx1:sx2]
@@ -1870,10 +1870,17 @@ def find_peaks(image, remove=0, num=None, threshold=8, npix=10, minpeaks=35):
         Point sources.
 
     """
+    columns = ['id', 'xcentroid', 'ycentroid', 'segment_sum']
+
     while threshold >= 4:
-        segm_img = photutils.detect_sources(
-            image, snr_threshold=threshold, npixels=npix, mask_val=0.0)
-        isophot = photutils.segment_photometry(image, segm_img)
+        threshold = photutils.detect_threshold(
+            image, snr=threshold, mask_val=0.0)
+        segm_img = photutils.detect_sources(image, threshold, npixels=npix)
+        segm_props = photutils.segment_properties(image, segm_img)
+        isophot = photutils.properties_table(segm_props, columns=columns)
+        isophot.rename_column('xcentroid', 'xcen')
+        isophot.rename_column('ycentroid', 'ycen')
+        isophot.rename_column('segment_sum', 'flux')
         if len(isophot['xcen']) >= minpeaks:
             break
         else:
@@ -2063,11 +2070,11 @@ def _prepFits(filename=None, array=None, height=150.0, spiralarms=None,
         log.info("Cropping image")
 
         if masks:
-            img, masks = iutils.crop_image(img, 1.0, masks)[:2]
+            img, masks = imutils.crop_image(img, 1.0, masks)[:2]
             spiralarms = masks[:-1]
             disk = masks[-1]
         else:
-            img = iutils.crop_image(img, 1.0)[0]
+            img = imutils.crop_image(img, 1.0)[0]
 
     peaks = find_peaks(img, remove, num)
 
@@ -2075,13 +2082,13 @@ def _prepFits(filename=None, array=None, height=150.0, spiralarms=None,
     log.info("Filtering image")
     img = ndimage.filters.median_filter(img, max(h, w) / 100)
     img = np.ma.masked_equal(img, 0.0)
-    img = iutils.normalize(img, True)
+    img = imutils.normalize(img, True)
 
     # Rescale very high values (cusp of galaxy, etc.)
     log.info("Scaling top")
     img = scale_top(img, disk, combine_masks(spiralarms))
     #img = scale_top_old(img)
-    img = iutils.normalize(img, True)
+    img = imutils.normalize(img, True)
 
     if replace_stars:
         log.info("Replacing stars")
@@ -2117,24 +2124,24 @@ def _prepFits(filename=None, array=None, height=150.0, spiralarms=None,
     # Get rid of 'padding'
     log.info("Cropping image")
     if masks and clusters:
-        img, masks, peaks = iutils.crop_image(img, 1.0, masks, peaks)
+        img, masks, peaks = imutils.crop_image(img, 1.0, masks, peaks)
         spiralarms = masks[:-1]
         disk = masks[-1]
     elif masks:
-        img, masks = iutils.crop_image(img, 1.0, masks)[:2]
+        img, masks = imutils.crop_image(img, 1.0, masks)[:2]
         spiralarms = masks[:-1]
         disk = masks[-1]
     elif clusters:
-        img, dummy, peaks = iutils.crop_image(img, 1.0, table=peaks)
+        img, dummy, peaks = imutils.crop_image(img, 1.0, table=peaks)
     else:
-        img = iutils.crop_image(img, 1.0)[0]
+        img = imutils.crop_image(img, 1.0)[0]
 
     # Filter, smooth, normalize again
     log.info("Filtering image")
     img = ndimage.filters.median_filter(img, 10) # Needs to be adjustable for image size
     img = ndimage.filters.gaussian_filter(img, filter_radius)
     img = np.ma.masked_equal(img, 0)
-    img = iutils.normalize(img, True, height)
+    img = imutils.normalize(img, True, height)
 
     clustermask = None
     if clusters:
@@ -2178,12 +2185,12 @@ def _prepareImg(filename, height=30, filter_radius=None, crop=False,
                 break
         f.close()
     else:
-        img = iutils.img2array(filename)
+        img = imutils.img2array(filename)
     if crop != False:
         if np.isscalar(crop):
-            img = iutils.crop_image(img, crop)[0]
+            img = imutils.crop_image(img, crop)[0]
         else:
-            iutils.crop_image(img, 1.0)[0]
+            imutils.crop_image(img, 1.0)[0]
 
         if np.isscalar(crop):
             img = remove_background(img, crop)
@@ -2191,11 +2198,11 @@ def _prepareImg(filename, height=30, filter_radius=None, crop=False,
             img = remove_background(img, 1.0)
 
     if compress and img.shape[0] > 500:
-        img = iutils.resize_image(img, 500)
+        img = imutils.resize_image(img, 500)
     if filter_radius:
         img = ndimage.filters.gaussian_filter(img, filter_radius)
     img = img - img.min()
     if invert:
         img = img.max() - img
-    img = iutils.normalize(img, True, height)
+    img = imutils.normalize(img, True, height)
     return np.fliplr(img)

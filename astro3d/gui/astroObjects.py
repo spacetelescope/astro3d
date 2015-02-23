@@ -17,7 +17,7 @@ from astropy import log
 # LOCAL
 from ..utils.imageprep import combine_masks, make_model
 from ..utils.meshcreator import to_mesh
-from ..utils.imageutils import resize_image, split_image
+from ..utils.imutils import resize_image, split_image
 
 
 class _File(object):

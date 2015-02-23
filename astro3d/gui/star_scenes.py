@@ -23,9 +23,9 @@ from PyQt4.QtCore import *
 from qimage2ndarray import array2qimage
 
 # Local
-from ..utils import imageutils
+from ..utils import imutils
 from ..utils.imageprep import combine_masks
-from ..utils.imageutils import calc_insertion_pos
+from ..utils.imutils import calc_insertion_pos
 
 
 def mask2pixmap(mask, alpha, i_layer, size=None):
@@ -103,7 +103,7 @@ class PreviewScene(QGraphicsScene):
 
     def _add_image(self):
         """Scale and display intensity image."""
-        self.pixmap = QPixmap().fromImage(imageutils.makeqimage(
+        self.pixmap = QPixmap().fromImage(imutils.makeqimage(
             self.model3d.preview_intensity, None, self.size))
         self.addItem(QGraphicsPixmapItem(self.pixmap))
 
@@ -719,7 +719,7 @@ class RegionBrushScene(QGraphicsScene):
         xmin = min(x, self._oldx)
         ymin = min(y, self._oldy)
 
-        movemask = imageutils.in_rectangle(
+        movemask = imutils.in_rectangle(
             p, (y - ymin, x - xmin), (self._oldy - ymin, self._oldx - xmin),
             self.radius)
 
@@ -808,7 +808,7 @@ class RegionBrushScene(QGraphicsScene):
     def brush(self):
         """Circular mask that defines the brush."""
         diam = 2 * np.ceil(self.radius) + 1
-        return imageutils.circular_mask(
+        return imutils.circular_mask(
             (diam, diam), self.radius, self.radius, self.radius)
 
     def set_brush(self, pos=None):
