@@ -11,6 +11,12 @@ from scipy.misc import imresize
 
 # THIRD-PARTY
 import qimage2ndarray as q2a
+from imageutils.normalization import (PercentileInterval, LinearStretch,
+                                      LogStretch, SqrtStretch)
+
+scale_linear = LinearStretch() + PercentileInterval(99.)
+scale_log = LogStretch() + PercentileInterval(99.)
+scale_sqrt = SqrtStretch() + PercentileInterval(99.)
 
 
 def makeqimage(nparray, transformation, size):

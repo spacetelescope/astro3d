@@ -304,7 +304,7 @@ def make_star(radius, height):
 
 def dobatch():
     """Batch script to generate textures and save them to JPEG images."""
-    from .imageutils import im2file as save
+    from .imutils import im2file as save
 
     shape = (200,200)
     sep = [25,15,10,5]

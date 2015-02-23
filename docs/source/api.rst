@@ -8,11 +8,6 @@ API Documentation
 ----------------------------
 
 .. automodule:: astro3d.gui.astroObjects
-
-.. autoclass:: astro3d.gui.astroObjects.File
-  :members:
-
-.. autoclass:: astro3d.gui.astroObjects.Region
   :members:
 
 
@@ -20,15 +15,6 @@ API Documentation
 ---------------------------
 
 .. automodule:: astro3d.gui.astroVisual
-  :members: main, makeqimage
-
-.. autoclass:: astro3d.gui.astroVisual.AboutPopup
-  :members:
-
-.. autoclass:: astro3d.gui.astroVisual.AstroGUI
-  :members:
-
-.. autoclass:: astro3d.gui.astroVisual.MainPanel
   :members:
 
 
@@ -36,17 +22,6 @@ API Documentation
 ---------------------------
 
 .. automodule:: astro3d.gui.star_scenes
-
-.. autoclass:: astro3d.gui.star_scenes.ClusterStarScene
-  :members:
-
-.. autoclass:: astro3d.gui.star_scenes.RegionFileScene
-  :members:
-
-.. autoclass:: astro3d.gui.star_scenes.RegionStarScene
-  :members:
-
-.. autoclass:: astro3d.gui.star_scenes.StarScene
   :members:
 
 
@@ -54,29 +29,6 @@ API Documentation
 ----------------------
 
 .. automodule:: astro3d.gui.wizard
-
-.. autoclass:: astro3d.gui.wizard.ThreeDModelWizard
-  :members:
-
-.. autoclass:: astro3d.gui.wizard.ImageLoadPage
-  :members:
-
-.. autoclass:: astro3d.gui.wizard.ImageResizePage
-  :members:
-
-.. autoclass:: astro3d.gui.wizard.IntensityScalePage
-  :members:
-
-.. autoclass:: astro3d.gui.wizard.ModelTypePage
-  :members:
-
-.. autoclass:: astro3d.gui.wizard.RegionPage
-  :members:
-
-.. autoclass:: astro3d.gui.wizard.IdentifyPeakPage
-  :members:
-
-.. autoclass:: astro3d.gui.wizard.MakeModelPage
   :members:
 
 
@@ -87,10 +39,10 @@ API Documentation
   :members:
 
 
-``astro3d.utils.imageutils``
-----------------------------
+``astro3d.utils.imutils``
+-------------------------
 
-.. automodule:: astro3d.utils.imageutils
+.. automodule:: astro3d.utils.imutils
   :members:
 
 
