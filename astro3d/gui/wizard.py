@@ -1460,7 +1460,7 @@ class MakeModelPage(QWizardPage):
             'button to create your STL file(s)! Click \'Help\' for more info.')
         label.setWordWrap(True)
 
-        self.heightbox = QLineEdit('150')
+        self.heightbox = QLineEdit('100')
         self.heightbox.setMaxLength(4)
         self.heightbox.setFixedWidth(80)
         hgrid = QHBoxLayout()
