@@ -529,7 +529,7 @@ class AstroGUI(QMainWindow):
         self.widget.setImage()
 
     def setTransformation(self, trans='Linear'):
-        """Use methods from ``imageutils`` to scale
+        """Use methods from ``astropy.visualization`` to scale
         image intensity values, which allows better visualization
         of the images.
 

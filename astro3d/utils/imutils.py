@@ -11,8 +11,8 @@ from scipy.misc import imresize
 
 # THIRD-PARTY
 import qimage2ndarray as q2a
-from imageutils.normalization import (PercentileInterval, LinearStretch,
-                                      LogStretch, SqrtStretch)
+from astropy.visualization import (PercentileInterval, LinearStretch,
+                                   LogStretch, SqrtStretch)
 
 scale_linear = LinearStretch() + PercentileInterval(99.)
 scale_log = LogStretch() + PercentileInterval(99.)
