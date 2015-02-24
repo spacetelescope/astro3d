@@ -22,7 +22,6 @@ Dependencies
     * PyQt4
     * scipy
     * sphinx (for documentation build only)
-* `imageutils <https://github.com/astropy/imageutils>`_
 * `photutils <https://github.com/astropy/photutils>`_
 * `qimage2ndarray <https://github.com/spacetelescope/qimage2ndarray>`_
 
