@@ -211,6 +211,10 @@ class ModelFor3D(object):
         data = fits.getdata(filename)
         if data is None:
             raise ValueError('FITS file does not have image data')
+        elif data.ndim == 3:  # RGB cube from HLA
+            data[~np.isfinite(data)] = 0  # Replace NaNs
+            data = data.sum(axis=0)
+
         return cls(data)
 
     @classmethod
