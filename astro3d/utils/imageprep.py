@@ -155,6 +155,7 @@ class ModelFor3D(object):
     """
     _MIN_PIXELS = 8.1e5  # 900 x 900
     _MAX_PIXELS = 1.69e6  # 1300 x 1300
+    _RESIZE_AXIS_LEN = 1000
 
     def __init__(self, input_image):
         self.orig_img = input_image
@@ -182,28 +183,42 @@ class ModelFor3D(object):
         self._preview_masks = None
         self._final_peaks = {}
 
-        # Auto resize image to 1k (replaces wizard's resize page)
-        orig_h, orig_w = input_image.shape
-        if (input_image.size < self._MIN_PIXELS or
-                input_image.size > self._MAX_PIXELS):
-            scale = orig_h / orig_w
-            if orig_w <= orig_h:
-                new_w = 1000
-            else:
-                new_w = int(1000 / scale)
-            new_h = int(new_w * scale)
-            image = np.array(Image.fromarray(input_image).resize(
-                (new_w, new_h)), dtype=np.float64)
-            log.info('Image resize from {0}x{1} to {2}x{3}'.format(
-                orig_w, orig_h, new_w, new_h))
-        else:
-            image = input_image.astype(np.float64)
-            log.info('Image retains original dimension {0}x{1}'.format(
-                orig_w, orig_h))
-
         # Image is now ready for the rest of processing when user
         # provides the rest of the info
-        self._preproc_img = np.flipud(image)
+        self._preproc_img = np.flipud(self.resize(input_image))
+
+    def resize(self, image):
+        """
+        Resize an image such that the longest axes has _RESIZE_AXIS_LEN
+        pixels, preserving the image aspect ratio.
+
+        The image is resized only if it contains less than
+        _MIN_PIXELS or more than _MAX_PIXELS.
+        """
+
+        orig_h, orig_w = image.shape
+        ny, nx = image.shape
+        log.info('Input image is {0}x{1} (ny, nx)'.format(ny, nx))
+
+        if (image.size < self._MIN_PIXELS or
+                image.size > self._MAX_PIXELS):
+            aspect_ratio = float(ny) / nx
+            if nx <= ny:
+                nx_new = self._RESIZE_AXIS_LEN
+                ny_new = int(nx_new * aspect_ratio)
+            else:
+                ny_new = self._RESIZE_AXIS_LEN
+                nx_new = int(ny_new / aspect_ratio)
+
+            image = np.array(Image.fromarray(image).resize(
+                (nx_new, ny_new)), dtype=np.float64)
+            log.info('Input image was resized from {0}x{1} to {2}x{3}'.format(
+                ny, nx, ny_new, nx_new))
+        else:
+            image = image.astype(np.float64)
+            log.info('Input image was not resized.')
+
+        return image
 
     @classmethod
     def from_fits(cls, filename):
