@@ -151,10 +151,10 @@ class ModelFor3D(object):
     >>> model.save_stl('myprefix')
     >>> model.save_regions('myprefix')
     >>> model.save_peaks('myprefix')
-
     """
-    _MIN_PIXELS = 8.1e5  # 900 x 900
-    _MAX_PIXELS = 1.69e6  # 1300 x 1300
+
+    _MIN_NPIXELS = 8.1e5    # 900 x 900
+    _MAX_NPIXELS = 1.69e6    # 1300 x 1300
     _RESIZE_AXIS_LEN = 1000
 
     def __init__(self, input_image):
@@ -193,15 +193,15 @@ class ModelFor3D(object):
         pixels, preserving the image aspect ratio.
 
         The image is resized only if it contains less than
-        _MIN_PIXELS or more than _MAX_PIXELS.
+        _MIN_NPIXELS or more than _MAX_NPIXELS.
         """
 
         orig_h, orig_w = image.shape
         ny, nx = image.shape
         log.info('Input image is {0}x{1} (ny, nx)'.format(ny, nx))
 
-        if (image.size < self._MIN_PIXELS or
-                image.size > self._MAX_PIXELS):
+        if (image.size < self._MIN_NPIXELS or
+                image.size > self._MAX_NPIXELS):
             aspect_ratio = float(ny) / nx
             if nx <= ny:
                 nx_new = self._RESIZE_AXIS_LEN
