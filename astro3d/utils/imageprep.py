@@ -269,12 +269,14 @@ class ModelFor3D(object):
         """
         prefixpath, prefixname = os.path.split(prefix)
         for key, reglist in self.region_masks.iteritems():
-            rpath = os.path.join(prefixpath, '_'.join(['region', key]))
-            if not os.path.exists(rpath):
-                os.mkdir(rpath)
+            #rpath = os.path.join(prefixpath, '_'.join(['region', key]))
+            #if not os.path.exists(rpath):
+            #    os.mkdir(rpath)
             for i, reg in enumerate(reglist, 1):
-                rname = os.path.join(rpath, '_'.join(
-                    map(str, [prefixname, reg.description, i])) + '.npz')
+                #rname = os.path.join(rpath, '_'.join(
+                #    map(str, [prefixname, reg.description, i])) + '.npz')
+                rname = '{0}_{1}_{2}.npz'.format(prefixname, reg.description,
+                                                 i)
                 reg.save(rname, self.orig_img.shape)
 
     def _store_peaks(self, key, tab):
