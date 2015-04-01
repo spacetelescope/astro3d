@@ -583,19 +583,56 @@ class ModelFor3D(object):
         # Don't want to change input for repeated calls
         image = deepcopy(self._preproc_img)
 
+        scaled_masks, disk, spiralarms, scaled_peaks = self.resize_masks()
+        image = self.remove_stars(image, scaled_masks)
+        image = self.filter_image1(image)
+        image = self.spiralgalaxy_scale_top(image, disk)
+        image, cusp_mask, cusp_texture_flat = self.spiralgalaxy_central_cusp(
+            image, disk, cusp_rad=25)
+        image = self.emphasize_regs(image, scaled_masks)
+
+        (image, croppedmasks, disk, spiralarms, cusp_mask,
+         cusp_texture_flat, clusters, markstars) = self.crop_image(
+             image, scaled_masks, scaled_peaks, cusp_mask, cusp_texture_flat)
+
+        # Generate monochrome intensity for GUI preview
+        self._preview_intensity = deepcopy(image.data)
+
+        # To store non-overlapping key-coded texture info
+        self._preview_masks = np.zeros(
+            self._preview_intensity.shape, dtype='S10')
+
+        if self.has_texture:
+            image = self.add_textures(image, croppedmasks, cusp_mask)
+            image = self.add_stars_clusters(image, clusters, markstars,
+                                            cusp_mask)
+
+        if isinstance(image, np.ma.core.MaskedArray):
+            image = image.data
+
+        self.make_model_base(image)
+        return
+
+    def resize_masks(self):
         # Scale and combine masks
         scaled_masks, disk, spiralarms = self._process_masks()
         scaled_peaks = self._process_peaks()
+        return scaled_masks, disk, spiralarms, scaled_peaks
 
+    def remove_stars(self, image, scaled_masks):
         log.info('Smoothing {0} region(s)'.format(
                 len(scaled_masks[self.smooth_key])))
         image = remove_stars(image, scaled_masks[self.smooth_key])
+        return image
 
+    def filter_image1(self, image):
         log.info('Filtering image (first pass)')
         image = ndimage.filters.median_filter(image, size=10)  # For 1k image
         image = np.ma.masked_equal(image, 0.0)
         image = imutils.normalize(image, True)
+        return image
 
+    def spiralgalaxy_scale_top(self, image, disk):
         if self.is_spiralgal and disk is not None:
             log.info('Scaling top')
 
@@ -607,16 +644,17 @@ class ModelFor3D(object):
 
             image = scale_top(image, mask=bigdisk, percent=90)
             image = imutils.normalize(image, True)
+        return image
 
+    def spiralgalaxy_central_cusp(self, image, disk, cusp_rad=25):
         # Only works for single-disk image.
         # Do this even for smooth intensity map to avoid sharp peak in model.
+        #    cusp_rad = 25  # For 1k image
 
         cusp_mask = None
         cusp_texture_flat = None
-
         if disk is not None:
             log.info('Replacing cusp')
-            cusp_rad = 25  # For 1k image
             cusp_texture = replace_cusp(
                 image, mask=disk, radius=cusp_rad, height=40, percent=10)
             cusp_mask = cusp_texture > 0
@@ -626,12 +664,17 @@ class ModelFor3D(object):
                     image, mask=disk, radius=cusp_rad, height=20, percent=None)
 
             image[cusp_mask] = cusp_texture[cusp_mask]
+        return image, cusp_mask, cusp_texture_flat
 
+    def emphasize_regs(self, image, scaled_masks):
         log.info('Emphasizing regions')
         image = emphasize_regions(
             image, scaled_masks[self.small_dots_key] +
             scaled_masks[self.dots_key] + scaled_masks[self.lines_key])
+        return image
 
+    def crop_image(self, image, scaled_masks, scaled_peaks, cusp_mask,
+                   cusp_texture_flat):
         image, iy1, iy2, ix1, ix2 = imutils.crop_image(image, _max=1.0)
         log.info('Cropped image shape: {0}'.format(image.shape))
 
@@ -648,6 +691,15 @@ class ModelFor3D(object):
         markstars = self._crop_peaks(
             scaled_peaks, self.stars_key, ix1, ix2, iy1, iy2)
 
+        # Generate list of peaks for GUI preview
+        self._final_peaks = {
+            self.clusters_key: clusters,
+            self.stars_key: markstars}
+
+        return (image, croppedmasks, disk, spiralarms, cusp_mask,
+                cusp_texture_flat, clusters, markstars)
+
+    def filter_image2(self, image):
         log.info(
             'Filtering image (second pass, height={0})'.format(self.height))
         image = ndimage.filters.median_filter(image, 10)  # For 1k image
@@ -657,150 +709,142 @@ class ModelFor3D(object):
 
         # Renormalize again so that height is more predictable
         image = imutils.normalize(image, True, self.height)
+        return image
 
-        # Generate monochrome intensity for GUI preview
-        self._preview_intensity = deepcopy(image.data)
-
-        # Generate list of peaks for GUI preview
-        self._final_peaks = {
-            self.clusters_key: clusters,
-            self.stars_key: markstars}
-
-        # To store non-overlapping key-coded texture info
-        self._preview_masks = np.zeros(
-            self._preview_intensity.shape, dtype='S10')
-
+    def add_textures(self, image, croppedmasks, cusp_mask):
         # Texture layers
-        if self.has_texture:
 
-            # Dots and lines
+        # Dots and lines
 
-            self._texture_layer = np.zeros(image.shape)
+        self._texture_layer = np.zeros(image.shape)
 
-            # Apply layers from bottom up
-            for layer_key in self.layer_order[::-1]:
-                if layer_key == self.dots_key:
-                    texture_func = DOTS
-                elif layer_key == self.small_dots_key:
-                    texture_func = SMALL_DOTS
-                    #texture_func = NO_TEXTURE  # Disable small dots
-                elif layer_key == self.lines_key:
-                    texture_func = LINES
-                else:
-                    warnings.warn('{0} is not a valid texture, skipping...'
-                                  ''.format(layer_key), AstropyUserWarning)
-                    continue
-
-                log.info('Adding {0}'.format(layer_key))
-                for mask in croppedmasks[layer_key]:
-                    cur_texture = texture_func(image, mask)
-                    self._texture_layer[mask] = cur_texture[mask]
-                    self._preview_masks[mask] = layer_key
-
-            # Remove cusp from texture and preview
-            if cusp_mask is not None:
-                self._texture_layer[cusp_mask] = 0
-                self._preview_masks[cusp_mask] = ''
-
-            image += self._texture_layer
-
-            # Stars and star clusters
-
-            clustexarr = None
-            order_w = 10
-            order_dw = order_w // 2
-
-            if self.has_intensity:
-                h_percentile = 75
-                s_height = 5
+        # Apply layers from bottom up
+        for layer_key in self.layer_order[::-1]:
+            if layer_key == self.dots_key:
+                texture_func = DOTS
+            elif layer_key == self.small_dots_key:
+                texture_func = SMALL_DOTS
+                #texture_func = NO_TEXTURE  # Disable small dots
+            elif layer_key == self.lines_key:
+                texture_func = LINES
             else:
-                h_percentile = None
-                s_height = 10
+                warnings.warn('{0} is not a valid texture, skipping...'
+                              ''.format(layer_key), AstropyUserWarning)
+                continue
 
-            # Add star clusters
+            log.info('Adding {0}'.format(layer_key))
+            for mask in croppedmasks[layer_key]:
+                cur_texture = texture_func(image, mask)
+                self._texture_layer[mask] = cur_texture[mask]
+                self._preview_masks[mask] = layer_key
 
-            n_clus_added = 0
+        # Remove cusp from texture and preview
+        if cusp_mask is not None:
+            self._texture_layer[cusp_mask] = 0
+            self._preview_masks[cusp_mask] = ''
 
-            if len(clusters) > 0:
-                maxclusflux = max(clusters['flux'])
+        image += self._texture_layer
+        return image
 
-                # Sort so that lower cluster height added first
-                order_dat = []
-                for cluster in clusters:
-                    ix1 = cluster['xcen'] - order_dw
-                    ix2 = ix1 + order_w
-                    iy1 = cluster['ycen'] - order_dw
-                    iy2 = iy1 + order_w
-                    order_dat.append(image[iy1:iy2, ix1:ix2].mean())
-                clusters.add_column(Column(name='order', data=order_dat))
-                clusters.sort('order')
 
+    def add_stars_clusters(self, image, clusters, markstars, cusp_mask):
+
+        # Stars and star clusters
+
+        clustexarr = None
+        order_w = 10
+        order_dw = order_w // 2
+
+        if self.has_intensity:
+            h_percentile = 75
+            s_height = 5
+        else:
+            h_percentile = None
+            s_height = 10
+
+        # Add star clusters
+
+        n_clus_added = 0
+
+        if len(clusters) > 0:
+            maxclusflux = max(clusters['flux'])
+
+            # Sort so that lower cluster height added first
+            order_dat = []
             for cluster in clusters:
-                c1 = make_star_cluster(
-                    image, cluster,  maxclusflux, height=s_height,
-                    h_percentile=h_percentile, r_fac_add=self.clus_r_fac_add,
-                    r_fac_mul=self.clus_r_fac_mul, n_craters=3)
-                if not np.any(c1):
-                    continue
-                if clustexarr is None:
-                    clustexarr = c1
-                else:
-                    clustexarr = add_clusters(clustexarr, c1)
-                n_clus_added += 1
+                ix1 = cluster['xcen'] - order_dw
+                ix2 = ix1 + order_w
+                iy1 = cluster['ycen'] - order_dw
+                iy2 = iy1 + order_w
+                order_dat.append(image[iy1:iy2, ix1:ix2].mean())
+            clusters.add_column(Column(name='order', data=order_dat))
+            clusters.sort('order')
 
-            log.info('Displaying {0} clusters'.format(n_clus_added))
+        for cluster in clusters:
+            c1 = make_star_cluster(
+                image, cluster,  maxclusflux, height=s_height,
+                h_percentile=h_percentile, r_fac_add=self.clus_r_fac_add,
+                r_fac_mul=self.clus_r_fac_mul, n_craters=3)
+            if not np.any(c1):
+                continue
+            if clustexarr is None:
+                clustexarr = c1
+            else:
+                clustexarr = add_clusters(clustexarr, c1)
+            n_clus_added += 1
 
-            # Add individual stars
+        log.info('Displaying {0} clusters'.format(n_clus_added))
 
-            n_star_added = 0
+        # Add individual stars
 
-            if len(markstars) > 0:
-                maxstarflux = max(markstars['flux'])
+        n_star_added = 0
 
-                # Sort so that lower star height added first
-                order_dat = []
-                for mstar in markstars:
-                    ix1 = mstar['xcen'] - order_dw
-                    ix2 = ix1 + order_w
-                    iy1 = mstar['ycen'] - order_dw
-                    iy2 = iy1 + order_w
-                    order_dat.append(image[iy1:iy2, ix1:ix2].mean())
-                markstars.add_column(Column(name='order', data=order_dat))
-                markstars.sort('order')
+        if len(markstars) > 0:
+            maxstarflux = max(markstars['flux'])
 
+            # Sort so that lower star height added first
+            order_dat = []
             for mstar in markstars:
-                s1 = make_star_cluster(
-                    image, mstar, maxstarflux, height=s_height,
-                    h_percentile=h_percentile, r_fac_add=self.star_r_fac_add,
-                    r_fac_mul=self.star_r_fac_mul, n_craters=1)
-                if not np.any(s1):
-                    continue
-                if clustexarr is None:
-                    clustexarr = s1
-                else:
-                    clustexarr = add_clusters(clustexarr, s1)
-                n_star_added += 1
+                ix1 = mstar['xcen'] - order_dw
+                ix2 = ix1 + order_w
+                iy1 = mstar['ycen'] - order_dw
+                iy2 = iy1 + order_w
+                order_dat.append(image[iy1:iy2, ix1:ix2].mean())
+            markstars.add_column(Column(name='order', data=order_dat))
+            markstars.sort('order')
 
-            log.info('Displaying {0} stars'.format(n_star_added))
+        for mstar in markstars:
+            s1 = make_star_cluster(
+                image, mstar, maxstarflux, height=s_height,
+                h_percentile=h_percentile, r_fac_add=self.star_r_fac_add,
+                r_fac_mul=self.star_r_fac_mul, n_craters=1)
+            if not np.any(s1):
+                continue
+            if clustexarr is None:
+                clustexarr = s1
+            else:
+                clustexarr = add_clusters(clustexarr, s1)
+            n_star_added += 1
 
-            # Both stars and star clusters share the same mask
+        log.info('Displaying {0} stars'.format(n_star_added))
 
-            if clustexarr is not None:
-                clustermask = clustexarr != 0
-                if self.has_intensity:
-                    image[clustermask] = clustexarr[clustermask]
-                else:
-                    self._texture_layer[clustermask] = clustexarr[clustermask]
+        # Both stars and star clusters share the same mask
 
-            # For texture-only model, need to add cusp to texture layer
-            if not self.has_intensity and cusp_mask is not None:
-                self._texture_layer[cusp_mask] = cusp_texture_flat[cusp_mask]
+        if clustexarr is not None:
+            clustermask = clustexarr != 0
+            if self.has_intensity:
+                image[clustermask] = clustexarr[clustermask]
+            else:
+                self._texture_layer[clustermask] = clustexarr[clustermask]
 
-        # endif has_texture
+        # For texture-only model, need to add cusp to texture layer
+        if not self.has_intensity and cusp_mask is not None:
+            self._texture_layer[cusp_mask] = cusp_texture_flat[cusp_mask]
 
-        if isinstance(image, np.ma.core.MaskedArray):
-            image = image.data
+        return image
 
+
+    def make_model_base(self, image):
         log.info('Making base')
         if self.double:
             base_dist = 100  # Magic? Was 60. Widened for nibbler.
@@ -814,6 +858,9 @@ class ModelFor3D(object):
             self._out_image = image + base
         else:
             self._out_image = self._texture_layer + base
+        return
+
+
 
     # For spiral galaxy only
 
