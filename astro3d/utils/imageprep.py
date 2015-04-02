@@ -597,6 +597,8 @@ class ModelFor3D(object):
          cusp_texture_flat, clusters, markstars) = self.crop_image(
              image, scaled_masks, scaled_peaks, cusp_mask, cusp_texture_flat)
 
+        image = self.filter_image2(image)
+
         # Generate monochrome intensity for GUI preview
         self._preview_intensity = deepcopy(image.data)
 
