@@ -589,7 +589,8 @@ class ModelFor3D(object):
         image = self.remove_stars(image, scaled_masks)
         image = self.filter_image1(image, size=10)
         image = imutils.normalize(image, True)
-        image = self.spiralgalaxy_scale_top(image, disk)
+        image = self.spiralgalaxy_scale_top(image, disk, percent=90)
+        image = imutils.normalize(image, True)
         image, cusp_mask, cusp_texture_flat = self.spiralgalaxy_central_cusp(
             image, disk, cusp_rad=25)
         image = self.emphasize_regs(image, scaled_masks)
@@ -599,6 +600,10 @@ class ModelFor3D(object):
              image, scaled_masks, scaled_peaks, cusp_mask, cusp_texture_flat)
 
         image = self.filter_image2(image)
+
+        image = imutils.normalize(image, True, self.height)
+        # Renormalize again so that height is more predictable
+        image = imutils.normalize(image, True, self.height)
 
         # Generate monochrome intensity for GUI preview
         self._preview_intensity = deepcopy(image.data)
@@ -637,7 +642,7 @@ class ModelFor3D(object):
         image = np.ma.masked_equal(image, 0.0)
         return image
 
-    def spiralgalaxy_scale_top(self, image, disk):
+    def spiralgalaxy_scale_top(self, image, disk, percent=90):
         # LDB: should use disk mask
         if self.is_spiralgal and disk is not None:
             log.info('Scaling top')
@@ -648,8 +653,7 @@ class ModelFor3D(object):
             rlim = rgrid.max() / 2
             bigdisk = rgrid < rlim
 
-            image = scale_top(image, mask=bigdisk, percent=90)
-            image = imutils.normalize(image, True)
+            image = scale_top(image, mask=bigdisk, percent=percent)
         return image
 
     def spiralgalaxy_central_cusp(self, image, disk, cusp_rad=25):
@@ -711,10 +715,7 @@ class ModelFor3D(object):
         image = ndimage.filters.median_filter(image, 10)  # For 1k image
         image = ndimage.filters.gaussian_filter(image, 3)  # Magic?
         image = np.ma.masked_equal(image, 0)
-        image = imutils.normalize(image, True, self.height)
 
-        # Renormalize again so that height is more predictable
-        image = imutils.normalize(image, True, self.height)
         return image
 
     def add_textures(self, image, croppedmasks, cusp_mask):
