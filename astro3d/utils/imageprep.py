@@ -587,7 +587,8 @@ class ModelFor3D(object):
 
         scaled_masks, disk, spiralarms, scaled_peaks = self.resize_masks()
         image = self.remove_stars(image, scaled_masks)
-        image = self.filter_image1(image)
+        image = self.filter_image1(image, size=10)
+        image = imutils.normalize(image, True)
         image = self.spiralgalaxy_scale_top(image, disk)
         image, cusp_mask, cusp_texture_flat = self.spiralgalaxy_central_cusp(
             image, disk, cusp_rad=25)
@@ -629,11 +630,11 @@ class ModelFor3D(object):
         image = remove_stars(image, scaled_masks[self.smooth_key])
         return image
 
-    def filter_image1(self, image):
+    def filter_image1(self, image, size=10):
+        # size=10 for 1k image
         log.info('Filtering image (first pass)')
-        image = ndimage.filters.median_filter(image, size=10)  # For 1k image
+        image = ndimage.filters.median_filter(image, size=size)
         image = np.ma.masked_equal(image, 0.0)
-        image = imutils.normalize(image, True)
         return image
 
     def spiralgalaxy_scale_top(self, image, disk):
