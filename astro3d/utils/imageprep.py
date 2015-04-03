@@ -638,6 +638,7 @@ class ModelFor3D(object):
         return image
 
     def spiralgalaxy_scale_top(self, image, disk):
+        # LDB: should use disk mask
         if self.is_spiralgal and disk is not None:
             log.info('Scaling top')
 
@@ -1392,6 +1393,13 @@ def remove_stars(input_image, starmasks):
 
 def scale_top(input_image, mask=None, percent=30, factor=10.0):
     """Linear scale of very high values of image.
+
+    LDB:
+        - bigdisk mask (input) is centered on the image, not centered
+          on the actual nucleus
+        - percent=90 is suppressing spiral arms in ngc3344
+        - the normalization in this function needs to be fixed
+        - ``factor`` is really the final height above a threshold
 
     Parameters
     ----------
