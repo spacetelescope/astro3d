@@ -661,6 +661,7 @@ class ModelFor3D(object):
         # Do this even for smooth intensity map to avoid sharp peak in model.
         #    cusp_rad = 25  # For 1k image
 
+        image = image.copy()
         cusp_mask = None
         cusp_texture_flat = None
         if disk is not None:
