@@ -1474,11 +1474,16 @@ def replace_cusp(image, mask=None, radius=20, height=40, percent=10):
         a = np.ma.array(image.data, mask=~mask)
         y, x = np.where(a == a.max())
 
+    # LDB:
+    # x, y is the index of the central pixel -- not necessarily the
+    # center position - round instead?
     x = int(np.mean(x))
     y = int(np.mean(y))
 
     log.info('\tCenter of galaxy at X={0} Y={1}'.format(x, y))
 
+    # LDB:  handle edges better
+    # this will not work because star array does not get trimmed
     ymin = max(y - radius, 0)
     ymax = min(y + radius, image.shape[0])
     xmin = max(x - radius, 0)
@@ -1489,12 +1494,17 @@ def replace_cusp(image, mask=None, radius=20, height=40, percent=10):
     else:
         top = np.percentile(image[ymin:ymax, xmin:xmax], percent)
 
+    # LDB: should check region around center for places where intensity
+    # plus disk texture are comparable to cusp height and adjust star
+    # height as necessary - NGC3344 star height seems too small
     star = make_star(radius, height)
     smask = star != -1
 
+    # LDB: this is redundant with above
     diam = 2 * radius + 1
     ymax = min(ymin + diam, image.shape[0])
     xmax = min(xmin + diam, image.shape[1])
+    # this will not work at edge because star array does not get trimmed
     cusp_texture[ymin:ymax, xmin:xmax][smask] = top + star[smask]
 
     return cusp_texture
