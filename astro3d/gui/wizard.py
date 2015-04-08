@@ -908,6 +908,11 @@ class RegionPage(QWizardPage):
         # Relabel remaining regions
         self.add_items()
 
+    def validatePage(self):
+        """Clear brush size message."""
+        self.parent.statusBar().showMessage('')
+        return True
+
     def isComplete(self):
         """Only proceed if there is at least one region saved."""
         has_region = False

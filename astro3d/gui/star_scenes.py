@@ -642,6 +642,7 @@ class RegionBrushScene(QGraphicsScene):
 
     def __init__(self, parent, pixmap, name, radius=15):
         super(RegionBrushScene, self).__init__(parent)
+        self.parent = parent
         self.name = name
         self.description = name
         self.item = QGraphicsPixmapItem(pixmap)
@@ -656,6 +657,8 @@ class RegionBrushScene(QGraphicsScene):
         self._oldy = -1
         self._brushgraphics = None
 
+        self.parent.parent.statusBar().showMessage(
+            'Brush radius is {0} pixels'.format(self.radius))
         self.draw()
 
     @classmethod
@@ -780,7 +783,9 @@ class RegionBrushScene(QGraphicsScene):
                 if r >= self._BRUSH_SIZE_MIN:
                     self.radius = r
         if size_change_mode:
-            log.info('Brush radius is {0}'.format(self.radius))
+            msg = 'Brush radius is {0} pixels'.format(self.radius)
+            log.info(msg)
+            self.parent.parent.statusBar().showMessage(msg)
 
     @property
     def graphicspoints(self):

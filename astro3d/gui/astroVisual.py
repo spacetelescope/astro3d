@@ -56,8 +56,8 @@ from ..utils.imageprep import Region
 
 
 _gui_title = 'Astronomy 3D Model'
-__version__ = '0.3.0.dev'
-__vdate__ = '25-Feb-2015'
+__version__ = '0.3.0.dev0'
+__vdate__ = '08-Apr-2015'
 __author__ = 'STScI'
 
 
@@ -97,8 +97,6 @@ class AstroGUI(QMainWindow):
         Displays the preview.
 
     """
-    _GEOM_X = 0
-    _GEOM_Y = 150
     IMG_TRANSFORMATIONS = OrderedDict(
         [(0, 'Linear'), (1, 'Logarithmic'), (2, 'Sqrt')])
     TRANS_FUNCS = {
@@ -125,7 +123,7 @@ class AstroGUI(QMainWindow):
         self._enable_photutil = True
 
         self.createWidgets()
-        self.move(self._GEOM_X, self._GEOM_Y)
+        self.move(0, 0)
 
         if argv and argv[0] == 'debug':
             debug = True
@@ -134,12 +132,17 @@ class AstroGUI(QMainWindow):
         else:
             debug = False
 
+        screen = QDesktopWidget().screenGeometry()
         wizard = ThreeDModelWizard(self, debug=debug)
-        wizard.move(self._GEOM_X + self.widget.width() + self.preview.width(),
-                    self._GEOM_Y + self.widget.height() * 0.25)
-        self.show()
+        wizard.move(screen.width() - self.widget.width(), 0)
 
+        self.show()
         self.statusBar().showMessage('')
+
+        # Un-minimize and bring wizard to foreground
+        wizard.setWindowState(
+            wizard.windowState() & ~Qt.WindowMinimized | Qt.WindowActive)
+        wizard.activateWindow()
 
     @property
     def model_type(self):
@@ -773,11 +776,13 @@ class MainPanel(QWidget):
     a pointer to the current scene.
 
     """
-    _GEOM_SZ = 810
-    _SCENE_SZ = 800
-
     def __init__(self, parent=None):
         super(MainPanel, self).__init__(parent)
+
+        # Resize based on screen size
+        screen = QDesktopWidget().screenGeometry()
+        self._GEOM_SZ = int(min(screen.width() * 0.25, screen.height() * 0.5))
+        self._SCENE_SZ = int(self._GEOM_SZ * 0.95)
 
         self.parent = parent
         self.view = QGraphicsView(self)
@@ -882,11 +887,13 @@ class MainPanel(QWidget):
         name, region, description = self.current_scene.getRegion()
         overwrite = self.current_scene.overwrite
         self.update_scene(self.main_scene)
+        self.parent.statusBar().showMessage('')
         return name, region, description, overwrite
 
     def clear_region(self):
         """Clears the currently displayed region."""
         self.current_scene.clear()
+        self.parent.statusBar().showMessage('')
 
     def display_region(self, region):
         """Shows a region on top of the non-interactive main scene.
@@ -960,11 +967,13 @@ class PreviewWindow(QWidget):
     texture masks overlay in different colors.
 
     """
-    _GEOM_SZ = 810
-    _SCENE_SZ = 800
-
     def __init__(self, parent=None):
         super(PreviewWindow, self).__init__(parent)
+
+        # Resize based on screen size
+        screen = QDesktopWidget().screenGeometry()
+        self._GEOM_SZ = int(min(screen.width() * 0.25, screen.height() * 0.5))
+        self._SCENE_SZ = int(self._GEOM_SZ * 0.95)
 
         self.parent = parent
         self.view = QGraphicsView(self)
