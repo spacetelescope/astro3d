@@ -725,6 +725,8 @@ class RegionBrushScene(QGraphicsScene):
         movemask = imutils.in_rectangle(
             p, (y - ymin, x - xmin), (self._oldy - ymin, self._oldx - xmin),
             self.radius)
+        if movemask is None:
+            return
 
         for xx, yy in [(self._oldx, self._oldy), (x, y)]:
             yy1 = yy + self._BRUSH_BUFFPIX - ymin

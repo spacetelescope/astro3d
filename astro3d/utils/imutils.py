@@ -504,7 +504,10 @@ def in_rectangle(p, p1, p2, radius):
     # Compute corners of rectangle.
     # First, determine orthogonal unit vector.
     unit_base = np.array(p2) - np.array(p1)
-    unit_base = unit_base / np.sqrt((unit_base ** 2).sum())
+    denom = np.sqrt((unit_base ** 2).sum())
+    if denom == 0:
+        return None
+    unit_base = unit_base / denom
     unit_orth = np.array([unit_base[1], -unit_base[0]])
     rad = radius + 0.5
 

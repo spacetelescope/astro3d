@@ -57,7 +57,7 @@ from ..utils.imageprep import Region
 
 _gui_title = 'Astronomy 3D Model'
 __version__ = '0.3.0.dev0'
-__vdate__ = '08-Apr-2015'
+__vdate__ = '13-Apr-2015'
 __author__ = 'STScI'
 
 
@@ -134,7 +134,7 @@ class AstroGUI(QMainWindow):
 
         screen = QDesktopWidget().screenGeometry()
         wizard = ThreeDModelWizard(self, debug=debug)
-        wizard.move(screen.width() - self.widget.width(), 0)
+        wizard.move(screen.width() // 4, 0)
 
         self.show()
         self.statusBar().showMessage('')
@@ -781,7 +781,7 @@ class MainPanel(QWidget):
 
         # Resize based on screen size
         screen = QDesktopWidget().screenGeometry()
-        self._GEOM_SZ = int(min(screen.width() * 0.25, screen.height() * 0.5))
+        self._GEOM_SZ = int(min(screen.width() * 0.45, screen.height() * 0.9))
         self._SCENE_SZ = int(self._GEOM_SZ * 0.95)
 
         self.parent = parent
@@ -972,7 +972,7 @@ class PreviewWindow(QWidget):
 
         # Resize based on screen size
         screen = QDesktopWidget().screenGeometry()
-        self._GEOM_SZ = int(min(screen.width() * 0.25, screen.height() * 0.5))
+        self._GEOM_SZ = int(min(screen.width() * 0.45, screen.height() * 0.9))
         self._SCENE_SZ = int(self._GEOM_SZ * 0.95)
 
         self.parent = parent
