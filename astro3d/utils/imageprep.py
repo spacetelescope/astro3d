@@ -656,7 +656,8 @@ class ModelFor3D(object):
             image = scale_top(image, mask=bigdisk, percent=percent)
         return image
 
-    def spiralgalaxy_central_cusp(self, image, disk, cusp_rad=25):
+    def spiralgalaxy_central_cusp(self, image, disk, cusp_radius=25,
+                                  cusp_height=None, cusp_percent=None):
         # Only works for single-disk image.
         # Do this even for smooth intensity map to avoid sharp peak in model.
         #    cusp_rad = 25  # For 1k image
@@ -665,14 +666,22 @@ class ModelFor3D(object):
         cusp_mask = None
         cusp_texture_flat = None
         if disk is not None:
+            if cusp_height is None:
+                cusp_height = 40
+            if cusp_percent is None:
+                cusp_percent = 10
             log.info('Replacing cusp')
             cusp_texture = replace_cusp(
-                image, mask=disk, radius=cusp_rad, height=40, percent=10)
+                image, mask=disk, radius=cusp_radius, height=cusp_height,
+                percent=cusp_percent)
             cusp_mask = cusp_texture > 0
 
             if not self.has_intensity:
+                if cusp_height is None:
+                    cusp_height = 20
                 cusp_texture_flat = replace_cusp(
-                    image, mask=disk, radius=cusp_rad, height=20, percent=None)
+                    image, mask=disk, radius=cusp_rad, height=cusp_height,
+                    percent=cusp_percent)
 
             image[cusp_mask] = cusp_texture[cusp_mask]
         return image, cusp_mask, cusp_texture_flat
