@@ -592,7 +592,7 @@ class ModelFor3D(object):
         image = self.spiralgalaxy_scale_top(image, disk, percent=90)
         image = imutils.normalize(image, True)
         image, cusp_mask, cusp_texture_flat = self.spiralgalaxy_central_cusp(
-            image, disk, cusp_rad=25)
+            image, disk, cusp_radius=25)
         image = self.emphasize_regs(image, scaled_masks)
 
         (image, croppedmasks, disk, spiralarms, cusp_mask,
