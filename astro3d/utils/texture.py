@@ -143,40 +143,33 @@ def point_grid(shape, spacing):
     return zip(list(x.flat),list(y.flat))
 
 
-def hex_grid(shape, spacing):
-    """Generate a hex grid.
-
-    .. note::
-
-        ``spacing=10`` for ``dustgashexgrid``.
+def hex_grid(shape, hexagon_size):
+    """
+    Generate a hex grid within a given image shape.
 
     Parameters
     ----------
     shape : tuple
-        Size of the image.
+        The shape of the image over which to create the hex grid.
 
-    spacing : int
-        The distance between hex side and center.
+    hexagon_size : float
+        The hexagon size, measured perpendicular from a side to the
+        center.
 
     Returns
     -------
-    im : ndarray
-
+    coords : `~numpy.ndarray`
+        A ``N x 2`` array containing the ``(x, y)`` coordinates for the
+        hexagon centers.
     """
-    point_spacing = 2.*spacing/np.sqrt(3.)
-    nx = int(shape[1]/point_spacing)
-    ny = int(shape[0]/spacing)
-    # must treat even and odd rows differently
-    xset = (np.arange(nx-1).astype(np.float)+.5)*point_spacing
-    yset = np.arange(ny-1)*spacing
-    # produce appropriate combinations
-    xlist, ylist = [],[]
-    for i,y in enumerate(yset):
-        offset = (i % 2)*0.5*point_spacing
-        for x in xset:
-            xlist.append(x+offset)
-            ylist.append(y)
-    return zip(xlist, ylist)
+
+    x_spacing = 2. * hexagon_size / np.sqrt(3.)
+    y, x = np.mgrid[0:shape[0]:hexagon_size, 0:shape[1]:x_spacing]
+    # shift the odd rows by half of the x_spacing
+    for i in range(1, len(x), 2):
+        x[i] += 0.5 * x_spacing
+    coords = np.transpose(np.vstack([x.ravel(), y.ravel()]))
+    return coords
 
 
 def random_points(shape, spacing):
