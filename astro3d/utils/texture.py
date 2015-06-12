@@ -1,322 +1,308 @@
-"""This module adds textures (repeating or random in some aspect) to
-an image. Separations and widths generally are specified in pixels.
-In general, the intensity profile used is circular (scaled) for 1D
-structures like lines, and spherical (scaled) for points, or the end
-of 1D structures (e.g., end of a dash).
-
 """
-from __future__ import division, print_function
+This module defines and adds textures (repeating or random) to an image.
+Spacings, thickness, and diameters are specified in pixels.
+"""
 
-# Anaconda
+from __future__ import (absolute_import, division, print_function,
+                        unicode_literals)
 import numpy as np
 from astropy import log
-from numpy import random as rand
 
 
-def lines(profile, shape, width, spacing, scale, orientation):
-    """Create a regularly spaced set of lines.
+def lines_texture(shape, profile, thickness, spacing, scale, orientation=0.):
+    """
+    Create a texture consisting of regularly-spaced set of lines.
 
     Parameters
     ----------
-    profile : {'linear', 'spherical'}
-
     shape : tuple
-        Image shape.
+        The shape of the output image.
 
-    width : int
-        Thickness of the line (perpendicular).
+    profile : {'linear', 'spherical'}
+        The line profile. ``'linear'`` produces a "^"-shaped line
+        profile.  ``'spherical'`` produces a rounded cylindrical or
+        elliptical profile (see ``scale`` for details).
+
+    thickness : int
+        Thickness of the line over the entire profile.
 
     spacing : int
-        Perpendicular spacing between lines.
+        Perpendicular spacing between adjacent line centers.
 
     scale : float
-        Scaling factor.
+        The scale factor applied to the line.  If ``scale`` is 1, then
+        the line height is half the ``thickness``.
 
-    orientation : float
-        Orientation is in degrees.
+        For a ``'spherical'`` profile, ``scale=1`` produces a
+        hemispherical profile perpendicular to the line.  If ``scale``
+        is not 1, then the profile is elliptical.
+
+    orientation : float, optional
+        The counterclockwise rotation angle in degrees.  The default
+        ``orientation`` of 0 degrees corresponds to horizontal lines.
 
     Returns
     -------
-    im : ndarray
-
+    data : `~numpy.ndarray`
+        An image containing the line texture.
     """
-    # start in center of image and offset both ways
-    im = np.zeros(shape)
-    xp, yp = np.meshgrid(np.arange(shape[1]),np.arange(shape[0]))
-    y0, x0 = shape[0]/2, shape[1]/2
-    xp = xp - x0
-    yp = yp - y0
+
+    # start in center of the image and then offset lines both ways
+    xc = shape[1] / 2
+    yc = shape[1] / 2
+    x = np.arange(shape[1]) - xc
+    y = np.arange(shape[0]) - yc
+    xp, yp = np.meshgrid(x, y)
+
     angle = np.pi * orientation/180.
     s, c = np.sin(angle), np.cos(angle)
-    x = c*xp + s*yp
+    # x = c*xp + s*yp    # unused
     y = -s*xp + c*yp
+
     # compute maximum possible offsets
-    noffsets = int(np.sqrt(x0**2+y0**2)/spacing)
-    offsets = spacing * (np.arange(noffsets*2+1)-noffsets)
+    noffsets = int(np.sqrt(xc**2 + yc**2) / spacing)
+    offsets = spacing * (np.arange(noffsets*2 + 1) - noffsets)
+    print(offsets)
+
     # loop over all offsets
+    data = np.zeros(shape)
+    h_thick = thickness / 2.
     for offset in offsets:
-        ind = np.where(((y-offset) < width) & ((y-offset) > 0))
-        if ind:
+        y_diff = y - offset
+        idx = np.where((y_diff > -h_thick) & (y_diff < h_thick))
+        if idx:
             if profile == "spherical":
-                im[ind] = scale*np.sqrt((y[ind]-offset)*(width-y[ind]+offset))
+                data[idx] = scale * np.sqrt(h_thick**2 - y_diff[idx]**2)
             elif profile == "linear":
-                im[ind] = scale*(width/2-np.abs(y[ind]-offset-width/2))
-    return im
+                data[idx] = scale * (h_thick - np.abs(y_diff[idx]))
+    return data
 
 
-def dots(profile, shape, width, scale, locations):
-    """Create dots at the given locations.
+def dots_texture(shape, profile, diameter, scale, locations):
+    """
+    Create a texture consisting of dots at the given locations.
 
-    If dots overlap, the greater value of the two is taken,
-    not the sum.
+    If any dots overlap (e.g. the location separations are smaller than
+    the dot size), then the greater value of the two is taken, not the
+    sum.
 
     Parameters
     ----------
-    profile : {'linear', 'spherical'}
-
     shape : tuple
-        Size of the image.
+        The shape of the output image.
 
-    width : int
-        Width of the dot.
+    profile : {'linear', 'spherical'}
+        The dot profile. ``'linear'`` produces a cone-shaped dot
+        profile.  ``'spherical'`` produces a hemispherical or half
+        ellipsoid dot profile (see ``scale`` for details).
+
+    diameter : int
+        The diameter of the dot.
 
     scale : float
-        Scale applied to the dot.
-        Normally, height is half-width if scale is 1.
+        The scale factor applied to the dot.  If ``scale`` is 1, then
+        the dot height is half the ``diameter``.
 
-    locations : list
-        List of ``x, y`` pairs.
+        For a ``'spherical'`` profile, ``scale=1`` produces a
+        hemispherical dot.  If ``scale`` is not 1, then the dot profile
+        is a half ellipsoid (circular base with a stretched height).
+
+    locations : `~numpy.ndarray`
+        A ``Nx2`` `~numpy.ndarray` where each row contains the ``x`` and
+        ``y`` coordinate positions.
 
     Returns
     -------
-    im : ndarray
+    data : `~numpy.ndarray`
+        An image containing the dot texture.
 
     Examples
     --------
-    >>> shape = (1000, 1031)
+    >>> shape = (1000, 1000)
     >>> dots('linear', shape, 7, 3, locations=hex_grid(shape, 10))
-
     """
-    im = np.zeros(shape)
-    x, y = np.meshgrid(np.arange(width+1), np.arange(width+1))
-    subim = 0.*x
-    radius = np.sqrt((x-width/2)**2 + (y-width/2)**2)
-    ind = np.where(radius < width/2)
-    if profile == "spherical":
-        log.debug('bozo2')
-        # subim[ind] = scale * np.sqrt(width**2/4 - (x[ind]-width/2)**2 - (y[ind]-width/2)**2)
-        subim[ind] = scale * np.sqrt(width**2/4 - radius[ind]**2)
-    elif profile == "linear":
-        subim[ind] = scale * np.abs(width/2 - radius[ind])
+
+    dot_size = diameter + 1
+    dot_shape = (dot_size, dot_size)
+    dot = np.zeros(dot_shape)
+    y, x = np.indices(dot_shape)
+    radius = diameter / 2
+    r = np.sqrt((x - radius)**2 + (y - radius)**2)
+    idx = np.where(r < radius)
+
+    if profile == 'spherical':
+        dot[idx] = scale * np.sqrt(radius**2 - r[idx]**2)
+    elif profile == 'linear':
+        dot[idx] = scale * np.abs(radius - r[idx])
     else:
-        raise ValueError("unknown profile option, must be spherical or linear")
-    for point in locations:
-        # exclude points too close to edge
-        x0, y0 = point
-        if not (x0 < width/2 or x0 > (shape[1]-width/2) or
-            y0 < width/2 or y0 > (shape[0]-width/2)):
-            xim = im[y0-width/2:y0+width/2+1,x0-width/2:x0+width/2+1]
-            xim[subim>xim] = subim[subim>xim]
-    return im
+        raise ValueError('profile must be "spherical" or "linear"')
+
+    data = np.zeros(shape)
+    for (x, y) in locations:
+        # exclude points too close to the edge
+        if not (x < radius or x > (shape[1] - radius - 1) or
+                y < radius or y > (shape[0] - radius - 1)):
+            # replace pixels in the output image only if they are larger
+            # in the dot (i.e. the pixels are not summed, but are
+            # assigned the greater value of the new dot and the image)
+            region = data[y-radius:y+radius+1, x-radius:x+radius+1]
+            mask = (dot > region)
+            region[mask] = dot[mask]
+    return data
 
 
-def point_grid(shape, spacing):
-    """Generate a list of point coordinates in a regular grid.
-
-    Parameters
-    ----------
-    shape : tuple
-        Size of the image.
-
-    spacing : int
-
-    Returns
-    -------
-    im : ndarray
-
+def star_texture(radius, height):
     """
-    nx = int(shape[1]/spacing)
-    ny = int(shape[0]/spacing)
-    x, y = np.meshgrid(np.arange(nx),np.arange(ny))
-    x = x*spacing
-    y = y*spacing
-    return zip(list(x.flat),list(y.flat))
+    Create a texture representing a single star.
 
-
-def hex_grid(shape, hexagon_size):
-    """
-    Generate a hex grid within a given image shape.
-
-    Parameters
-    ----------
-    shape : tuple
-        The shape of the image over which to create the hex grid.
-
-    hexagon_size : float
-        The hexagon size, measured perpendicular from a side to the
-        center.
-
-    Returns
-    -------
-    coords : `~numpy.ndarray`
-        A ``N x 2`` array containing the ``(x, y)`` coordinates for the
-        hexagon centers.
-    """
-
-    x_spacing = 2. * hexagon_size / np.sqrt(3.)
-    y, x = np.mgrid[0:shape[0]:hexagon_size, 0:shape[1]:x_spacing]
-    # shift the odd rows by half of the x_spacing
-    for i in range(1, len(x), 2):
-        x[i] += 0.5 * x_spacing
-    coords = np.transpose(np.vstack([x.ravel(), y.ravel()]))
-    return coords
-
-
-def random_points(shape, spacing):
-    """Generate random points.
-
-    Parameters
-    ----------
-    shape : tuple
-        Size of the image.
-
-    spacing : int
-
-    Returns
-    -------
-    im : ndarray
-
-    """
-    npts = shape[0]*shape[1]/spacing**2
-    x = rand.random(npts)*shape[1]
-    y = rand.random(npts)*shape[0]
-    return zip(list(x),list(y))
-
-
-def ladder(profile, shape, spacing, width, scale, length, offset):
-    """Produce an image of a set of vertical line segments arranged
-    in a horizonal row.
-
-    Parameters
-    ----------
-    profile, shape, spacing, width, scale
-        See :func:`lines`.
-
-    length : int
-
-    offset : int
-        Number of pixels from the bottom of the image.
-
-    Returns
-    -------
-    im : ndarray
-
-    """
-    # Use lines to generate initial image and then mask
-    im = lines(profile, shape, width, spacing, scale, 90.)
-    im[:offset] = 0
-    im[offset+length:] = 0
-    return im
-
-
-def dashed_line(profile, shape, width, scale, pattern_length, duty_fraction,
-                offset):
-    """Create one horizontal dashed line with the specified
-    pattern length and duty fraction.
-
-    Parameters
-    ----------
-    profile, shape, width, scale
-        See :func:`lines`.
-
-    pattern_length : int
-
-    duty_fraction : float
-        For example, 0.2 means 20% is line and 80% is blank.
-
-    offset : int
-        Offset from bottom of image.
-
-    Returns
-    -------
-    im : ndarray
-
-    """
-    im = lines(profile, shape, width, shape[0], scale, 0.)
-    # find out where line is
-    woff = int(width/2)
-    ind = np.where(im[:,1] == im[:,1].max())[0][0]
-    log.info('{0} {1} {2} {3}'.format(ind, width, woff, offset))
-    im2 = im * 0.
-    im2[offset-woff:offset-woff+width] = im[ind-woff:ind-woff+width]
-    # mask out blank parts
-    ramp = np.arange(shape[1])
-    mask = (ramp % pattern_length) < duty_fraction*pattern_length
-    return mask * im2
-
-
-def make_segment_texture():
-    """Generate pre-defined segment texture.
-
-    Returns
-    -------
-    im : ndarray
-        Square image of 200 pixels on each side.
-
-    """
-    profile = "spherical"
-    width = 10
-    shape = (200,200)
-    lim = ladder(profile, shape, 15, width, 1, 30, 150)
-    dim1 = dashed_line(profile, shape, width, 1, 30, .5, 120 )
-    dim2 = dashed_line(profile, shape, width, 1, 40, .8, 80 )
-    dim3 = dashed_line(profile, shape, width*2, .5, 60, .67, 40 )
-    return lim+dim1+dim2+dim3
-
-
-def make_star(radius, height):
-    """Generate star texture.
+    The texture is a parabolic "bowl" with a circular base of given
+    ``radius`` and given ``height`` (pictorially like "_|U|_").
 
     Parameters
     ----------
     radius : int
+        The circular radius of the texture.
 
     height : int
+        The height of the texture.
 
     Returns
     -------
-    star : ndimage
-
+    data : `~numpy.ndimage`
+        An image containing the star texture.
     """
-    x, y = np.meshgrid(np.arange(radius*2+1), np.arange(radius*2+1))
-    r = np.sqrt((x-radius)**2 + (y-radius)**2)
-    star = height/radius**2 * r**2
-    star[r > radius] = 0
-    return star
+
+    x = np.arange(2.*radius + 1) - radius
+    xx, yy = np.meshgrid(x, x)
+    r = np.sqrt(xx**2, + yy**2)
+    data = height * (r / radius)**2
+    data[r > radius] = 0
+    return data
 
 
-def dobatch():
-    """Batch script to generate textures and save them to JPEG images."""
+def square_grid(shape, spacing, offset=0):
+    """
+    Generate ``(x, y)`` coordinates for a regular square grid over a
+    given image shape.
+
+    Parameters
+    ----------
+    shape : tuple
+        The shape of the image over which to create the grid.
+
+    spacing : float
+        The spacing in pixels between the centers of adjancent squares.
+        This is also the square size.
+
+    offset : float, optional
+        An optional offset to apply in both the ``x`` and ``y``
+        directions from the nominal starting position of ``(0, 0)``.
+
+    Returns
+    -------
+    coords : `~numpy.ndarray`
+        A ``N x 2`` array where each row contains the ``x`` and ``y``
+        coordinates of the square centers.
+    """
+
+    y, x = np.mgrid[offset:shape[0]:spacing, offset:shape[1]:spacing]
+    return np.transpose(np.vstack([x.ravel(), y.ravel()]))
+
+
+def hexagonal_grid(shape, spacing, offset=0):
+    """
+    Generate ``(x, y)`` coordinates for a hexagonal grid over a given
+    image shape.
+
+    Parameters
+    ----------
+    shape : tuple
+        The shape of the image over which to create the grid.
+
+    spacing : float
+        The spacing in pixels between the centers of adjacent hexagons.
+        This is also the "size" of the hexagon, as measured perpendicular
+        from a side to the opposite side.
+
+    offset : float, optional
+        An optional offset to apply in both the ``x`` and ``y``
+        directions from the nominal starting position of ``(0, 0)``.
+
+    Returns
+    -------
+    coords : `~numpy.ndarray`
+        A ``N x 2`` array where each row contains the ``x`` and ``y``
+        coordinates of the hexagon centers.
+    """
+
+    x_spacing = 2. * spacing / np.sqrt(3.)
+    y, x = np.mgrid[offset:shape[0]:spacing, offset:shape[1]:x_spacing]
+    # shift the odd rows by half of the x_spacing
+    for i in range(1, len(x), 2):
+        x[i] += 0.5 * x_spacing
+    return np.transpose(np.vstack([x.ravel(), y.ravel()]))
+
+
+def random_points(shape, spacing):
+    """
+    Generate ``(x, y)`` coordinates at random positions over a given
+    image shape.
+
+    Parameters
+    ----------
+    shape : tuple
+        The shape of the image over which to create the random points.
+
+    spacing : float
+        The "average" spacing between the random positions.
+        Specifically, ``spacing`` defines the number of random positions
+        as ``shape[0] * shape[1] / spacing**2``.
+
+    Returns
+    -------
+    coords : `~numpy.ndarray`
+        A ``N x 2`` array where each row contains the ``x`` and ``y``
+        coordinates of the random positions.
+    """
+
+    npts = shape[0] * shape[1] / spacing**2
+    x = np.random.random(npts) * shape[1]
+    y = np.random.random(npts) * shape[0]
+    return np.transpose(np.vstack([x, y]))
+
+
+def textures_to_jpeg():
+    """Generate some textures and save them to JPEG images."""
     from .imutils import im2file as save
 
-    shape = (200,200)
-    sep = [25,15,10,5]
-    wid = [15,10,6,3]
+    shape = (200, 200)
+    size = [15, 10, 6, 3]        # line thickness or dot diameter
+    spacing = [25, 15, 10, 5]    # line spacing or dot grid spacing
 
-    for s,w in zip(sep, wid):
-        log.info('{0} {1}'.format(s, w))
-        for prof in ['spherical', 'linear']:
-            log.info('\t{0}'.format(prof))
+    for sz, sp in zip(size, spacing):
+        log.info('{0} {1}'.format(sz, sp))
+        for profile in ['spherical', 'linear']:
+            log.info('\t{0}'.format(profile))
 
-            lim = lines(prof,shape,w,s,1.,0.)
-            save(lim, 'lines_{0}_spacing{1}_width_{2}.jpg'.format(prof,s,w))
-
-            dim = dots(prof,shape,w,1., point_grid(shape,s))
-            save(dim, 'dots_{0}_spacing{1}_width_{2}.jpg'.format(prof,s,w))
+            lim = lines_texture(shape, profile, sz, sp, 1., orientation=0.)
+            fn = ('lines_{0}_thickness{1}_spacing{2}'
+                  '.jpg'.format(profile, sz, sp))
+            save(lim, fn)
 
             rlim = lim.transpose()
             lim[rlim > lim] = rlim[rlim > lim]
-            save(lim, 'hatch_{0}_spacing{1}_width_{2}.jpg'.format(prof,s,w))
+            fn = ('hatch_{0}_thickness{1}_spacing{2}'
+                  '.jpg'.format(profile, sz, sp))
+            save(lim, fn)
 
-            hdim = dots(prof,shape,w,1, hex_grid(shape,s))
-            save(hdim, 'hexdots_{0}_spacing{1}_width_{2}.jpg'.format(prof,s,w))
+            sdim = dots_texture(shape, profile, sz, 1.,
+                                square_grid(shape, sp))
+            fn = ('dots_squaregrid_{0}_diameter{1}_spacing{2}'
+                  '.jpg'.format(profile, sz, sp))
+            save(sdim, fn)
+
+            hdim = dots_texture(shape, profile, sz, 1,
+                                hexagonal_grid(shape, sp))
+            fn = ('dots_hexagonalgrid_{0}_diameter{1}_spacing{2}'
+                  '.jpg'.format(profile, sz, sp))
+            save(hdim, fn)
