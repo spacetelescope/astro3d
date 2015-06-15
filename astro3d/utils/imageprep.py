@@ -6,7 +6,6 @@ import os
 import warnings
 from collections import defaultdict
 from copy import deepcopy
-from functools import partial
 
 # Anaconda
 import numpy as np
@@ -22,8 +21,8 @@ import photutils
 
 # LOCAL
 from . import imutils
-from . import texture as _texture
 from .meshcreator import to_mesh
+from .texture import DOTS, SMALL_DOTS, LINES
 
 
 class Region(object):
@@ -615,7 +614,7 @@ class ModelFor3D(object):
         if self.has_texture:
             image = self.add_textures(image, croppedmasks, cusp_mask)
             image = self.add_stars_clusters(image, clusters, markstars,
-                                            cusp_mask)
+                                            cusp_mask, cusp_texture_flat)
 
         if isinstance(image, np.ma.core.MaskedArray):
             image = image.data
@@ -660,7 +659,7 @@ class ModelFor3D(object):
                                   cusp_height=None, cusp_percent=None):
         # Only works for single-disk image.
         # Do this even for smooth intensity map to avoid sharp peak in model.
-        #    cusp_rad = 25  # For 1k image
+        #    cusp_radius = 25  # For 1k image
 
         image = image.copy()
         cusp_mask = None
@@ -680,7 +679,7 @@ class ModelFor3D(object):
                 if cusp_height is None:
                     cusp_height = 20
                 cusp_texture_flat = replace_cusp(
-                    image, mask=disk, radius=cusp_rad, height=cusp_height,
+                    image, mask=disk, radius=cusp_radius, height=cusp_height,
                     percent=cusp_percent)
 
             image[cusp_mask] = cusp_texture[cusp_mask]
@@ -764,7 +763,8 @@ class ModelFor3D(object):
         return image
 
 
-    def add_stars_clusters(self, image, clusters, markstars, cusp_mask):
+    def add_stars_clusters(self, image, clusters, markstars, cusp_mask,
+                           cusp_texture_flat):
 
         # Stars and star clusters
 
@@ -1190,7 +1190,7 @@ def make_model(image, region_masks=defaultdict(list), peaks={}, height=150.0,
         if len(region_masks[lines_key]) > 0:
             disk = region_masks[lines_key][0]
         if len(region_masks[dots_key]) > 0:
-            spiralarms = region_masks[dots_key][0]
+            spiralarms = region_masks[dots_key][0]    # NOT USED?
     if cusp_mask is not None:
         cusp_mask = cusp_mask[iy1:iy2, ix1:ix2]
     if cusp_texture_flat is not None:
@@ -1900,23 +1900,3 @@ def find_peaks(image, remove=0, num=None, threshold=8, npix=10, minpeaks=35):
         peaks = isophot
 
     return peaks
-
-
-# Pre-defined textures (by Perry Greenfield for NGC 602)
-# This is for XSIZE=1100 YSIZE=1344
-#DOTS = partial(
-#    dots_from_mask, hexgrid_spacing=10, dots_width=7, dots_scale=3.0)
-#SMALL_DOTS = partial(
-#    dots_from_mask, hexgrid_spacing=7, dots_width=7, dots_scale=1.0)
-#LINES = partial(lines_from_mask, lines_width=15, lines_spacing=25,
-#                lines_scale=0.7, lines_orient=0)
-
-# Pre-defined textures (by Roshan Rao for NGC 3344 and NGC 1566)
-# This is for roughly XSIZE=1000 YSIZE=1000
-DOTS = partial(
-    dots_from_mask, hexgrid_spacing=7, dots_width=5, dots_scale=3.2)
-SMALL_DOTS = partial(
-    dots_from_mask, hexgrid_spacing=4.5, dots_width=5, dots_scale=1.8)
-LINES = partial(lines_from_mask, lines_width=13, lines_spacing=20,
-                lines_scale=2.0, lines_orient=0)
-NO_TEXTURE = lambda im, msk : np.zeros_like(im)
