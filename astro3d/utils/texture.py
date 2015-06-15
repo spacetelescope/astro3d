@@ -106,7 +106,7 @@ def random_points(shape, spacing):
     return np.transpose(np.vstack([x, y]))
 
 
-def lines_texture(shape, profile, thickness, spacing, scale, orientation=0.):
+def lines_texture(shape, profile, thickness, spacing, height, orientation=0.):
     """
     Create a texture consisting of regularly-spaced set of lines.
 
@@ -118,7 +118,7 @@ def lines_texture(shape, profile, thickness, spacing, scale, orientation=0.):
     profile : {'linear', 'spherical'}
         The line profile. ``'linear'`` produces a "^"-shaped line
         profile.  ``'spherical'`` produces a rounded cylindrical or
-        elliptical profile.  See ``scale`` for more details.
+        elliptical profile.  See ``height`` for more details.
 
     thickness : int
         Thickness of the line over the entire profile.
@@ -126,13 +126,12 @@ def lines_texture(shape, profile, thickness, spacing, scale, orientation=0.):
     spacing : int
         Perpendicular spacing between adjacent line centers.
 
-    scale : float
-        The scale factor applied to the line.  If ``scale`` is 1, then
-        the line height is half the ``thickness``.
+    height : float
+        The maximum height (data value) of the line.
 
-        For a ``'spherical'`` profile, ``scale=1`` produces a
-        hemispherical profile perpendicular to the line.  If ``scale``
-        is not 1, then the profile is elliptical.
+        For a ``'spherical'`` profile, set ``height`` equal to half the
+        ``thickness`` to produce a hemispherical profile perpendicular
+        to the line, otherwise the profile is elliptical.
 
     orientation : float, optional
         The counterclockwise rotation angle in degrees.  The default
@@ -168,13 +167,15 @@ def lines_texture(shape, profile, thickness, spacing, scale, orientation=0.):
         idx = np.where((y_diff > -h_thick) & (y_diff < h_thick))
         if idx:
             if profile == "spherical":
-                data[idx] = scale * np.sqrt(h_thick**2 - y_diff[idx]**2)
+                data[idx] = ((height / h_thick) *
+                             np.sqrt(h_thick**2 - y_diff[idx]**2))
             elif profile == "linear":
-                data[idx] = scale * (h_thick - np.abs(y_diff[idx]))
+                data[idx] = ((height / h_thick) *
+                             (h_thick - np.abs(y_diff[idx])))
     return data
 
 
-def dots_texture(shape, profile, diameter, scale, locations):
+def dots_texture(shape, profile, diameter, height, locations):
     """
     Create a texture consisting of dots at the given locations.
 
@@ -190,18 +191,18 @@ def dots_texture(shape, profile, diameter, scale, locations):
     profile : {'linear', 'spherical'}
         The dot profile. ``'linear'`` produces a cone-shaped dot
         profile.  ``'spherical'`` produces a hemispherical or half
-        ellipsoid dot profile.  See ``scale`` for more details.
+        ellipsoid dot profile.  See ``height`` for more details.
 
     diameter : int
         The diameter of the dot.
 
-    scale : float
-        The scale factor applied to the dot.  If ``scale`` is 1, then
-        the dot height is half the ``diameter``.
+    height : float
+        The maximum height (data value) of the dot.
 
-        For a ``'spherical'`` profile, ``scale=1`` produces a
-        hemispherical dot.  If ``scale`` is not 1, then the dot profile
-        is a half ellipsoid (circular base with a stretched height).
+        For a ``'spherical'`` profile, set ``height`` equal to half the
+        ``diameter`` to produce a hemispherical dot, otherwise the dot
+        profile is a half ellipsoid (circular base with a stretched
+        height).
 
     locations : `~numpy.ndarray`
         A ``Nx2`` `~numpy.ndarray` where each row contains the ``x`` and
@@ -227,9 +228,9 @@ def dots_texture(shape, profile, diameter, scale, locations):
     idx = np.where(r < radius)
 
     if profile == 'spherical':
-        dot[idx] = scale * np.sqrt(radius**2 - r[idx]**2)
+        dot[idx] = (height / radius) * np.sqrt(radius**2 - r[idx]**2)
     elif profile == 'linear':
-        dot[idx] = scale * np.abs(radius - r[idx])
+        dot[idx] = (height / radius) * np.abs(radius - r[idx])
     else:
         raise ValueError('profile must be "spherical" or "linear"')
 
@@ -388,7 +389,7 @@ def add_clusters(input_cluster1, cluster2):
 
 
 def lines_texture_map(mask, profile='spherical', thickness=10,
-                      spacing=20, scale=1.2, orientation=0.):
+                      spacing=20, height=6.0, orientation=0.):
     """
     Create a lines texture map by applying the texture to the regions
     defined by the input ``mask``.
@@ -402,7 +403,7 @@ def lines_texture_map(mask, profile='spherical', thickness=10,
     profile : {'spherical', 'linear'}
         The line profile. ``'linear'`` produces a "^"-shaped line
         profile.  ``'spherical'`` produces a rounded cylindrical or
-        elliptical profile (see ``scale`` for details).
+        elliptical profile (see ``height`` for details).
 
     thickness : int
         Thickness of the line over the entire profile.
@@ -410,13 +411,12 @@ def lines_texture_map(mask, profile='spherical', thickness=10,
     spacing : int
         Perpendicular spacing between adjacent line centers.
 
-    scale : float
-        The scale factor applied to the line.  If ``scale`` is 1, then
-        the line height is half the ``thickness``.
+    height : float
+        The maximum height (data value) of the line.
 
-        For a ``'spherical'`` profile, ``scale=1`` produces a
-        hemispherical profile perpendicular to the line.  If ``scale``
-        is not 1, then the profile is elliptical.
+        For a ``'spherical'`` profile, set ``height`` equal to half the
+        ``thickness`` to produce a hemispherical profile perpendicular
+        to the line, otherwise the profile is elliptical.
 
     orientation : float, optional
         The counterclockwise rotation angle in degrees.  The default
@@ -434,18 +434,18 @@ def lines_texture_map(mask, profile='spherical', thickness=10,
 
     >>> dust_tx = lines_texture_map(
     ...     dust_mask, profile='linear', thickness=15, spacing=25,
-    ...     scale=0.7, orientation=0)
+    ...     height=5.25, orientation=0)
     """
 
-    texture = lines_texture(mask.shape, profile, thickness, scale,
+    texture = lines_texture(mask.shape, profile, thickness, height,
                             orientation)
     data = np.zeros_like(mask, dtype=np.float)
     data[mask] = texture[mask]
     return data
 
 
-def dots_texture_map(mask, profile='spherical', diameter=5, scale=3.2,
-                     grid_func=hexagonal_grid, grid_spacing=7):
+def dots_texture_map(mask, profile='spherical', diameter=5,
+                     height=8., grid_func=hexagonal_grid, grid_spacing=7):
     """
     Create a dots texture map by applying the texture to the regions
     defined by the input ``mask``.
@@ -459,18 +459,18 @@ def dots_texture_map(mask, profile='spherical', diameter=5, scale=3.2,
     profile : {'spherical', 'linear'}
         The dot profile. ``'linear'`` produces a cone-shaped dot
         profile.  ``'spherical'`` produces a hemispherical or half
-        ellipsoid dot profile (see ``scale`` for details).
+        ellipsoid dot profile (see ``height`` for details).
 
     diameter : int
         The dot diameter.
 
-    scale : float
-        The scale factor applied to the dot.  If ``scale`` is 1, then
-        the dot height is half the ``diameter``.
+    height : float
+        The maximum height (data value) of the dot.
 
-        For a ``'spherical'`` profile, ``scale=1`` produces a
-        hemispherical dot.  If ``scale`` is not 1, then the dot profile
-        is a half ellipsoid (circular base with a stretched height).
+        For a ``'spherical'`` profile, set ``height`` equal to half the
+        ``diameter`` to produce a hemispherical dot, otherwise the dot
+        profile is a half ellipsoid (circular base with a stretched
+        height).
 
     grid_func : callable
         The function used to generate the ``(x, y)`` positions of the
@@ -490,23 +490,23 @@ def dots_texture_map(mask, profile='spherical', diameter=5, scale=3.2,
     Texture for NGC 602 dust region:
 
     >>> gas_tx = dots_texture_map(
-    ...     gas_mask, profile='linear', diameter=7, scale=1.0,
+    ...     gas_mask, profile='linear', diameter=7, height=3.5,
     ...     grid_func=hexagonal_grid, grid_spacing=7)
 
     Texture for NGC 602 dust and gas combined region:
 
     >>> dustgas_tx = dots_texture_map(
-    ...     dustgas_mask, profile='linear', diameter=7, scale=3.0,
+    ...     dustgas_mask, profile='linear', diameter=7, height=10.5,
     ...     grid_func=hexagonal_grid, grid_spacing=10)
 
     Alternate texture for NGC 602 gas region:
 
     >>> dust_tx = dots_texture_map(
-    ...     dust_mask, profile='linear', diameter=7, scale=3.0,
+    ...     dust_mask, profile='linear', diameter=7, height=10.5,
     ...     grid_func=hexagonal_grid, grid_spacing=20)
     """
 
-    texture = dots_texture(mask.shape, profile, diameter, scale,
+    texture = dots_texture(mask.shape, profile, diameter, height,
                            grid_func(mask.shape, grid_spacing))
     data = np.zeros_like(mask, dtype=np.float)
     data[mask] = texture[mask]
@@ -553,22 +553,22 @@ def textures_to_jpeg():
 # Pre-defined textures (by Perry Greenfield for NGC 602)
 # This is for XSIZE=1100 YSIZE=1344
 # DOTS = partial(
-#    dots_texture_map, profile='linear', diameter=7, scale=3.0,
+#    dots_texture_map, profile='linear', diameter=7, height=10.5,
 #    grid_func=hexagonal_grid, grid_spacing=10)
 # SMALL_DOTS = partial(
-#    dots_texture_map, profile='linear', diameter=7, scale=1.0,
+#    dots_texture_map, profile='linear', diameter=7, height=3.5,
 #    grid_func=hexagonal_grid, grid_spacing=7)
 # LINES = partial(lines_texture_map, profile='linear', thickness=15,
-#                spacing=25, scale=0.7, orientation=0)
+#                spacing=25, height=5.25, orientation=0)
 
 # Pre-defined textures (by Roshan Rao for NGC 3344 and NGC 1566)
 # This is for roughly XSIZE=1000 YSIZE=1000
 DOTS = partial(
-    dots_texture_map, profile='linear', diameter=5, scale=3.2,
+    dots_texture_map, profile='linear', diameter=5, height=8.0,
     grid_func=hexagonal_grid, grid_spacing=7)
 SMALL_DOTS = partial(
-    dots_texture_map, profile='linear', diameter=5, scale=1.8,
+    dots_texture_map, profile='linear', diameter=5, height=4.5,
     grid_func=hexagonal_grid, grid_spacing=4.5)
 LINES = partial(lines_texture_map, profile='linear', thickness=13, spacing=20,
-                scale=1.2, orientation=0)
+                height=7.8, orientation=0)
 NO_TEXTURE = lambda mask: np.zeros_like(mask)
