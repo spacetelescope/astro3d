@@ -219,11 +219,13 @@ def dots_texture(shape, profile, diameter, height, locations):
     >>> dots('linear', shape, 7, 3, locations=hex_grid(shape, 10))
     """
 
-    dot_size = diameter + 1
-    dot_shape = (dot_size, dot_size)
+    if int(diameter) != diameter:
+        raise ValueError('diameter must be an integer')
+
+    dot_shape = (diameter, diameter)
     dot = np.zeros(dot_shape)
     y, x = np.indices(dot_shape)
-    radius = diameter / 2
+    radius = (diameter - 1) / 2
     r = np.sqrt((x - radius)**2 + (y - radius)**2)
     idx = np.where(r < radius)
 
