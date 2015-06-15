@@ -106,7 +106,7 @@ def random_points(shape, spacing):
     return np.transpose(np.vstack([x, y]))
 
 
-def lines_texture(shape, profile, thickness, spacing, height, orientation=0.):
+def lines_texture(shape, profile, thickness, height, spacing, orientation=0.):
     """
     Create a texture consisting of regularly-spaced set of lines.
 
@@ -123,15 +123,15 @@ def lines_texture(shape, profile, thickness, spacing, height, orientation=0.):
     thickness : int
         Thickness of the line over the entire profile.
 
-    spacing : int
-        Perpendicular spacing between adjacent line centers.
-
     height : float
         The maximum height (data value) of the line.
 
         For a ``'spherical'`` profile, set ``height`` equal to half the
         ``thickness`` to produce a hemispherical profile perpendicular
         to the line, otherwise the profile is elliptical.
+
+    spacing : int
+        Perpendicular spacing between adjacent line centers.
 
     orientation : float, optional
         The counterclockwise rotation angle in degrees.  The default
@@ -161,7 +161,7 @@ def lines_texture(shape, profile, thickness, spacing, height, orientation=0.):
 
     # loop over all offsets
     data = np.zeros(shape)
-    h_thick = thickness / 2.
+    h_thick = (thickness - 1) / 2.
     for offset in offsets:
         y_diff = y - offset
         idx = np.where((y_diff > -h_thick) & (y_diff < h_thick))
@@ -216,7 +216,8 @@ def dots_texture(shape, profile, diameter, height, locations):
     Examples
     --------
     >>> shape = (1000, 1000)
-    >>> dots('linear', shape, 7, 3, locations=hex_grid(shape, 10))
+    >>> dots_texture(shape, 'linear', 7, 3,
+    ...              locations=hexagonal_grid(shape, 10))
     """
 
     if int(diameter) != diameter:
@@ -391,7 +392,7 @@ def add_clusters(input_cluster1, cluster2):
 
 
 def lines_texture_map(mask, profile='spherical', thickness=10,
-                      spacing=20, height=6.0, orientation=0.):
+                      height=6.0, spacing=20, orientation=0.):
     """
     Create a lines texture map by applying the texture to the regions
     defined by the input ``mask``.
@@ -410,15 +411,15 @@ def lines_texture_map(mask, profile='spherical', thickness=10,
     thickness : int
         Thickness of the line over the entire profile.
 
-    spacing : int
-        Perpendicular spacing between adjacent line centers.
-
     height : float
         The maximum height (data value) of the line.
 
         For a ``'spherical'`` profile, set ``height`` equal to half the
         ``thickness`` to produce a hemispherical profile perpendicular
         to the line, otherwise the profile is elliptical.
+
+    spacing : int
+        Perpendicular spacing between adjacent line centers.
 
     orientation : float, optional
         The counterclockwise rotation angle in degrees.  The default
@@ -435,11 +436,11 @@ def lines_texture_map(mask, profile='spherical', thickness=10,
     Texture for NGC 602 dust region:
 
     >>> dust_tx = lines_texture_map(
-    ...     dust_mask, profile='linear', thickness=15, spacing=25,
-    ...     height=5.25, orientation=0)
+    ...     dust_mask, profile='linear', thickness=15, height=5.25,
+    ...     spacing=25, orientation=0)
     """
 
-    texture = lines_texture(mask.shape, profile, thickness, height,
+    texture = lines_texture(mask.shape, profile, thickness, height, spacing,
                             orientation)
     data = np.zeros_like(mask, dtype=np.float)
     data[mask] = texture[mask]
@@ -528,7 +529,7 @@ def textures_to_jpeg():
         for profile in ['spherical', 'linear']:
             log.info('\t{0}'.format(profile))
 
-            lim = lines_texture(shape, profile, sz, sp, 1., orientation=0.)
+            lim = lines_texture(shape, profile, sz, 1., sp, orientation=0.)
             fn = ('lines_{0}_thickness{1}_spacing{2}'
                   '.jpg'.format(profile, sz, sp))
             save(lim, fn)
@@ -561,7 +562,7 @@ def textures_to_jpeg():
 #    dots_texture_map, profile='linear', diameter=7, height=3.5,
 #    grid_func=hexagonal_grid, grid_spacing=7)
 # LINES = partial(lines_texture_map, profile='linear', thickness=15,
-#                spacing=25, height=5.25, orientation=0)
+#                 height=5.25, spacing=25, orientation=0)
 
 # Pre-defined textures (by Roshan Rao for NGC 3344 and NGC 1566)
 # This is for roughly XSIZE=1000 YSIZE=1000
@@ -571,6 +572,6 @@ DOTS = partial(
 SMALL_DOTS = partial(
     dots_texture_map, profile='linear', diameter=5, height=4.5,
     grid_func=hexagonal_grid, grid_spacing=4.5)
-LINES = partial(lines_texture_map, profile='linear', thickness=13, spacing=20,
-                height=7.8, orientation=0)
+LINES = partial(lines_texture_map, profile='linear', thickness=13,
+                height=7.8, spacing=20, orientation=0)
 NO_TEXTURE = lambda mask: np.zeros_like(mask)
