@@ -251,7 +251,32 @@ def dots_texture(shape, profile, diameter, height, locations):
     return data
 
 
-def star_texture(radius, height):
+def add_textures(texture1, texture2):
+    """
+    Add two textures such that the pixels are not summmed, but are
+    assigned the greater value of the two textures.
+
+    Parameters
+    ----------
+    texture1 : `~numpy.ndarray`
+        Data array of the first texture map.
+
+    texture2 : `~numpy.ndarray`
+        Data array of the second texture map.
+
+    Returns
+    -------
+    data : `~numpy.ndarray`
+        Data array of the co-added texture map.
+    """
+
+    data = np.copy(texture1)
+    mask = (texture2 > texture1)
+    data[mask] = texture2[mask]
+    return data
+
+
+def star_texture(radius, height, shape=None, position=None):
     """
     Create a texture representing a single star.
 
@@ -272,13 +297,60 @@ def star_texture(radius, height):
         An image containing the star texture.
     """
 
-    x = np.arange(2.*radius + 1) - radius
-    xx, yy = np.meshgrid(x, x)
-    r = np.sqrt(xx**2, + yy**2)
+    if shape is None:
+        sz = 2.*radius + 1
+        shape = (sz, sz)
+
+    if position is None:
+        position = (radius, radius)
+
+    x = np.arange(shape[1]) - position[1]
+    y = np.arange(shape[0]) - position[0]
+    xx, yy = np.meshgrid(x, y)
+    r = np.sqrt(xx**2 + yy**2)
+
+    #x = np.arange(2.*radius + 1) - radius
+    #xx, yy = np.meshgrid(x, x)
+    #r = np.sqrt(xx**2 + yy**2)
     data = height * (r / radius)**2
     data[r > radius] = 0
-    # data[r > radius] = -1     # currently used version
+    #data[r > radius] = -1     # currently used version
     return data
+
+
+def st_cluster_texture(radius, height, shape=None, position=None):
+    """
+    Star Cluster texture.
+    """
+
+    if shape is None:
+        #nx = 2. * (2.*radius + 1)
+        #ny = (np.sqrt(3) * radius) + (2.*radius + 1)
+        nx = 2. * (2.*radius)
+        ny = (2.*radius) + (radius*np.sqrt(3))
+        shape = (ny, nx)
+
+    if position is None:
+        #yc, xc = shape[0] / 2., shape[1] / 2.
+        # use this in case when shape is calculated
+        yc = radius * (1. + 1./np.sqrt(3.))
+        xc = shape[1] / 2.
+        position = (yc, xc)
+
+        #position1 = (radius, radius)
+        #position2 = (radius, 3*radius + 1)
+        #position3 = (radius * (np.sqrt(3) + 1) + 1, 2*radius + 0.5)
+    h1 = radius / np.sqrt(3.)
+    h2 = 2. * radius / np.sqrt(3.)
+
+    position1 = (position[0] - h1, position[1] - radius)
+    position2 = (position[0] - h1, position[1] + radius)
+    position3 = (position[0] + h2, position[1])
+
+    s1 = star_texture(radius, height, shape=shape, position=position1)
+    s2 = star_texture(radius, height, shape=shape, position=position2)
+    s3 = star_texture(radius, height, shape=shape, position=position3)
+    return add_textures(add_textures(s1, s2), s3)
 
 
 def make_star_cluster(image, peak, max_intensity, r_fac_add=15, r_fac_mul=5,
