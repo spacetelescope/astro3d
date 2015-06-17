@@ -10,6 +10,7 @@ from functools import partial
 import warnings
 import numpy as np
 from astropy import log
+from astropy.modeling import Parameter, Fittable2DModel
 from astropy.utils.exceptions import AstropyUserWarning
 from scipy import ndimage
 from . import imutils
@@ -251,6 +252,87 @@ def dots_texture(shape, profile, diameter, height, locations):
     return data
 
 
+class StarTexture(Fittable2DModel):
+    """
+    A 2D star texture model.
+
+    The texture is a parabolic "bowl" of specified maximum ``amplitude``
+    and a circular base of given ``radius`` (pictorially, the cross
+    section looks like "_|U|_").
+
+    Parameters
+    ----------
+    amplitude : float
+        The maximum amplitude of the star texture.
+
+    x_0 : float
+        x position of the center of the star texture.
+
+    y_0 : float
+        y position of the center of the star texture.
+
+    radius : float
+        The circular radius of the star texture.
+    """
+
+    amplitude = Parameter()
+    x_0 = Parameter()
+    y_0 = Parameter()
+    radius = Parameter()
+
+    @staticmethod
+    def evaluate(x, y, amplitude, x_0, y_0, radius):
+        """Star model function."""
+        xx = x - x_0
+        yy = y - y_0
+        r = np.sqrt(xx**2 + yy**2)
+        star = amplitude * (r / radius)**2
+        star[r > radius] = 0.
+        return star
+
+
+class StarClusterTexture(Fittable2DModel):
+    """
+    A 2D star cluster texture model.
+
+    The texture is comprised of three touching star textures
+    (`StarTexture`) arranged in an equilateral triangle pattern.  Each
+    individual star texture has the same amplitude and radius.
+
+    Parameters
+    ----------
+    amplitude : float
+        The maximum amplitude of the star texture.
+
+    x_0 : float
+        x position of the center of the star cluster.
+
+    y_0 : float
+        y position of the center of the star cluster.
+
+    radius : float
+        The circular radius of the star texture.
+    """
+
+    amplitude = Parameter()
+    x_0 = Parameter()
+    y_0 = Parameter()
+    radius = Parameter()
+
+    @staticmethod
+    def evaluate(x, y, amplitude, x_0, y_0, radius):
+        """Star cluster model function."""
+        h1 = radius / np.sqrt(3.)
+        h2 = 2. * radius / np.sqrt(3.)
+        y1, x1 = (y_0 - h1, x_0 - radius)
+        y2, x2 = (y_0 - h1, x_0 + radius)
+        y3, x3 = (y_0 + h2, x_0)
+        star1 = StarTexture(amplitude, x1, y1, radius)(x, y)
+        star2 = StarTexture(amplitude, x2, y2, radius)(x, y)
+        star3 = StarTexture(amplitude, x3, y3, radius)(x, y)
+        return add_textures(add_textures(star1, star2), star3)
+
+
 def add_textures(texture1, texture2):
     """
     Add two textures such that the pixels are not summmed, but are
@@ -276,81 +358,38 @@ def add_textures(texture1, texture2):
     return data
 
 
-def star_texture(radius, height, shape=None, position=None):
+def add_texture_to_image(image, texture):
+    out_image = np.copy(image)
+    mask = np.where(texture != 0)
+    out_image[mask] += texture[mask]
+    return out_image
+
+
+def add_star_texture(image, amplitude, x_0, y_0, radius):
     """
-    Create a texture representing a single star.
-
-    The texture is a parabolic "bowl" with a circular base of given
-    ``radius`` and given ``height`` (pictorially like "_|U|_").
-
-    Parameters
-    ----------
-    radius : int
-        The circular radius of the texture.
-
-    height : int
-        The height of the texture.
-
-    Returns
-    -------
-    data : `~numpy.ndimage`
-        An image containing the star texture.
+    Add a star texture to an image.
     """
 
-    if shape is None:
-        sz = 2.*radius + 1
-        shape = (sz, sz)
-
-    if position is None:
-        position = (radius, radius)
-
-    x = np.arange(shape[1]) - position[1]
-    y = np.arange(shape[0]) - position[0]
-    xx, yy = np.meshgrid(x, y)
-    r = np.sqrt(xx**2 + yy**2)
-
-    #x = np.arange(2.*radius + 1) - radius
-    #xx, yy = np.meshgrid(x, x)
-    #r = np.sqrt(xx**2 + yy**2)
-    data = height * (r / radius)**2
-    data[r > radius] = 0
-    #data[r > radius] = -1     # currently used version
-    return data
+    out_image = np.copy(image)
+    y, x = np.indices(image)
+    star = StarTexture(amplitude, x_0, y_0, radius)(x, y)
+    mask = np.where(star != 0)
+    out_image[mask] += star[mask]
+    return out_image
 
 
-def st_cluster_texture(radius, height, shape=None, position=None):
+def add_star_cluster_texture(image, amplitude, x_0, y_0, radius):
     """
-    Star Cluster texture.
+    Add a star cluster texture to an image.
     """
 
-    if shape is None:
-        #nx = 2. * (2.*radius + 1)
-        #ny = (np.sqrt(3) * radius) + (2.*radius + 1)
-        nx = 2. * (2.*radius)
-        ny = (2.*radius) + (radius*np.sqrt(3))
-        shape = (ny, nx)
+    out_image = np.copy(image)
+    y, x = np.indices(image)
+    star_cluster = StarClusterTexture(amplitude, x_0, y_0, radius)(x, y)
+    mask = np.where(star_cluster != 0)
+    out_image[mask] += star_cluster[mask]
+    return out_image
 
-    if position is None:
-        #yc, xc = shape[0] / 2., shape[1] / 2.
-        # use this in case when shape is calculated
-        yc = radius * (1. + 1./np.sqrt(3.))
-        xc = shape[1] / 2.
-        position = (yc, xc)
-
-        #position1 = (radius, radius)
-        #position2 = (radius, 3*radius + 1)
-        #position3 = (radius * (np.sqrt(3) + 1) + 1, 2*radius + 0.5)
-    h1 = radius / np.sqrt(3.)
-    h2 = 2. * radius / np.sqrt(3.)
-
-    position1 = (position[0] - h1, position[1] - radius)
-    position2 = (position[0] - h1, position[1] + radius)
-    position3 = (position[0] + h2, position[1])
-
-    s1 = star_texture(radius, height, shape=shape, position=position1)
-    s2 = star_texture(radius, height, shape=shape, position=position2)
-    s3 = star_texture(radius, height, shape=shape, position=position3)
-    return add_textures(add_textures(s1, s2), s3)
 
 
 def make_star_cluster(image, peak, max_intensity, r_fac_add=15, r_fac_mul=5,
