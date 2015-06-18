@@ -1,19 +1,60 @@
 """
-This module defines and adds textures (repeating or random) to an image.
-Spacings, thickness, and diameters are specified in pixels.
+This module defines and adds textures to an image.
 """
 
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
-from copy import deepcopy
+from operator import attrgetter
 from functools import partial
 import warnings
 import numpy as np
 from astropy import log
 from astropy.modeling import Parameter, Fittable2DModel
 from astropy.utils.exceptions import AstropyUserWarning
-from scipy import ndimage
-from . import imutils
+#from scipy import ndimage
+
+
+def combine_textures_max(texture1, texture2):
+    """
+    Combine two texture images.
+
+    The non-zero values of the texture image with the largest maximum
+    replaces the other texture image.
+
+    When combining more than two texture images, one should sort the
+    textures by their maximum values and start the combinations from the
+    lowest maxima.  This is necessary to properly layer the textures on
+    top of each other (where applicable).
+
+    Parameters
+    ----------
+    texture1 : `~numpy.ndarray`
+        Data array of the first texture map.
+
+    texture2 : `~numpy.ndarray`
+        Data array of the second texture map.
+
+    Returns
+    -------
+    data : `~numpy.ndarray`
+        Data array of the combined texture map.
+    """
+
+    if texture2.max() >= texture1.max():
+        # non-zero values of texture2 replace texture1
+        data = np.copy(texture1)
+        mask = (texture2 != 0)
+        if not np.any(mask):
+            # both textures contain only zeros
+            return data
+        else:
+            data[mask] = texture2[mask]
+    else:
+        # non-zero values of texture1 replace texture2
+        data = np.copy(texture2)
+        mask = (texture1 != 0)
+        data[mask] = texture1[mask]
+    return data
 
 
 def square_grid(shape, spacing, offset=0):
@@ -252,256 +293,6 @@ def dots_texture(shape, profile, diameter, height, locations):
     return data
 
 
-class StarTexture(Fittable2DModel):
-    """
-    A 2D star texture model.
-
-    The texture is a parabolic "bowl" of specified maximum ``amplitude``
-    and a circular base of given ``radius`` (pictorially, the cross
-    section looks like "_|U|_").
-
-    Parameters
-    ----------
-    amplitude : float
-        The maximum amplitude of the star texture.
-
-    x_0 : float
-        x position of the center of the star texture.
-
-    y_0 : float
-        y position of the center of the star texture.
-
-    radius : float
-        The circular radius of the star texture.
-    """
-
-    amplitude = Parameter()
-    x_0 = Parameter()
-    y_0 = Parameter()
-    radius = Parameter()
-
-    @staticmethod
-    def evaluate(x, y, amplitude, x_0, y_0, radius):
-        """Star model function."""
-        xx = x - x_0
-        yy = y - y_0
-        r = np.sqrt(xx**2 + yy**2)
-        star = amplitude * (r / radius)**2
-        star[r > radius] = 0.
-        return star
-
-
-class StarClusterTexture(Fittable2DModel):
-    """
-    A 2D star cluster texture model.
-
-    The texture is comprised of three touching star textures
-    (`StarTexture`) arranged in an equilateral triangle pattern.  Each
-    individual star texture has the same amplitude and radius.
-
-    Parameters
-    ----------
-    amplitude : float
-        The maximum amplitude of the star texture.
-
-    x_0 : float
-        x position of the center of the star cluster.
-
-    y_0 : float
-        y position of the center of the star cluster.
-
-    radius : float
-        The circular radius of the star texture.
-    """
-
-    amplitude = Parameter()
-    x_0 = Parameter()
-    y_0 = Parameter()
-    radius = Parameter()
-
-    @staticmethod
-    def evaluate(x, y, amplitude, x_0, y_0, radius):
-        """Star cluster model function."""
-        h1 = radius / np.sqrt(3.)
-        h2 = 2. * radius / np.sqrt(3.)
-        y1, x1 = (y_0 - h1, x_0 - radius)
-        y2, x2 = (y_0 - h1, x_0 + radius)
-        y3, x3 = (y_0 + h2, x_0)
-        star1 = StarTexture(amplitude, x1, y1, radius)(x, y)
-        star2 = StarTexture(amplitude, x2, y2, radius)(x, y)
-        star3 = StarTexture(amplitude, x3, y3, radius)(x, y)
-        return add_textures(add_textures(star1, star2), star3)
-
-
-def add_textures(texture1, texture2):
-    """
-    Add two textures such that the pixels are not summmed, but are
-    assigned the greater value of the two textures.
-
-    Parameters
-    ----------
-    texture1 : `~numpy.ndarray`
-        Data array of the first texture map.
-
-    texture2 : `~numpy.ndarray`
-        Data array of the second texture map.
-
-    Returns
-    -------
-    data : `~numpy.ndarray`
-        Data array of the co-added texture map.
-    """
-
-    data = np.copy(texture1)
-    mask = (texture2 > texture1)
-    data[mask] = texture2[mask]
-    return data
-
-
-def add_texture_to_image(image, texture):
-    out_image = np.copy(image)
-    mask = np.where(texture != 0)
-    out_image[mask] += texture[mask]
-    return out_image
-
-
-def add_star_texture(image, amplitude, x_0, y_0, radius):
-    """
-    Add a star texture to an image.
-    """
-
-    out_image = np.copy(image)
-    y, x = np.indices(image)
-    star = StarTexture(amplitude, x_0, y_0, radius)(x, y)
-    mask = np.where(star != 0)
-    out_image[mask] += star[mask]
-    return out_image
-
-
-def add_star_cluster_texture(image, amplitude, x_0, y_0, radius):
-    """
-    Add a star cluster texture to an image.
-    """
-
-    out_image = np.copy(image)
-    y, x = np.indices(image)
-    star_cluster = StarClusterTexture(amplitude, x_0, y_0, radius)(x, y)
-    mask = np.where(star_cluster != 0)
-    out_image[mask] += star_cluster[mask]
-    return out_image
-
-
-
-def make_star_cluster(image, peak, max_intensity, r_fac_add=15, r_fac_mul=5,
-                      height=5, h_percentile=75, fil_size=10, n_craters=3):
-    """Mark star or star cluster for given position.
-
-    Parameters
-    ----------
-    image : ndarray
-
-    peak : `astropy.table.Table` row
-        One star or star cluster entry.
-
-    max_intensity : float
-        Max intensity for all the stars or star clusters.
-
-    r_fac_add, r_fac_mul : number
-        Scaling factors to be added and multiplied to
-        intensity ratio to determine marker radius.
-
-    height : number
-        Height of the marker for :func:`make_star`.
-
-    h_percentile : float or `None`
-        Percentile between 0 and 100, inclusive, used to
-        re-adjust height of marker.
-        If `None` is given, then no readjustment is done.
-
-    fil_size : int
-        Filter size for :func:`~scipy.ndimage.filters.maximum_filter`.
-
-    n_craters : {1, 3}
-        Star cluster is marked with ``3``. For single star, use ``1``.
-
-    Returns
-    -------
-    array : ndarray
-
-    """
-    array = np.zeros(image.shape)
-
-    x, y, intensity = peak['xcen'], peak['ycen'], peak['flux']
-    radius = r_fac_add + r_fac_mul * intensity / float(max_intensity)
-    # log.info('\tcluster radius = {0}'.format(radius, r_fac_add, r_fac_mul))
-    # star = make_star(radius, height)
-    star = star_texture(radius, height)
-    diam = 2 * radius
-    r = star.shape[0]
-    dr = r / 2
-    star_mask = star != -1
-    imx1 = max(int(x - diam), 0)
-    imx2 = min(int(x + diam), image.shape[1])
-    imy1 = max(int(y - diam), 0)
-    imy2 = min(int(y + diam), image.shape[0])
-
-    if n_craters == 1:
-        centers = [(y, x)]
-    else:  # 3
-        dy = 0.5 * radius * np.sqrt(3)
-        centers = [(y + dy, x), (y - dy, x + radius), (y - dy, x - radius)]
-
-    if h_percentile is None:
-        _max = 0.0
-    else:
-        try:
-            _max = np.percentile(image[imy1:imy2, imx1:imx2], h_percentile)
-        except ValueError as e:
-            warnings.warn('Make star/cluster failed: {0}\n\timage[{1}:{2},'
-                          '{3}:{4}]'.format(e, imy1, imy2, imx1, imx2),
-                          AstropyUserWarning)
-            return array
-
-    for (cy, cx) in centers:
-        xx1, xx2, yy1, yy2, sx1, sx2, sy1, sy2 = imutils.calc_insertion_pos(
-            array, star, int(cx - dr), int(cy - dr))
-        cur_smask = star_mask[sy1:sy2, sx1:sx2]
-        cur_star = star[sy1:sy2, sx1:sx2]
-        array[yy1:yy2, xx1:xx2][cur_smask] = _max + cur_star[cur_smask]
-
-    if h_percentile is not None:
-        filt = ndimage.filters.maximum_filter(array, fil_size)
-        mask = (filt > 0) & (image > filt) & (array == 0)
-        array[mask] = filt[mask]
-
-    return array
-
-
-def add_clusters(input_cluster1, cluster2):
-    """Add two star clusters together.
-
-    Parameters
-    ----------
-    input_cluster1, cluster2 : ndarray
-        See :func:`make_star_cluster`.
-
-    Returns
-    -------
-    cluster1 : ndarray
-
-    """
-    cluster1 = deepcopy(input_cluster1)
-    mask = cluster2 != 0
-
-    if cluster1[mask].min() < cluster2[mask].min():
-        m = mask
-    else:
-        m = cluster1 == 0
-
-    cluster1[m] = cluster2[m]
-    return cluster1
-
-
 def lines_texture_map(mask, profile='spherical', thickness=10,
                       height=6.0, spacing=20, orientation=0.):
     """
@@ -624,6 +415,242 @@ def dots_texture_map(mask, profile='spherical', diameter=5,
                            grid_func(mask.shape, grid_spacing))
     data = np.zeros_like(mask, dtype=np.float)
     data[mask] = texture[mask]
+    return data
+
+
+class StarTexture(Fittable2DModel):
+    """
+    A 2D star texture model.
+
+    The texture is a parabolic "bowl" of specified maximum
+    ``amplitude``, bowl ``depth``, and a circular base of given
+    ``radius``
+
+    Parameters
+    ----------
+    x_0 : float
+        x position of the center of the star texture.
+
+    y_0 : float
+        y position of the center of the star texture.
+
+    amplitude : float
+        The maximum amplitude of the star texture.
+
+    depth : float
+        The maximum depth of the crater-like bowl of the star texture.
+
+    radius : float
+        The circular radius of the star texture.
+    """
+
+    x_0 = Parameter()
+    y_0 = Parameter()
+    amplitude = Parameter()
+    depth = Parameter()
+    radius = Parameter()
+
+    @staticmethod
+    def evaluate(x, y, x_0, y_0, amplitude, depth, radius):
+        """Star model function."""
+        xx = x - x_0
+        yy = y - y_0
+        r = np.sqrt(xx**2 + yy**2)
+        star = depth * (r / radius)**2 + amplitude
+        star[r > radius] = 0.
+        return star
+
+
+class StarClusterTexture(Fittable2DModel):
+    """
+    A 2D star cluster texture model.
+
+    The texture is comprised of three touching star textures
+    (`StarTexture`) arranged in an equilateral triangle pattern.  Each
+    individual star texture has the same ``amplitude``, ``depth``, and
+    ``radius``.
+
+    Parameters
+    ----------
+    x_0 : float
+        x position of the center of the star cluster.
+
+    y_0 : float
+        y position of the center of the star cluster.
+
+    amplitude : float
+        The maximum amplitude of the star texture.
+
+    depth : float
+        The maximum depth of the crater-like bowl of the star texture.
+
+    radius : float
+        The circular radius of the star texture.
+    """
+
+    x_0 = Parameter()
+    y_0 = Parameter()
+    amplitude = Parameter()
+    depth = Parameter()
+    radius = Parameter()
+
+    @staticmethod
+    def evaluate(x, y, x_0, y_0, amplitude, depth, radius):
+        """Star cluster model function."""
+        h1 = radius / np.sqrt(3.)
+        h2 = 2. * radius / np.sqrt(3.)
+        y1, x1 = (y_0 - h1, x_0 - radius)
+        y2, x2 = (y_0 - h1, x_0 + radius)
+        y3, x3 = (y_0 + h2, x_0)
+        star1 = StarTexture(x1, y1, amplitude, depth, radius)(x, y)
+        star2 = StarTexture(x2, y2, amplitude, depth, radius)(x, y)
+        star3 = StarTexture(x3, y3, amplitude, depth, radius)(x, y)
+        return np.maximum(np.maximum(star1, star2), star3)
+
+
+def starlike_models(image, model_type, sources, depth=5, radius_a=10,
+                    radius_b=5, base_percentile=75):
+    """
+    Create the star-like (star or star cluster) texture models.
+
+    Given the position and amplitude of each source (``sources``),
+    a list of texture models is generated.  The radius of the
+    star (used in both `StarTexture` and `StarCluster` textures) for
+    each source is linearly scaled by the source flux as:
+
+        .. math:: radius = radius_a + (radius_b * flux / max_flux)
+
+    where ``max_flux`` is the maximum ``flux`` value of all the models.
+
+    Parameters
+    ----------
+    image : `~numpy.ndarray`
+        The image where the textures will be applied.
+
+    model_type : {'star', 'star_cluster'}
+        The type of the star-like texture.
+
+    sources : `~astropy.table.Table`
+        A table defining the stars or star clusters.  The table must contain
+        ``'x_center'``, ``'y_center'``, and ``'flux'`` columns.
+
+    depth : float
+        The maximum depth of the crater-like bowl of the star texture.
+
+    radius_a : float
+        The intercept term in calculating the star radius (see above).
+
+    radius_b : float
+        The slope term in calculating the star radius (see above).
+
+    base_percentile : float in the range of [0, 100]
+        The percentile of the image data values within the source
+        texture, which is used to calculate the base amplitude of the
+        texture.
+
+    Returns
+    -------
+    result : list
+        A list of `StarTexture` or `StarClusterTexture` model objects.
+    """
+
+    if model_type == 'star':
+        Texture = StarTexture
+    elif model_type == 'star_cluster':
+        Texture = StarClusterTexture
+    else:
+        raise ValueError('model_type must be "star" or "star_cluster"')
+
+    models = []
+    y, x = np.indices(image.shape)
+
+    # NOTE:  probably should exclude any bad sources (e.g. bad position)
+    #        before finding the maximum amplitude - but expensive, so skip
+    #        for now
+    max_flux = float(np.max(sources['flux']))
+
+    for source in sources:
+        radius = radius_a + (radius_b * source['flux'] / max_flux)
+        model = Texture(source['x_center'], source['y_center'],
+                        1.0, depth, radius)
+        texture = model(x, y)
+        mask = (texture != 0)
+        if not np.any(mask):
+            # texture contains only zeros (e.g. bad position), so skip model
+            warnings.warn('source texture at (x, y) = ({0}, {1}) does not '
+                          'overlap with the image'.format(source['x_center'],
+                                                          source['y_center']),
+                          AstropyUserWarning)
+            continue
+
+        if base_percentile is None:
+            amplitude = 0.
+        else:
+            amplitude = np.percentile(image[mask], base_percentile)
+        models.append(Texture(source['x_center'],
+                              source['y_center'], amplitude, depth,
+                              radius))
+
+    #if h_percentile is not None:
+    #    filt = ndimage.filters.maximum_filter(array, fil_size)
+    #    mask = (filt > 0) & (image > filt) & (array == 0)
+    #    array[mask] = filt[mask]
+
+    return models
+
+
+def sort_starlike_models(texture_models):
+    """
+    Sort star-like texture models by their ``amplitude`` parameter.
+
+    Parameters
+    ----------
+    texture_models : list of `StarTexture` and/or `StarClusterTexture`
+        A list of star-like texture models including stars
+        (`StarTexture`) and/or star clusters (`StarClusterTexture`).
+        Each model must contain an ``amplitude`` parameter.
+
+    Returns
+    -------
+    result : list of `StarTexture` and/or `StarClusterTexture`
+        A list of `StarTexture` and/or `StarClusterTexture` sorted by
+        the ``amplitude`` parameter in increasing order.
+    """
+
+    return sorted(texture_models, key=attrgetter('amplitude'))
+
+
+def starlike_texture_map(shape, texture_models):
+    """
+    Create a star and/or star cluster texture map by combining all the
+    individual texture models.
+
+    Parameters
+    ----------
+    shape : tuple
+        The shape of the output image.
+
+    texture_models : list of `StarTexture` and/or `StarClusterTexture`
+        A list of star-like texture models including stars
+        (`StarTexture`) and/or star clusters (`StarClusterTexture`).
+
+    Returns
+    -------
+    data : `~numpy.ndarray`
+        An image with the specified ``shape`` containing the star and/or
+        star cluster texture map.
+
+    Notes
+    -----
+    The texture models will be sorted by their ``amplitude``s (maximum
+    value) in increasing order and then added to the output texture map
+    starting with the smallest ``amplitude``.
+    """
+
+    data = np.zeros(shape)
+    y, x = np.indices(shape)
+    for texture_model in sort_starlike_models(texture_models):
+        data = combine_textures_max(data, texture_model(x, y))
     return data
 
 
