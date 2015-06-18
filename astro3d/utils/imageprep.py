@@ -1294,31 +1294,6 @@ def make_star_cluster(image, peak, max_intensity, r_fac_add=15, r_fac_mul=5,
     return array
 
 
-def add_clusters(input_cluster1, cluster2):
-    """Add two star clusters together.
-
-    Parameters
-    ----------
-    input_cluster1, cluster2 : ndarray
-        See :func:`make_star_cluster`.
-
-    Returns
-    -------
-    cluster1 : ndarray
-
-    """
-    cluster1 = deepcopy(input_cluster1)
-    mask = cluster2 != 0
-
-    if cluster1[mask].min() < cluster2[mask].min():
-        m = mask
-    else:
-        m = cluster1 == 0
-
-    cluster1[m] = cluster2[m]
-    return cluster1
-
-
 def make_base(image, dist=60, height=10, snapoff=True):
     """Used to create a stronger base for printing.
     Prevents model from shaking back and forth due to printer vibration.
