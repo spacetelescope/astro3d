@@ -19,12 +19,15 @@ def combine_textures_max(texture1, texture2):
     Combine two texture images.
 
     The non-zero values of the texture image with the largest maximum
-    replaces the other texture image.
+    replace the values in the other texture image.
 
-    When combining more than two texture images, one should sort the
-    textures by their maximum values and start the combinations from the
-    lowest maxima.  This is necessary to properly layer the textures on
-    top of each other (where applicable).
+    When sequentially using this function to combine more than two
+    texture images, one should sort the textures by their maximum values
+    and start combining from the lowest maxima.  This is necessary to
+    properly layer the textures on top of each other (where applicable).
+
+    If both ``texture1`` and ``texture2`` contain only zeros, then
+    ``texture1`` is returned (i.e. array of zeros).
 
     Parameters
     ----------
@@ -68,8 +71,8 @@ def square_grid(shape, spacing, offset=0):
         The shape of the image over which to create the grid.
 
     spacing : float
-        The spacing in pixels between the centers of adjancent squares.
-        This is also the square size.
+        The spacing in pixels between the centers of adjacent squares.
+        Obviously, this is also the square size.
 
     offset : float, optional
         An optional offset to apply in both the ``x`` and ``y``
@@ -150,7 +153,7 @@ def random_points(shape, spacing):
 
 def lines_texture(shape, profile, thickness, height, spacing, orientation=0.):
     """
-    Create a texture consisting of regularly-spaced set of lines.
+    Create a texture image consisting of regularly-spaced set of lines.
 
     Parameters
     ----------
@@ -163,26 +166,28 @@ def lines_texture(shape, profile, thickness, height, spacing, orientation=0.):
         elliptical profile.  See ``height`` for more details.
 
     thickness : int
-        Thickness of the line over the entire profile.
+        Thickness of the line over the entire profile (i.e full width at
+        zero intensity).
 
     height : float
         The maximum height (data value) of the line.
 
         For a ``'spherical'`` profile, set ``height`` equal to half the
-        ``thickness`` to produce a hemispherical profile perpendicular
-        to the line, otherwise the profile is elliptical.
+        ``thickness`` to produce a hemispherical line profile, otherwise
+        the profile is elliptical.
 
     spacing : int
         Perpendicular spacing between adjacent line centers.
 
     orientation : float, optional
         The counterclockwise rotation angle in degrees.  The default
-        ``orientation`` of 0 degrees corresponds to horizontal lines.
+        ``orientation`` of 0 degrees corresponds to horizontal lines
+        in the output image.
 
     Returns
     -------
     data : `~numpy.ndarray`
-        An image containing the line texture.
+        An image containing the line textures.
     """
 
     # start in center of the image and then offset lines both ways
@@ -219,11 +224,11 @@ def lines_texture(shape, profile, thickness, height, spacing, orientation=0.):
 
 def dots_texture(shape, profile, diameter, height, locations):
     """
-    Create a texture consisting of dots at the given locations.
+    Create a texture image consisting of dots at the given locations.
 
-    If any dots overlap (e.g. the location separations are smaller than
-    the dot size), then the greater value of the two is taken, not the
-    sum.
+    If any dots overlap (e.g. the ``locations`` separations are smaller
+    than the dot size), then the greater data value of the two is taken,
+    not the sum.
 
     Parameters
     ----------
@@ -232,8 +237,8 @@ def dots_texture(shape, profile, diameter, height, locations):
 
     profile : {'linear', 'spherical'}
         The dot profile. ``'linear'`` produces a cone-shaped dot
-        profile.  ``'spherical'`` produces a hemispherical or half
-        ellipsoid dot profile.  See ``height`` for more details.
+        profile.  ``'spherical'`` produces a hemispherical or
+        half-ellipsoid dot profile.  See ``height`` for more details.
 
     diameter : int
         The diameter of the dot.
@@ -317,15 +322,16 @@ def lines_texture_map(mask, profile='spherical', thickness=10,
         The maximum height (data value) of the line.
 
         For a ``'spherical'`` profile, set ``height`` equal to half the
-        ``thickness`` to produce a hemispherical profile perpendicular
-        to the line, otherwise the profile is elliptical.
+        ``thickness`` to produce a hemispherical line profile, otherwise
+        the profile is elliptical.
 
     spacing : int
         Perpendicular spacing between adjacent line centers.
 
     orientation : float, optional
         The counterclockwise rotation angle in degrees.  The default
-        ``orientation`` of 0 degrees corresponds to horizontal lines.
+        ``orientation`` of 0 degrees corresponds to horizontal lines
+        in the output image.
 
     Returns
     -------
@@ -363,8 +369,8 @@ def dots_texture_map(mask, profile='spherical', diameter=5,
 
     profile : {'spherical', 'linear'}
         The dot profile. ``'linear'`` produces a cone-shaped dot
-        profile.  ``'spherical'`` produces a hemispherical or half
-        ellipsoid dot profile (see ``height`` for details).
+        profile.  ``'spherical'`` produces a hemispherical or
+        half-ellipsoid dot profile (see ``height`` for details).
 
     diameter : int
         The dot diameter.
@@ -422,9 +428,9 @@ class StarTexture(Fittable2DModel):
     """
     A 2D star texture model.
 
-    The texture is a parabolic "bowl" of specified maximum
+    The star texture is a parabolic "bowl" of specified maximum
     ``amplitude``, bowl ``depth``, and a circular base of given
-    ``radius``
+    ``radius``.
 
     Parameters
     ----------
@@ -465,10 +471,10 @@ class StarClusterTexture(Fittable2DModel):
     """
     A 2D star cluster texture model.
 
-    The texture is comprised of three touching star textures
-    (`StarTexture`) arranged in an equilateral triangle pattern.  Each
-    individual star texture has the same ``amplitude``, ``depth``, and
-    ``radius``.
+    The star cluster texture is comprised of three touching star
+    textures (`StarTexture`) arranged in an equilateral triangle
+    pattern.  Each individual star texture has the same ``amplitude``,
+    ``depth``, and ``radius``.
 
     Parameters
     ----------
@@ -508,10 +514,11 @@ class StarClusterTexture(Fittable2DModel):
         return np.maximum(np.maximum(star1, star2), star3)
 
 
-def starlike_models(image, model_type, sources, depth=5, radius_a=10,
-                    radius_b=5, base_percentile=75):
+def make_starlike_models(image, model_type, sources, depth=5, radius_a=10,
+                         radius_b=5, base_percentile=75):
     """
-    Create the star-like (star or star cluster) texture models.
+    Create the star-like (star or star cluster) texture models to be
+    applied to an image.
 
     Given the position and amplitude of each source (``sources``),
     a list of texture models is generated.  The radius of the
@@ -520,7 +527,8 @@ def starlike_models(image, model_type, sources, depth=5, radius_a=10,
 
         .. math:: radius = radius_a + (radius_b * flux / max_flux)
 
-    where ``max_flux`` is the maximum ``flux`` value of all the models.
+    where ``max_flux`` is the maximum ``flux`` value of all the input
+    ``sources``.
 
     Parameters
     ----------
@@ -531,8 +539,8 @@ def starlike_models(image, model_type, sources, depth=5, radius_a=10,
         The type of the star-like texture.
 
     sources : `~astropy.table.Table`
-        A table defining the stars or star clusters.  The table must contain
-        ``'x_center'``, ``'y_center'``, and ``'flux'`` columns.
+        A table defining the stars or star clusters.  The table must
+        contain ``'xcen'``, ``'ycen'``, and ``'flux'`` columns.
 
     depth : float
         The maximum depth of the crater-like bowl of the star texture.
@@ -545,14 +553,23 @@ def starlike_models(image, model_type, sources, depth=5, radius_a=10,
 
     base_percentile : float in the range of [0, 100]
         The percentile of the image data values within the source
-        texture, which is used to calculate the base amplitude of the
+        texture used to define the base amplitude of the applied
         texture.
 
     Returns
     -------
-    result : list
+    models : list
         A list of `StarTexture` or `StarClusterTexture` model objects.
     """
+
+    if len(sources) == 0:
+        return []
+
+    columns = ['xcen', 'ycen', 'flux']
+    for column in columns:
+        if column not in sources.colnames:
+            raise ValueError('sources must contain a {0} '
+                             'column'.format(column))
 
     if model_type == 'star':
         Texture = StarTexture
@@ -571,15 +588,15 @@ def starlike_models(image, model_type, sources, depth=5, radius_a=10,
 
     for source in sources:
         radius = radius_a + (radius_b * source['flux'] / max_flux)
-        model = Texture(source['x_center'], source['y_center'],
+        model = Texture(source['xcen'], source['ycen'],
                         1.0, depth, radius)
         texture = model(x, y)
         mask = (texture != 0)
         if not np.any(mask):
             # texture contains only zeros (e.g. bad position), so skip model
             warnings.warn('source texture at (x, y) = ({0}, {1}) does not '
-                          'overlap with the image'.format(source['x_center'],
-                                                          source['y_center']),
+                          'overlap with the image'.format(source['xcen'],
+                                                          source['ycen']),
                           AstropyUserWarning)
             continue
 
@@ -587,8 +604,8 @@ def starlike_models(image, model_type, sources, depth=5, radius_a=10,
             amplitude = 0.
         else:
             amplitude = np.percentile(image[mask], base_percentile)
-        models.append(Texture(source['x_center'],
-                              source['y_center'], amplitude, depth,
+        models.append(Texture(source['xcen'],
+                              source['ycen'], amplitude, depth,
                               radius))
 
     #if h_percentile is not None:
@@ -599,31 +616,31 @@ def starlike_models(image, model_type, sources, depth=5, radius_a=10,
     return models
 
 
-def sort_starlike_models(texture_models):
+def sort_starlike_models(models):
     """
     Sort star-like texture models by their ``amplitude`` parameter.
 
     Parameters
     ----------
-    texture_models : list of `StarTexture` and/or `StarClusterTexture`
+    models : list of `StarTexture` and/or `StarClusterTexture`
         A list of star-like texture models including stars
         (`StarTexture`) and/or star clusters (`StarClusterTexture`).
         Each model must contain an ``amplitude`` parameter.
 
     Returns
     -------
-    result : list of `StarTexture` and/or `StarClusterTexture`
-        A list of `StarTexture` and/or `StarClusterTexture` sorted by
-        the ``amplitude`` parameter in increasing order.
+    sorted_models : list of `StarTexture` and/or `StarClusterTexture`
+        A list of `StarTexture` and/or `StarClusterTexture` models
+        sorted by the ``amplitude`` parameter in increasing order.
     """
 
-    return sorted(texture_models, key=attrgetter('amplitude'))
+    return sorted(models, key=attrgetter('amplitude'))
 
 
-def starlike_texture_map(shape, texture_models):
+def starlike_texture_map(shape, models):
     """
     Create a star and/or star cluster texture map by combining all the
-    individual texture models.
+    individual star-like texture models.
 
     Parameters
     ----------
@@ -649,8 +666,64 @@ def starlike_texture_map(shape, texture_models):
 
     data = np.zeros(shape)
     y, x = np.indices(shape)
-    for texture_model in sort_starlike_models(texture_models):
-        data = combine_textures_max(data, texture_model(x, y))
+    for model in sort_starlike_models(models):
+        data = combine_textures_max(data, model(x, y))
+    return data
+
+
+def apply_starlike_textures(image, star_sources, cluster_sources, depth=5,
+                            radius_a=10, radius_b=5, base_percentile=75):
+    """
+    Apply star-like textures (stars and star clusters) to an image.
+
+    Parameters
+    ----------
+    image : `~numpy.ndarray`
+        The image where the textures will be applied.
+
+    star_sources : `~astropy.table.Table`
+        A table defining the stars.  The table must contain ``'xcen'``,
+        ``'ycen'``, and ``'flux'`` columns.
+
+    cluster_sources : `~astropy.table.Table`
+        A table defining the star clusters.  The table must contain
+        ``'xcen'``, ``'ycen'``, and ``'flux'`` columns.
+
+    depth : float
+        The maximum depth of the crater-like bowl of the star texture.
+
+    radius_a : float
+        The intercept term in calculating the star radius (see above).
+
+    radius_b : float
+        The slope term in calculating the star radius (see above).
+
+    base_percentile : float in the range of [0, 100]
+        The percentile of the image data values within the source
+        texture used to define the base amplitude of the applied
+        texture.
+
+    Returns
+    -------
+    data : `~numpy.ndarray`
+        The image with the applied star and star cluster textures.
+    """
+
+    star_models = make_starlike_models(image, 'star', star_sources,
+                                       depth=depth, radius_a=radius_a,
+                                       radius_b=radius_b,
+                                       base_percentile=base_percentile)
+    cluster_models = make_starlike_models(image, 'star_cluster',
+                                          cluster_sources, depth=depth,
+                                          radius_a=radius_a,
+                                          radius_b=radius_b,
+                                          base_percentile=base_percentile)
+    starlike_models = star_models + cluster_models
+    starlike_textures = starlike_texture_map(image.shape, starlike_models)
+
+    idx = (starlike_textures != 0)
+    data = np.copy(image)
+    data[idx] = starlike_textures[idx]
     return data
 
 

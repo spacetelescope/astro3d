@@ -22,7 +22,7 @@ import photutils
 # LOCAL
 from . import imutils
 from .meshcreator import to_mesh
-from .texture import DOTS, SMALL_DOTS, LINES
+from .texture import DOTS, SMALL_DOTS, LINES, apply_starlike_textures
 
 
 class Region(object):
@@ -613,8 +613,23 @@ class ModelFor3D(object):
 
         if self.has_texture:
             image = self.add_textures(image, croppedmasks, cusp_mask)
-            image = self.add_stars_clusters(image, clusters, markstars,
-                                            cusp_mask, cusp_texture_flat)
+            #image = self.add_stars_clusters(image, clusters, markstars)
+
+            # apply stars and star clusters
+            if self.has_intensity:
+                base_percentile = 75
+                depth = 5
+            else:
+                base_percentile = None
+                depth = 10
+            image = apply_starlike_textures(
+                image, markstars, clusters, depth=depth,
+                radius_a=self.clus_r_fac_add, radius_b=self.clus_r_fac_mul,
+                base_percentile=base_percentile)
+
+            # For texture-only model, need to add cusp to texture layer
+            if not self.has_intensity and cusp_mask is not None:
+                self._texture_layer[cusp_mask] = cusp_texture_flat[cusp_mask]
 
         if isinstance(image, np.ma.core.MaskedArray):
             image = image.data
@@ -750,7 +765,8 @@ class ModelFor3D(object):
 
             log.info('Adding {0}'.format(layer_key))
             for mask in croppedmasks[layer_key]:
-                cur_texture = texture_func(image, mask)
+                #cur_texture = texture_func(image, mask)
+                cur_texture = texture_func(mask)
                 self._texture_layer[mask] = cur_texture[mask]
                 self._preview_masks[mask] = layer_key
 
@@ -763,9 +779,7 @@ class ModelFor3D(object):
         return image
 
 
-    def add_stars_clusters(self, image, clusters, markstars, cusp_mask,
-                           cusp_texture_flat):
-
+    def OLD_add_stars_clusters(self, image, clusters, markstars):
         # Stars and star clusters
 
         clustexarr = None
@@ -853,10 +867,6 @@ class ModelFor3D(object):
                 image[clustermask] = clustexarr[clustermask]
             else:
                 self._texture_layer[clustermask] = clustexarr[clustermask]
-
-        # For texture-only model, need to add cusp to texture layer
-        if not self.has_intensity and cusp_mask is not None:
-            self._texture_layer[cusp_mask] = cusp_texture_flat[cusp_mask]
 
         return image
 
