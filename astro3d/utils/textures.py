@@ -21,19 +21,20 @@ class TextureMask(object):
     This class defines a texture mask.
     """
 
-    def __init__(self, data, texture_type):
+    def __init__(self, mask, texture_type):
         """
         Parameters
         ----------
-        data : array-like
-            A 2D image defining the texture mask.
+        mask : array-like (bool)
+            A 2D boolean image defining the texture mask.  The texture
+            will be applied where the ``data`` is `True`.
 
         texture_type : str
             The type of texture.
         """
 
         #super(Region, self).__init__()
-        self.data = data
+        self.mask = mask
         self.texture_type = texture_type
         self.description = texture_type
         self.visible = False
@@ -53,11 +54,14 @@ class TextureMask(object):
             The resized texture mask.
         """
 
-        return resize_image(self.data, shape[0], width=shape[1])
+        return resize_image(self.mask, shape[0], width=shape[1])
 
     def save(self, filename, shape=None):
         """
         Save the texture mask to a FITS file.
+
+        Mask `True` and `False` values will be saved as 1 and 0,
+        respectively.
 
         Parameters
         ----------
@@ -71,14 +75,14 @@ class TextureMask(object):
         """
 
         if shape is not None:
-            data = self.resize(shape)
+            mask = self.resize(shape)
         else:
-            data = self.data
+            mask = self.mask
 
         header = fits.Header()
         header['TX_TYPE'] = self.texture_type
         header['DESCRIP'] = self.description
-        hdu = fits.PrimaryHDU(data=data, header=header)
+        hdu = fits.PrimaryHDU(data=mask.astype(np.int32), header=header)
         hdu.writeto(filename)
         log.info('Saved {0} (texture type={1}).'.format(filename,
                                                         self.texture_type))
@@ -91,6 +95,9 @@ class TextureMask(object):
         The FITS file must have a 'TX_TYPE' header keyword defining the
         texture type.  The texture mask must be in the primary
         extension.
+
+        The FITS file should contain 1s and 0s, which will be converted
+        to `True` and `False` values, respectively.
 
         Parameters
         ----------
@@ -110,13 +117,13 @@ class TextureMask(object):
 
         fobj = fits.open(filename)
         header = fobj[0].header
-        data = fobj[0].data
+        mask = fobj[0].data.astype(np.bool)
 
         if shape is not None:
-            data = resize_image(data, shape[0], width=shape[1])
+            mask = resize_image(mask, shape[0], width=shape[1])
 
         texture_type = header['tx_type']
-        texture_mask = cls(data, texture_type)
+        texture_mask = cls(mask, texture_type)
         texture_mask.description = header['descrip']
 
         log.info('Read {0} (texture type={1}).'.format(filename,
