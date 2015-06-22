@@ -729,7 +729,7 @@ def apply_starlike_textures(image, star_sources, cluster_sources, depth=5,
 
 def textures_to_jpeg():
     """Generate some textures and save them to JPEG images."""
-    from .imutils import im2file as save
+    from .image_utils import im2file as save
 
     shape = (200, 200)
     size = [15, 10, 6, 3]        # line thickness or dot diameter

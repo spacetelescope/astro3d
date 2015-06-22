@@ -15,9 +15,9 @@ import numpy as np
 from astropy import log
 
 # LOCAL
-from ..utils.imageprep import combine_masks, make_model
+from ..utils.model3d import combine_masks, make_model
 from ..utils.meshcreator import to_mesh
-from ..utils.imutils import resize_image, split_image
+from ..utils.image_utils import resize_image, split_image
 
 
 class _File(object):
@@ -191,7 +191,7 @@ class _File(object):
         """Generate STL file.
 
         #. Scale regions and their boolean masks.
-        #. Use :func:`~astro3d.utils.imageprep.make_model` to perform
+        #. Use :func:`~astro3d.utils.model3d.make_model` to perform
            transformations on the array and obtains a new array ready
            for STL creator.
         #. Split array into two halves (optional).

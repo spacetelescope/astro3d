@@ -23,9 +23,8 @@ from PyQt4.QtCore import *
 from qimage2ndarray import array2qimage
 
 # Local
-from ..utils import imutils
-from ..utils.imageprep import combine_masks
-from ..utils.imutils import calc_insertion_pos
+from ..utils import image_utils
+from ..utils.model3d import combine_masks
 
 
 def mask2pixmap(mask, alpha, i_layer, size=None):
@@ -103,7 +102,7 @@ class PreviewScene(QGraphicsScene):
 
     def _add_image(self):
         """Scale and display intensity image."""
-        self.pixmap = QPixmap().fromImage(imutils.makeqimage(
+        self.pixmap = QPixmap().fromImage(image_utils.makeqimage(
             self.model3d.preview_intensity, None, self.size))
         self.addItem(QGraphicsPixmapItem(self.pixmap))
 
@@ -681,9 +680,10 @@ class RegionBrushScene(QGraphicsScene):
 
         if self._mask is None:
             self._mask = np.zeros((self._height, self._width), dtype=np.bool)
-            ix1, ix2, iy1, iy2, mx1, mx2, my1, my2 = calc_insertion_pos(
-                self._mask, self.brush, self._oldx - self.radius,
-                self._oldy - self.radius)
+            (ix1, ix2, iy1, iy2,
+             mx1, mx2, my1, my2) = image_utils.calc_insertion_pos(
+                 self._mask, self.brush, self._oldx - self.radius,
+                 self._oldy - self.radius)
             self._mask[iy1:iy2, ix1:ix2] = self.brush[my1:my2, mx1:mx2]
 
         elif self._mask[self._oldy, self._oldx]:
@@ -722,7 +722,7 @@ class RegionBrushScene(QGraphicsScene):
         xmin = min(x, self._oldx)
         ymin = min(y, self._oldy)
 
-        movemask = imutils.in_rectangle(
+        movemask = image_utils.in_rectangle(
             p, (y - ymin, x - xmin), (self._oldy - ymin, self._oldx - xmin),
             self.radius)
         if movemask is None:
@@ -739,9 +739,10 @@ class RegionBrushScene(QGraphicsScene):
         # drawing mask to either extend it (mode="inside"), or erode it
         # (mode="outside").
 
-        ix1, ix2, iy1, iy2, mx1, mx2, my1, my2 = calc_insertion_pos(
-            self._mask, movemask, x + self._BRUSH_BUFFPIX - self.radius,
-            y + self._BRUSH_BUFFPIX - self.radius)
+        (ix1, ix2, iy1, iy2,
+         mx1, mx2, my1, my2) = image_utils.calc_insertion_pos(
+             self._mask, movemask, x + self._BRUSH_BUFFPIX - self.radius,
+             y + self._BRUSH_BUFFPIX - self.radius)
         icommon = self._mask[iy1:iy2, ix1:ix2]
         dmask = movemask[my1:my2, mx1:mx2]
 
@@ -815,7 +816,7 @@ class RegionBrushScene(QGraphicsScene):
     def brush(self):
         """Circular mask that defines the brush."""
         diam = 2 * np.ceil(self.radius) + 1
-        return imutils.circular_mask(
+        return image_utils.circular_mask(
             (diam, diam), self.radius, self.radius, self.radius)
 
     def set_brush(self, pos=None):
@@ -904,7 +905,7 @@ class ClusterStarScene(QGraphicsScene):
     pixmap : QPixmap
         Background image pixmap.
 
-    model3d : `~astro3d.utils.imageprep.ModelFor3D`
+    model3d : `~astro3d.utils.model3d.Model3D`
         Handles 3D model generation. Can have existing point sources already.
 
     key : {'clusters', 'stars'}

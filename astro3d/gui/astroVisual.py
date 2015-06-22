@@ -50,9 +50,9 @@ from PyQt4.QtCore import *
 from .star_scenes import (PreviewScene, StarScene, RegionBrushScene,
                           RegionFileScene, ClusterStarScene)
 from .wizard import ThreeDModelWizard
-from ..utils import imageprep
-from ..utils import imutils
-from ..utils.imageprep import Region
+from ..utils import model3d
+from ..utils import image_utils
+from ..utils.model3d import Region
 
 
 _gui_title = 'Astronomy 3D Model'
@@ -82,7 +82,7 @@ class AstroGUI(QMainWindow):
 
     Attributes
     ----------
-    model3d : `~astro3d.utils.imageprep.ModelFor3D`
+    model3d : `~astro3d.utils.model3d.Model3D`
         This stores info necessary to make the STL.
 
     transformation : func
@@ -100,9 +100,9 @@ class AstroGUI(QMainWindow):
     IMG_TRANSFORMATIONS = OrderedDict(
         [(0, 'Linear'), (1, 'Logarithmic'), (2, 'Sqrt')])
     TRANS_FUNCS = {
-        'Linear': imutils.scale_linear,
-        'Logarithmic': imutils.scale_log,
-        'Sqrt': imutils.scale_sqrt}
+        'Linear': image_utils.scale_linear,
+        'Logarithmic': image_utils.scale_log,
+        'Sqrt': image_utils.scale_sqrt}
     MODEL_TYPES = OrderedDict(
         [(0, 'Flat texture map (one-sided only)'),
          (1, 'Smooth intensity map (one-sided)'),
@@ -160,9 +160,9 @@ class AstroGUI(QMainWindow):
         if self.model3d is not None:
             # Single- or double-sided
             if val in (0, 1, 3):
-                self.model3d.double = False
+                self.model3d.double_sided = False
             else:
-                self.model3d.double = True
+                self.model3d.double_sided = True
 
             # Add textures?
             if val in (0, 3, 4):
@@ -248,9 +248,9 @@ class AstroGUI(QMainWindow):
         """Load image file from FITS, JPEG, or TIFF.
 
         After file data is converted to Numpy array, it uses
-        :func:`~astro3d.utils.imutils.makeqimage` to create
+        :func:`~astro3d.utils.image_utils.makeqimage` to create
         a ``QImage``. Then, it creates a ``QPixmap``, which is passed
-        to the ``widget``. A `~astro3d.utils.imageprep.ModelFor3D`
+        to the ``widget``. A `~astro3d.utils.model3d.Model3D`
         object is also created to store information.
 
         """
@@ -264,22 +264,23 @@ class AstroGUI(QMainWindow):
             return
 
         elif fnamestr.endswith(('fits', 'FITS')):
-            self.model3d = imageprep.ModelFor3D.from_fits(fnamestr)
+            self.model3d = model3d.Model3D.from_fits(fnamestr)
 
         else:  # color display
             # DISABLED - Used for grayscale display
             #rgb_popup = RGBScalingPopup(self)
             #rgb_popup.exec_()
-            #data = imutils.img2array(
+            #data = image_utils.img2array(
             #    fnamestr, rgb_scaling=rgb_popup.rgb_scaling)[::-1, :]
 
             self.transformation = None  # Not applicable to RGB layers
             self._enable_photutil = False  # Photometry fails for this format
-            self.model3d = imageprep.ModelFor3D.from_rgb(fnamestr)
+            self.model3d = model3d.Model3D.from_rgb(fnamestr)
 
         self._pixmap = self.widget.addImage(QPixmap().fromImage(
-            imutils.makeqimage(self.model3d.orig_img, self.transformation,
-                               self.widget.scene_size)))
+            image_utils.makeqimage(self.model3d.input_image,
+                                   self.transformation,
+                                   self.widget.scene_size)))
         self.preview.scene.set_model(self.model3d)
         self.statusBar().showMessage(os.path.basename(fnamestr))
 
@@ -527,8 +528,9 @@ class AstroGUI(QMainWindow):
 
         """
         self._pixmap = QPixmap().fromImage(
-            imutils.makeqimage(self.model3d.orig_img, self.transformation,
-                               self.widget.scene_size))
+            image_utils.makeqimage(self.model3d.input_image,
+                                   self.transformation,
+                                   self.widget.scene_size))
         self.widget.setImage()
 
     def setTransformation(self, trans='Linear'):
@@ -563,7 +565,7 @@ class AstroGUI(QMainWindow):
 
     def find_clusters(self, n):
         """Retrieve locations of star clusters using
-        :func:`~astro3d.utils.imageprep.find_peaks`, then displays
+        :func:`~astro3d.utils.model3d.find_peaks`, then displays
         them on the screen for the user to see using the
         `~astro3d.gui.star_scenes.ClusterStarScene`.
         This action is similar to :func:`matplotlib.pyplot.scatter`.
@@ -940,7 +942,7 @@ class MainPanel(QWidget):
         """Sets the scene to the non-interactive main scene."""
         self.main_scene.set_clusters(
             self.parent.model3d.peaks[self.parent.model3d.clusters_key],
-            self.parent.model3d.orig_img.shape[0])
+            self.parent.model3d.input_image.shape[0])
         self.update_scene(self.main_scene)
 
     # Stars Editing
@@ -956,7 +958,7 @@ class MainPanel(QWidget):
         """Sets the scene to the non-interactive main scene."""
         self.main_scene.set_stars(
             self.parent.model3d.peaks[self.parent.model3d.stars_key],
-            self.parent.model3d.orig_img.shape[0])
+            self.parent.model3d.input_image.shape[0])
         self.update_scene(self.main_scene)
 
 
