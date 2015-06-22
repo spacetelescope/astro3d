@@ -324,7 +324,7 @@ class AstroGUI(QMainWindow):
                               os.path.basename(fname).split('.')[0])
 
         if save_all:
-            self.model3d.save_regions(prefix)
+            self.model3d.save_texture_masks(prefix)
             self.model3d.save_peaks(prefix)
 
         self.model3d.make()

@@ -21,7 +21,8 @@ import photutils
 
 from . import image_utils
 from .meshcreator import to_mesh
-from .textures import DOTS, SMALL_DOTS, LINES, apply_starlike_textures
+from .textures import (TextureMask, apply_starlike_textures,
+                       DOTS, SMALL_DOTS, LINES)
 
 
 class Model3D(object):
@@ -35,7 +36,7 @@ class Model3D(object):
     >>> model = Model3D.from_fits('myimage.fits')
     >>> model.is_spiralgal = True
     >>> model.double_sided = True
-    >>> model.load_regions('*.fits')
+    >>> model.read_texture_masks('*.fits')
     >>> model.load_peaks(model.clusters_key, 'myclusters.txt')
     >>> model.make()
     >>> preview_intensity = model.preview_intensity
@@ -45,7 +46,7 @@ class Model3D(object):
     >>> image_for_stl = model.out_image
     >>> prefix = 'myprefix'
     >>> model.save_stl(prefix)
-    >>> model.save_regions(prefix)
+    >>> model.save_texture_masks(prefix)
     >>> model.save_peaks(prefix)
     """
 
@@ -142,45 +143,47 @@ class Model3D(object):
             Image.open(filename), dtype=np.float32)[::-1, :, :].sum(axis=2)
         return cls(data)
 
-    def load_regions(self, search_string):
-        """Load region files directly into ``self.region_masks``.
-
-        .. note::
-
-            This is for debugging. Do not use with GUI.
-
+    def read_texture_masks(self, search_string):
         """
+        Read texture masks from FITS files and save directly into
+        ``self.texture_masks``.
+
+        This method should not be used with the GUI.
+        """
+
         import glob
 
         for filename in glob.iglob(search_string):
-            reg = Region.fromfile(filename)
-            if reg.name not in self.allowed_textures():
-                warnings.warn('{0} not allowed, skipping {1}'.format(
-                    reg.name, filename), AstropyUserWarning)
+            texture_mask = TextureMask.read(filename)
+            texture_type = texture_mask.texture_type
+            if texture_type not in self.allowed_textures():
+                warnings.warn('{0} is not a valid texture type, '
+                              'skipping {1}'.format(texture_type, filename),
+                              AstropyUserWarning)
                 continue
-            self.region_masks[reg.name].append(reg)
-            log.info('{0} loaded from {1}'.format(reg.name, filename))
+            self.region_masks[texture_type].append(texture_mask)
+            log.info('{0} loaded from {1}'.format(texture_type, filename))
 
-    def save_regions(self, prefix):
-        """Save uncropped region masks to files using
-        :meth:`astro3d.astroObjects.Region.save`.
-
-        Coordinates are transformed to match original image.
-        One output file per region, each named
-        ``<prefixpath>/<type>/<prefixname>_<n>_<description>.fits``.
-
+    def save_texture_masks(self, prefix):
         """
+        Save (uncropped) texture masks to FITS files.
+
+        The texture masks are resized to match the original image
+        size.
+        """
+
         prefixpath, prefixname = os.path.split(prefix)
         for key, reglist in self.region_masks.iteritems():
             #rpath = os.path.join(prefixpath, '_'.join(['region', key]))
             #if not os.path.exists(rpath):
             #    os.mkdir(rpath)
-            for i, reg in enumerate(reglist, 1):
+            for i, texture_mask in enumerate(reglist, 1):
                 #rname = os.path.join(rpath, '_'.join(
                 #    map(str, [prefixname, reg.description, i])) + '.fits')
-                rname = '{0}_{1}_{2}.fits'.format(prefixname, reg.description,
-                                                 i)
-                reg.save(rname, self.input_image.shape)
+                filename = '{0}_{1}_{2}.fits'.format(prefixname,
+                                                     texture_mask.texture_type,
+                                                     i)
+                texture_mask.save(filename, self.input_image.shape)
 
     def _store_peaks(self, key, tab):
         """Store peaks in attribute."""
@@ -891,13 +894,13 @@ class Model3D(object):
         sdmask_thres = np.percentile(image, percentile_lo)
         sdmask = (image > sdmask_thres) & (~dmask)
 
-        # Resize and save them as Region
+        # Resize and save them as TextureMask
         if shape is not None:
             dmask = image_utils.resize_image(dmask, shape[0], width=shape[1])
             sdmask = image_utils.resize_image(sdmask, shape[0], width=shape[1])
-        self.region_masks[self.dots_key] = [Region(self.dots_key, dmask)]
+        self.region_masks[self.dots_key] = [TextureMask(dmask, self.dots_key)]
         self.region_masks[self.small_dots_key] = [
-            Region(self.small_dots_key, sdmask)]
+            TextureMask(sdmask, self.small_dots_key)]
 
         log.info('auto find min dthres sdthres max: {0} {1} {2} {3}'.format(
             image.min(), sdmask_thres, dmask_thres, image.max()))
@@ -1318,112 +1321,3 @@ def find_peaks(image, remove=0, num=None, threshold=8, npix=10, minpeaks=35):
         peaks = isophot
 
     return peaks
-
-
-class Region(object):
-    """This class defines a region.
-
-    Parameters
-    ----------
-    name : str
-        Region type.
-
-    region : array_like
-        Boolean mask of the region.
-
-    Attributes
-    ----------
-    name, region
-        Same as inputs.
-
-    description
-        Metadata to describe the region. This is for informational purpose only.
-
-    visible : bool
-        Visibility (shown/hidden) of the region.
-
-    """
-    def __init__(self, name, region):
-        super(Region, self).__init__()
-        self.name = name
-        self.description = name
-        self.region = region
-        self.visible = False
-
-    def scaled_mask(self, shape):
-        """Return mask of the region scaled to given shape.
-
-        Parameters
-        ----------
-        shape : tuple
-            New shape of the mask.
-
-        Returns
-        -------
-        mask : array_like
-            Boolean mask.
-
-        """
-        return image_utils.resize_image(self.region, shape[0], width=shape[1])
-
-    def save(self, filename, image_shape=None):
-        """
-        Save the region mask image to a FITS file.
-
-        Parameters
-        ----------
-        filename : str
-            The output filename.
-
-        image_shape : tuple
-            If not `None`, then the ``.region`` data will be resized to
-            ``image_shape``.  This is used to save the region mask image
-            with the size of original image.
-        """
-
-        if image_shape is not None:
-            data = image_utils.resize_image(
-                self.region, image_shape[0], width=image_shape[1])
-        else:
-            data = self.region
-
-        header = fits.Header()
-        header['NAME'] = self.name
-        header['DESCRIP'] = self.description
-        hdu = fits.PrimaryHDU(data=mask, header=header)
-        hdu.writeto(filename)
-
-        log.info('{0} saved'.format(filename))
-
-    @classmethod
-    def fromfile(cls, filename, image_shape=None):
-        """
-        Read a region mask from a FITS file generated by by :meth:`save`.
-
-        Parameters
-        ----------
-        filename : str
-            Input filename.
-
-        image_shape : tuple
-            If not `None`, then the input image will be resized to
-            ``image_shape``.  This is used to match the size of the
-            image in the GUI, etc.
-
-        Returns
-        -------
-        result : `Region`
-            A `Region` instance.
-        """
-
-        fobj = fits.open(filename)
-        header = fobj[0].header
-        data = fobj[0].data
-
-        if image_shape is not None:
-            data = image_utils.resize_image(
-                data, image_shape[0], width=image_shape[1])
-
-        region = cls(header['name'], data)
-        region.description = header['descrip']
-        return region
