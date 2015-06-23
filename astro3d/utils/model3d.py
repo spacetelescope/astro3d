@@ -421,7 +421,7 @@ class Model3D(object):
         spiralarms = None
 
         for key, reglist in self.region_masks.iteritems():
-            masklist = [reg.scaled_mask(self._preproc_img.shape)
+            masklist = [reg.resize(self._preproc_img.shape)
                         for reg in reglist]
 
             if key != self.smooth_key:
@@ -683,98 +683,6 @@ class Model3D(object):
             self._preview_masks[cusp_mask] = ''
 
         image += self._texture_layer
-        return image
-
-
-    def OLD_add_stars_clusters(self, image, clusters, markstars):
-        # Stars and star clusters
-
-        clustexarr = None
-        order_w = 10
-        order_dw = order_w // 2
-
-        if self.has_intensity:
-            h_percentile = 75
-            s_height = 5
-        else:
-            h_percentile = None
-            s_height = 10
-
-        # Add star clusters
-
-        n_clus_added = 0
-
-        if len(clusters) > 0:
-            maxclusflux = max(clusters['flux'])
-
-            # Sort so that lower cluster height added first
-            order_dat = []
-            for cluster in clusters:
-                ix1 = cluster['xcen'] - order_dw
-                ix2 = ix1 + order_w
-                iy1 = cluster['ycen'] - order_dw
-                iy2 = iy1 + order_w
-                order_dat.append(image[iy1:iy2, ix1:ix2].mean())
-            clusters.add_column(Column(name='order', data=order_dat))
-            clusters.sort('order')
-
-        for cluster in clusters:
-            c1 = make_star_cluster(
-                image, cluster,  maxclusflux, height=s_height,
-                h_percentile=h_percentile, r_fac_add=self.clus_r_fac_add,
-                r_fac_mul=self.clus_r_fac_mul, n_craters=3)
-            if not np.any(c1):
-                continue
-            if clustexarr is None:
-                clustexarr = c1
-            else:
-                clustexarr = add_clusters(clustexarr, c1)
-            n_clus_added += 1
-
-        log.info('Displaying {0} clusters'.format(n_clus_added))
-
-        # Add individual stars
-
-        n_star_added = 0
-
-        if len(markstars) > 0:
-            maxstarflux = max(markstars['flux'])
-
-            # Sort so that lower star height added first
-            order_dat = []
-            for mstar in markstars:
-                ix1 = mstar['xcen'] - order_dw
-                ix2 = ix1 + order_w
-                iy1 = mstar['ycen'] - order_dw
-                iy2 = iy1 + order_w
-                order_dat.append(image[iy1:iy2, ix1:ix2].mean())
-            markstars.add_column(Column(name='order', data=order_dat))
-            markstars.sort('order')
-
-        for mstar in markstars:
-            s1 = make_star_cluster(
-                image, mstar, maxstarflux, height=s_height,
-                h_percentile=h_percentile, r_fac_add=self.star_r_fac_add,
-                r_fac_mul=self.star_r_fac_mul, n_craters=1)
-            if not np.any(s1):
-                continue
-            if clustexarr is None:
-                clustexarr = s1
-            else:
-                clustexarr = add_clusters(clustexarr, s1)
-            n_star_added += 1
-
-        log.info('Displaying {0} stars'.format(n_star_added))
-
-        # Both stars and star clusters share the same mask
-
-        if clustexarr is not None:
-            clustermask = clustexarr != 0
-            if self.has_intensity:
-                image[clustermask] = clustexarr[clustermask]
-            else:
-                self._texture_layer[clustermask] = clustexarr[clustermask]
-
         return image
 
 
@@ -1125,90 +1033,6 @@ def make_star(radius, height):
     star = height / radius ** 2 * r ** 2
     star[r > radius] = -1
     return star
-
-
-def make_star_cluster(image, peak, max_intensity, r_fac_add=15, r_fac_mul=5,
-                      height=5, h_percentile=75, fil_size=10, n_craters=3):
-    """Mark star or star cluster for given position.
-
-    Parameters
-    ----------
-    image : ndarray
-
-    peak : `astropy.table.Table` row
-        One star or star cluster entry.
-
-    max_intensity : float
-        Max intensity for all the stars or star clusters.
-
-    r_fac_add, r_fac_mul : number
-        Scaling factors to be added and multiplied to
-        intensity ratio to determine marker radius.
-
-    height : number
-        Height of the marker for :func:`make_star`.
-
-    h_percentile : float or `None`
-        Percentile between 0 and 100, inclusive, used to
-        re-adjust height of marker.
-        If `None` is given, then no readjustment is done.
-
-    fil_size : int
-        Filter size for :func:`~scipy.ndimage.filters.maximum_filter`.
-
-    n_craters : {1, 3}
-        Star cluster is marked with ``3``. For single star, use ``1``.
-
-    Returns
-    -------
-    array : ndarray
-
-    """
-    array = np.zeros(image.shape)
-
-    x, y, intensity = peak['xcen'], peak['ycen'], peak['flux']
-    radius = r_fac_add + r_fac_mul * intensity / float(max_intensity)
-    #log.info('\tcluster radius = {0}'.format(radius, r_fac_add, r_fac_mul))
-    star = make_star(radius, height)
-    diam = 2 * radius
-    r = star.shape[0]
-    dr = r / 2
-    star_mask = star != -1
-    imx1 = max(int(x - diam), 0)
-    imx2 = min(int(x + diam), image.shape[1])
-    imy1 = max(int(y - diam), 0)
-    imy2 = min(int(y + diam), image.shape[0])
-
-    if n_craters == 1:
-        centers = [(y, x)]
-    else:  # 3
-        dy = 0.5 * radius * np.sqrt(3)
-        centers = [(y + dy, x), (y - dy, x + radius), (y - dy, x - radius)]
-
-    if h_percentile is None:
-        _max = 0.0
-    else:
-        try:
-            _max = np.percentile(image[imy1:imy2, imx1:imx2], h_percentile)
-        except ValueError as e:
-            warnings.warn('Make star/cluster failed: {0}\n\timage[{1}:{2},'
-                          '{3}:{4}]'.format(e, imy1, imy2, imx1, imx2),
-                          AstropyUserWarning)
-            return array
-
-    for (cy, cx) in centers:
-        xx1, xx2, yy1, yy2, sx1, sx2, sy1, sy2 = image_utils.calc_insertion_pos(
-            array, star, int(cx - dr), int(cy - dr))
-        cur_smask = star_mask[sy1:sy2, sx1:sx2]
-        cur_star = star[sy1:sy2, sx1:sx2]
-        array[yy1:yy2, xx1:xx2][cur_smask] = _max + cur_star[cur_smask]
-
-    if h_percentile is not None:
-        filt = ndimage.filters.maximum_filter(array, fil_size)
-        mask = (filt > 0) & (image > filt) & (array == 0)
-        array[mask] = filt[mask]
-
-    return array
 
 
 def make_base(image, dist=60, height=10, snapoff=True):
