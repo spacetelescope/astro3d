@@ -34,12 +34,12 @@ def get_triangles(npimage, depth=10):
     cube = np.dstack((x, y, npimage))
     ults = np.zeros((h-1, w-1, 3, 4))
     lrts = np.zeros((h-1, w-1, 3, 4))
-    ults[:,:,:,1] = cube[:-1,:-1]
-    ults[:,:,:,2] = cube[:-1,1:]
-    ults[:,:,:,3] = cube[1:,:-1]
-    lrts[:,:,:,1] = cube[1:,1:]
-    lrts[:,:,:,2] = cube[1:,:-1]
-    lrts[:,:,:,3] = cube[:-1,1:]
+    ults[:, :, :, 1] = cube[:-1, :-1]
+    ults[:, :, :, 2] = cube[:-1, 1:]
+    ults[:, :, :, 3] = cube[1:, :-1]
+    lrts[:, :, :, 1] = cube[1:, 1:]
+    lrts[:, :, :, 2] = cube[1:, :-1]
+    lrts[:, :, :, 3] = cube[:-1, 1:]
     sides = make_sides(ults, lrts)
     ults = ults.reshape(((ults.shape[0])*(ults.shape[1]), 3, 4))
     lrts = lrts.reshape(((lrts.shape[0])*(lrts.shape[1]), 3, 4))
@@ -54,43 +54,43 @@ def make_sides(ults, lrts):
     """Creates the sides of the base."""
 
     a = ults[0].copy()
-    a[:,:,3] = a[:,:,1]
-    a[:,2,3] = 0
-    b = ults[:,0].copy()
-    b[:,:,2] = b[:,:,1]
-    b[:,:,2][:,2] = 0
+    a[:, :, 3] = a[:, :, 1]
+    a[:, 2, 3] = 0
+    b = ults[:, 0].copy()
+    b[:, :, 2] = b[:, :, 1]
+    b[:, :, 2][:, 2] = 0
     c = ults[-1].copy()
-    c[:,1,1:3] = c[:,1,1:3] + 1
-    c[:,2,1:3] = 0
-    d = ults[:,-1].copy()
-    d[:,0,1] = d[:,0,1] + 1
-    d[:,0,3] = d[:,0,3] + 1
-    d[:,2,1] = 0
-    d[:,2,3] = 0
+    c[:, 1, 1:3] = c[:, 1, 1:3] + 1
+    c[:, 2, 1:3] = 0
+    d = ults[:, -1].copy()
+    d[:, 0, 1] = d[:, 0, 1] + 1
+    d[:, 0, 3] = d[:, 0, 3] + 1
+    d[:, 2, 1] = 0
+    d[:, 2, 3] = 0
 
     e = lrts[0].copy()
-    e[:,1,1:3] = e[:,1,1:3] - 1
-    e[:,2,1:3] = 0
-    f = lrts[:,0].copy()
-    f[:,0,1] = f[:,0,1] - 1
-    f[:,0,3] = f[:,0,3] - 1
-    f[:,2,1] = 0
-    f[:,2,3] = 0
+    e[:, 1, 1:3] = e[:, 1, 1:3] - 1
+    e[:, 2, 1:3] = 0
+    f = lrts[:, 0].copy()
+    f[:, 0, 1] = f[:, 0, 1] - 1
+    f[:, 0, 3] = f[:, 0, 3] - 1
+    f[:, 2, 1] = 0
+    f[:, 2, 3] = 0
     g = lrts[-1].copy()
-    g[:,1,3] = g[:,1,3] + 1
-    g[:,2,3] = 0
-    h = lrts[:,-1].copy()
-    h[:,0,2] = h[:,0,2] + 1
-    h[:,2,2] = 0
+    g[:, 1, 3] = g[:, 1, 3] + 1
+    g[:, 2, 3] = 0
+    h = lrts[:, -1].copy()
+    h[:, 0, 2] = h[:, 0, 2] + 1
+    h[:, 2, 2] = 0
 
-    a[:,:,[1,2]] = a[:,:,[2,1]]
-    b[:,:,[1,2]] = b[:,:,[2,1]]
-    c[:,:,[1,2]] = c[:,:,[2,1]]
-    d[:,:,[1,2]] = d[:,:,[2,1]]
-    e[:,:,[1,2]] = e[:,:,[2,1]]
-    f[:,:,[1,2]] = f[:,:,[2,1]]
-    g[:,:,[1,2]] = g[:,:,[2,1]]
-    h[:,:,[1,2]] = h[:,:,[2,1]]
+    a[:, :, [1, 2]] = a[:, :, [2, 1]]
+    b[:, :, [1, 2]] = b[:, :, [2, 1]]
+    c[:, :, [1, 2]] = c[:, :, [2, 1]]
+    d[:, :, [1, 2]] = d[:, :, [2, 1]]
+    e[:, :, [1, 2]] = e[:, :, [2, 1]]
+    f[:, :, [1, 2]] = f[:, :, [2, 1]]
+    g[:, :, [1, 2]] = g[:, :, [2, 1]]
+    h[:, :, [1, 2]] = h[:, :, [2, 1]]
 
     return np.concatenate((a, b, c, d, e, f, g, h))
 
@@ -101,8 +101,8 @@ def make_bottom(height, width):
     bottom = np.array([[[width, 0, 0], [0, 0, 0], [0, height, 0]],
                        [[width, height, 0], [width, 0, 0], [0, height, 0]]])
     triset = np.zeros((2, 4, 3))
-    triset[0,1:] = bottom[0]
-    triset[1,1:] = bottom[1]
+    triset[0, 1:] = bottom[0]
+    triset[1, 1:] = bottom[1]
 
     for tri in triset:
         v1 = tri[2] - tri[1]
@@ -124,15 +124,15 @@ def normalize_triangles(triset):
         All sizes are in mm, not inches.
     """
 
-    xsize = triset[:,1:,0].ptp()
+    xsize = triset[:, 1:, 0].ptp()
     if xsize > 140:
         triset = triset * 140 / float(xsize)
 
-    ysize = triset[:,1:,1].ptp()
+    ysize = triset[:, 1:, 1].ptp()
     if ysize > 140:
         triset = triset * 140 / float(ysize)
 
-    zsize = triset[:,1:,2].ptp()
+    zsize = triset[:, 1:, 2].ptp()
     if zsize > 100:
         triset = triset * 100 / float(zsize)
 
@@ -146,12 +146,12 @@ def get_cross(triset):
     This is necessary for some 3D printing software, including MakerWare.
     """
 
-    t1 = triset[:,:,1]
-    t2 = triset[:,:,2]
-    t3 = triset[:,:,3]
+    t1 = triset[:, :, 1]
+    t2 = triset[:, :, 2]
+    t3 = triset[:, :, 3]
     v1 = t2 - t1
     v2 = t3 - t1
-    triset[:,:,0] = np.cross(v1, v2)
+    triset[:, :, 0] = np.cross(v1, v2)
 
     return triset
 
@@ -194,8 +194,8 @@ def to_mesh(image, filename, depth=1, double_sided=False, _ascii=False):
 
     if double_sided:
         triset2 = triset.copy()
-        triset2[:,0] = -triset2[:,0]
-        triset2[:,1:,2] = -triset2[:,1:,2]
+        triset2[:, 0] = -triset2[:, 0]
+        triset2[:, 1:, 2] = -triset2[:, 1:, 2]
         triset = np.concatenate((triset, triset2))
 
     if _ascii:
@@ -225,15 +225,15 @@ def write_binary(triset, filename):
     triset = triset.reshape((triset.shape[0], 12))
     buff = np.zeros((triset.shape[0],), dtype=('f4,'*12+'i2'))
 
-    for n in range(12): # Fills in array by column
+    for n in range(12):    # Fills in array by column
         col = 'f' + str(n)
-        buff[col] = triset[:,n]
+        buff[col] = triset[:, n]
 
     # Took the header straight from stl.py
     strhdr = "binary STL format"
     strhdr += (80-len(strhdr))*" "
     ntri = len(buff)
-    larray = np.zeros((1,),dtype='<u4')
+    larray = np.zeros((1,), dtype='<u4')
     larray[0] = ntri
 
     with open(filename, 'wb') as f:
