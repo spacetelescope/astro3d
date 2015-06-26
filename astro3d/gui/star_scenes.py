@@ -47,8 +47,9 @@ def mask2pixmap(mask, alpha, i_layer, size=None):
 
     """
     im = np.zeros((mask.shape[0], mask.shape[1], 4))  # RGBA
-    im[:, :, i_layer][mask] = 255
-    im[:, :, 3][mask] = alpha
+    mask2 = np.flipud(np.copy(mask))   # flipud necessary for display
+    im[:, :, i_layer][mask2] = 255
+    im[:, :, 3][mask2] = alpha
     pixmap = QPixmap()
     pixmap = pixmap.fromImage(array2qimage(im))
 

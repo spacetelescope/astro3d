@@ -89,7 +89,7 @@ class Model3D(object):
 
         # Image is now ready for the rest of processing when user
         # provides the rest of the info
-        self._preproc_img = np.flipud(self.resize(image))
+        self._preproc_img = self.resize(image)
 
     def resize(self, image):
         """
@@ -204,7 +204,7 @@ class Model3D(object):
             Maximum number of sources allowed.
 
         """
-        tab = find_peaks(np.flipud(self.input_image))[:n]
+        tab = find_peaks(self.input_image)[:n]
         self._store_peaks(key, tab)
 
     def load_peaks(self, key, filename):
@@ -370,7 +370,7 @@ class Model3D(object):
         """Monochrome intensity for GUI preview."""
         if self._preview_intensity is None:
             raise ValueError('Run make() first')
-        return np.flipud(self._preview_intensity)
+        return self._preview_intensity
 
     @property
     def out_image(self):
