@@ -8,6 +8,7 @@ except ImportError:
 # command-line scripts
 #entry_points = {}
 #entry_points['console_scripts'] = [
+#    'astro3d = astro3d.gui.astroVisual:main'
 #    'convert_textures = astro3d.utils.scripts.convert_textures:main'
 #]
 
@@ -18,6 +19,6 @@ setup(
     author = 'STScI',
     author_email = 'help@stsci.edu',
     packages = ['astro3d', 'astro3d.utils', 'astro3d.gui'],
-    scripts = ['scripts/astro3dgui', 'scripts/convert_textures'],
+    scripts = ['scripts/astro3d', 'scripts/convert_textures'],
     #entry_points=entry_points
     )

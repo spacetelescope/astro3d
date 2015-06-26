@@ -1,10 +1,5 @@
 #!/usr/bin/env python
 
-# STDLIB
 import sys
-
-# LOCAL
 from astro3d.gui import astroVisual
-
-# Run GUI
 astroVisual.main(sys.argv)
