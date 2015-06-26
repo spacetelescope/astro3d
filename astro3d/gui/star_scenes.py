@@ -241,7 +241,7 @@ class StarScene(QGraphicsScene):
         if isinstance(region, (list, tuple)):
             return map(self.addReg, region)
         else:
-            self.regions[region.name].append(region)
+            self.regions[region.texture_type].append(region)
             self.draw()
 
     def delReg(self, region):
@@ -260,7 +260,7 @@ class StarScene(QGraphicsScene):
         if isinstance(region, (list, tuple)):
             map(self.delReg, region)
         else:
-            self.regions[region.name].remove(region)
+            self.regions[region.texture_type].remove(region)
             self.draw()
 
     def set_clusters(self, clusters, orig_height):
@@ -310,9 +310,9 @@ class StarScene(QGraphicsScene):
         for reglist in self.regions.itervalues():
             for reg in reglist:
                 if reg in selected:
-                    sel_masks.append(reg.region)
+                    sel_masks.append(reg.mask)
                 else:
-                    reg_masks.append(reg.region)
+                    reg_masks.append(reg.mask)
 
         reg_masks = combine_masks(reg_masks)
         if len(reg_masks) > 0:
@@ -390,7 +390,7 @@ class _RegionStarScene(QGraphicsScene):
     @classmethod
     def from_region(cls, parent, pixmap, region):
         """Generate scene from existing region."""
-        newcls = cls(parent, pixmap, region.name)
+        newcls = cls(parent, pixmap, region.texture_type)
         newcls.description = region.description
         newcls.graphicspoints = [
             RegionStarSceneItem(p) for p in region.points()]
@@ -510,7 +510,7 @@ class _RegionStarScene(QGraphicsScene):
             Description of the region.
 
         """
-        return self.name, self.shape, self.description
+        return self.texture_type, self.shape, self.description
 
     def clear(self):
         """Removes all items from the display except the image.
@@ -588,8 +588,8 @@ class RegionFileScene(QGraphicsScene):
         masklist = []
 
         for reg in regions:
-            self.name.append(reg.name)
-            self._mask.append(reg.region)
+            self.name.append(reg.texture_type)
+            self._mask.append(reg.mask)
             self.description.append(reg.description)
 
         self.show_mask(self._mask)
@@ -663,9 +663,9 @@ class RegionBrushScene(QGraphicsScene):
     @classmethod
     def from_region(cls, parent, pixmap, region):
         """Generate scene from existing region."""
-        newcls = cls(parent, pixmap, region.name)
+        newcls = cls(parent, pixmap, region.texture_type)
         newcls.description = region.description
-        newcls._mask = region.region
+        newcls._mask = region.mask
         newcls.draw()
         return newcls
 
@@ -932,7 +932,7 @@ class ClusterStarScene(QGraphicsScene):
         super(ClusterStarScene, self).__init__(parent)
         self.model3d = model3d
         self.key = key
-        self.scale = pixmap.height() / model3d.orig_img.shape[0]
+        self.scale = pixmap.height() / model3d.input_image.shape[0]
         self.graphicspoints = []
 
         # Display static background image
@@ -994,10 +994,10 @@ class ClusterStarScene(QGraphicsScene):
 
             # Estimate flux at selected point
             ix1 = max(int(xcen - self._FLUX_RAD), 0)
-            ix2 = min(int(xcen + self._FLUX_RAD), self.model3d.orig_img.shape[1])
+            ix2 = min(int(xcen + self._FLUX_RAD), self.model3d.input_image.shape[1])
             iy1 = max(int(ycen - self._FLUX_RAD), 0)
-            iy2 = min(int(ycen + self._FLUX_RAD), self.model3d.orig_img.shape[0])
-            flux = np.flipud(self.model3d.orig_img)[iy1:iy2, ix1:ix2].sum()
+            iy2 = min(int(ycen + self._FLUX_RAD), self.model3d.input_image.shape[0])
+            flux = np.flipud(self.model3d.input_image)[iy1:iy2, ix1:ix2].sum()
 
             self.add_point(xdisp, ydisp)
             self.model3d.peaks[self.key].add_row([xcen, ycen, flux])

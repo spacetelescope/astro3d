@@ -52,7 +52,7 @@ from .star_scenes import (PreviewScene, StarScene, RegionBrushScene,
 from .wizard import ThreeDModelWizard
 from ..utils import model3d
 from ..utils import image_utils
-from ..utils.model3d import Region
+from ..utils.textures import TextureMask
 
 
 _gui_title = 'Astronomy 3D Model'
@@ -69,7 +69,7 @@ class AstroGUI(QMainWindow):
     Its methods primarily exist to interface between
     different objects, specifically by storing changes
     made by the wizard and the `MainPanel` in ``File``
-    and ``Region`` objects. Furthermore, it applies
+    and ``TextureMask`` objects. Furthermore, it applies
     changes made from the wizard to the ``Image``, thus
     changing the display.
 
@@ -394,10 +394,11 @@ class AstroGUI(QMainWindow):
 
         Parameters
         ----------
-        region : `~astro3d.gui.astroObjects.Region` or list
+        #region : `~astro3d.gui.astroObjects.Region` or list
+        region : `~astro3d.textures.TextureMask` or list
 
         """
-        if not isinstance(region, Region):
+        if not isinstance(region, TextureMask):
             region = filter(lambda reg: reg.visible == False, region)
             map(self.showRegion, region)
         elif not region.visible:
@@ -439,14 +440,14 @@ class AstroGUI(QMainWindow):
     def loadRegion(self):
         """Load region(s) from file."""
         flist = QFileDialog.getOpenFileNames(
-            self, '3D Model Creator - Load Regions', '', 'Region files (*.npz)')
+            self, '3D Model Creator - Load Regions', '', 'Region files (*.fits)')
 
         if flist.isEmpty():
             return
 
-        regions = [Region.fromfile(
-            str(fname), image_shape=(self._pixmap.height(),
-                                     self._pixmap.width())) for fname in flist]
+        regions = [TextureMask.read(
+            str(fname), shape=(self._pixmap.height(),
+                               self._pixmap.width())) for fname in flist]
 
         if len(regions) == 1:
             reg = regions[0]
@@ -475,7 +476,7 @@ class AstroGUI(QMainWindow):
             raise ValueError('Cannot overwrite multiple regions.')
 
         for key, region, descrip in zip(names, regions, descriptions):
-            reg = Region(key, region)
+            reg = TextureMask(region, key)
             reg.description = descrip
 
             key = key.lower()
