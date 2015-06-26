@@ -390,9 +390,9 @@ def dots_texture(shape, profile, diameter, height, locations):
 
     dot_shape = (diameter, diameter)
     dot = np.zeros(dot_shape)
-    y, x = np.indices(dot_shape)
+    yy, xx = np.indices(dot_shape)
     radius = (diameter - 1) / 2
-    r = np.sqrt((x - radius)**2 + (y - radius)**2)
+    r = np.sqrt((xx - radius)**2 + (yy - radius)**2)
     idx = np.where(r < radius)
 
     if profile == 'spherical':
@@ -580,7 +580,9 @@ class StarTexture(Fittable2DModel):
         xx = x - x_0
         yy = y - y_0
         r = np.sqrt(xx**2 + yy**2)
-        star = depth * (r / radius)**2 + base_height
+        # NOTE: 0.0001 added to keep the star texture > 0 at the bowl center
+        #       (r=0) when base_height is zero
+        star = depth * (r / radius)**2 + base_height + 0.0001
         star[r > radius] = 0.
         return star
 
@@ -837,9 +839,9 @@ def starlike_texture_map(shape, models):
     """
 
     data = np.zeros(shape)
-    y, x = np.indices(shape)
+    yy, xx = np.indices(shape)
     for model in sort_starlike_models(models):
-        data = combine_textures_max(data, model(x, y))
+        data = combine_textures_max(data, model(xx, yy))
     return data
 
 
@@ -910,7 +912,7 @@ def apply_cusp_texture(image, x, y, radius=25, depth=40,
     """
     Apply star-like cusp texture to an image.
 
-    The cusp texture is used to mark the center of a galaxy model.
+    The cusp texture is used to mark the center of a galaxy.
 
     Parameters
     ----------
@@ -939,13 +941,14 @@ def apply_cusp_texture(image, x, y, radius=25, depth=40,
         The image with the applied cusp texture.
     """
 
-    y, x = np.indices(image)
+    yy, xx = np.indices(image.shape)
     cusp_texture = starlike_model_base_height(
         image, 'star', x, y, radius, depth,
-        base_percentile=base_percentile)(x, y)
+        base_percentile=base_percentile)(xx, yy)
     idx = (cusp_texture != 0)
     data = np.copy(image)
     data[idx] = cusp_texture[idx]
+    log.info('Placed cusp texture at the galaxy center.')
     return data
 
 

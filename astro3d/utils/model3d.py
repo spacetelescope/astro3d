@@ -13,7 +13,7 @@ from copy import deepcopy
 import numpy as np
 from astropy import log
 from astropy.io import ascii, fits
-from astropy.table import Column, Table
+from astropy.table import Table
 from astropy.utils.exceptions import AstropyUserWarning
 from PIL import Image
 from scipy import ndimage
@@ -22,7 +22,7 @@ import photutils
 from . import image_utils
 from .meshcreator import to_mesh
 from .textures import (TextureMask, apply_starlike_textures,
-                       DOTS, SMALL_DOTS, LINES)
+                       apply_cusp_texture, DOTS, SMALL_DOTS, LINES)
 
 
 class Model3D(object):
@@ -497,16 +497,11 @@ class Model3D(object):
         image = image_utils.normalize(image, True)
         image = self.spiralgalaxy_scale_top(image, disk, percent=90)
         image = image_utils.normalize(image, True)
-        image, cusp_mask, cusp_texture_flat = self.spiralgalaxy_central_cusp(
-            image, disk, cusp_radius=25)
         image = self.emphasize_regs(image, scaled_masks)
-
-        (image, croppedmasks, disk, spiralarms, cusp_mask,
-         cusp_texture_flat, clusters, markstars) = self.crop_image(
-             image, scaled_masks, scaled_peaks, cusp_mask, cusp_texture_flat)
-
+        (image, croppedmasks, disk, spiralarms,
+         clusters, markstars) = self.crop_image(image, scaled_masks,
+                                                scaled_peaks)
         image = self.filter_image2(image)
-
         image = image_utils.normalize(image, True, self.height)
         # Renormalize again so that height is more predictable
         image = image_utils.normalize(image, True, self.height)
@@ -518,8 +513,24 @@ class Model3D(object):
         self._preview_masks = np.zeros(
             self._preview_intensity.shape, dtype='S10')
 
+        # add central cusp and textures
         if self.has_texture:
-            image = self.add_textures(image, croppedmasks, cusp_mask)
+
+            # add central cusp for spiral galaxies
+            if self.is_spiralgal:
+                if self.has_intensity:
+                    cusp_depth = 20
+                    #cusp_percentile = 10
+                    cusp_percentile = 0.
+                else:
+                    cusp_depth = 20
+                    cusp_percentile = None
+                bulge_mask = disk
+                image = self.spiralgalaxy_central_cusp(
+                    image, bulge_mask, radius=25, depth=cusp_depth,
+                    base_percentile=cusp_percentile)
+
+            image = self.add_textures(image, croppedmasks)
             #image = self.add_stars_clusters(image, clusters, markstars)
 
             # apply stars and star clusters
@@ -533,10 +544,6 @@ class Model3D(object):
                 image, markstars, clusters, depth=depth,
                 radius_a=self.clus_r_fac_add, radius_b=self.clus_r_fac_mul,
                 base_percentile=base_percentile)
-
-            # For texture-only model, need to add cusp to texture layer
-            if not self.has_intensity and cusp_mask is not None:
-                self._texture_layer[cusp_mask] = cusp_texture_flat[cusp_mask]
 
         if isinstance(image, np.ma.core.MaskedArray):
             image = image.data
@@ -577,35 +584,15 @@ class Model3D(object):
             image = scale_top(image, mask=bigdisk, percent=percent)
         return image
 
-    def spiralgalaxy_central_cusp(self, image, disk, cusp_radius=25,
-                                  cusp_height=None, cusp_percent=None):
-        # Only works for single-disk image.
-        # Do this even for smooth intensity map to avoid sharp peak in model.
-        #    cusp_radius = 25  # For 1k image
+    def spiralgalaxy_central_cusp(self, image, bulge_mask, radius=25,
+                                  depth=40, base_percentile=None):
+        """
+        Find the galaxy center and then apply the cusp texture.
+        """
 
-        image = image.copy()
-        cusp_mask = None
-        cusp_texture_flat = None
-        if disk is not None:
-            if cusp_height is None:
-                cusp_height = 40
-            if cusp_percent is None:
-                cusp_percent = 10
-            log.info('Replacing cusp')
-            cusp_texture = replace_cusp(
-                image, mask=disk, radius=cusp_radius, height=cusp_height,
-                percent=cusp_percent)
-            cusp_mask = cusp_texture > 0
-
-            if not self.has_intensity:
-                if cusp_height is None:
-                    cusp_height = 20
-                cusp_texture_flat = replace_cusp(
-                    image, mask=disk, radius=cusp_radius, height=cusp_height,
-                    percent=cusp_percent)
-
-            image[cusp_mask] = cusp_texture[cusp_mask]
-        return image, cusp_mask, cusp_texture_flat
+        x, y = find_galaxy_center(image, bulge_mask)
+        return apply_cusp_texture(image, x, y, radius=radius, depth=depth,
+                                  base_percentile=base_percentile)
 
     def emphasize_regs(self, image, scaled_masks):
         log.info('Emphasizing regions')
@@ -614,18 +601,13 @@ class Model3D(object):
             scaled_masks[self.dots_key] + scaled_masks[self.lines_key])
         return image
 
-    def crop_image(self, image, scaled_masks, scaled_peaks, cusp_mask,
-                   cusp_texture_flat):
+    def crop_image(self, image, scaled_masks, scaled_peaks):
         image, iy1, iy2, ix1, ix2 = image_utils.crop_image(image, _max=1.0)
         log.info('Cropped image shape: {0}'.format(image.shape))
 
         # Also crop masks and lists
         croppedmasks, disk, spiralarms = self._crop_masks(
             scaled_masks, ix1, ix2, iy1, iy2)
-        if cusp_mask is not None:
-            cusp_mask = cusp_mask[iy1:iy2, ix1:ix2]
-        if cusp_texture_flat is not None:
-            cusp_texture_flat = cusp_texture_flat[iy1:iy2, ix1:ix2]
 
         clusters = self._crop_peaks(
             scaled_peaks, self.clusters_key, ix1, ix2, iy1, iy2)
@@ -637,8 +619,7 @@ class Model3D(object):
             self.clusters_key: clusters,
             self.stars_key: markstars}
 
-        return (image, croppedmasks, disk, spiralarms, cusp_mask,
-                cusp_texture_flat, clusters, markstars)
+        return (image, croppedmasks, disk, spiralarms, clusters, markstars)
 
     def filter_image2(self, image):
         log.info(
@@ -649,7 +630,7 @@ class Model3D(object):
 
         return image
 
-    def add_textures(self, image, croppedmasks, cusp_mask):
+    def add_textures(self, image, croppedmasks):
         # Texture layers
 
         # Dots and lines
@@ -677,14 +658,8 @@ class Model3D(object):
                 self._texture_layer[mask] = cur_texture[mask]
                 self._preview_masks[mask] = layer_key
 
-        # Remove cusp from texture and preview
-        if cusp_mask is not None:
-            self._texture_layer[cusp_mask] = 0
-            self._preview_masks[cusp_mask] = ''
-
         image += self._texture_layer
         return image
-
 
     def make_model_base(self, image):
         log.info('Making base')
@@ -702,10 +677,7 @@ class Model3D(object):
             self._out_image = self._texture_layer + base
         return
 
-
-
     # For spiral galaxy only
-
     def _find_galaxy_center(self, image, diskmask):
         """Find center of galaxy."""
         if not self.is_spiralgal:
@@ -903,77 +875,28 @@ def scale_top(input_image, mask=None, percent=30, factor=10.0):
     return image
 
 
-def replace_cusp(image, mask=None, radius=20, height=40, percent=10):
-    """Replaces the center of the galaxy, which would be
-    a sharp point, with a crater.
-
-    Parameters
-    ----------
-    image : ndarray
-        Image array.
-
-    mask : ndarray
-        Mask of the disk.
-
-    radius : int
-        Radius of the crater in pixels.
-
-    height : int
-        Height of the crater.
-
-    percent : float or `None`
-        Percentile between 0 and 100, inclusive, used to
-        re-adjust height of marker.
-        If `None` is given, then no readjustment is done.
-
-    Returns
-    -------
-    cusp_texture : ndarray
-        Crater values to be added.
-
+def find_galaxy_center(image, mask=None):
     """
-    cusp_texture = np.zeros(image.shape)
+    Find the position of a galaxy center simply as the location of the
+    maximum value in the image.
 
+    If a ``mask`` is input, then only those regions will be considered.
+    """
+
+    # NOTE:  use np.where instead of np.argmax in case of multiple
+    # occurrences of the maximum value
     if mask is None:
         y, x = np.where(image == image.max())
     else:
-        a = np.ma.array(image.data, mask=~mask)
-        y, x = np.where(a == a.max())
+        data = np.ma.array(image, mask=~mask)
+        y, x = np.where(data == data.max())
 
-    # LDB:
-    # x, y is the index of the central pixel -- not necessarily the
-    # center position - round instead?
-    x = int(np.mean(x))
-    y = int(np.mean(y))
+    y_center = y.mean()
+    x_center = x.mean()
 
-    log.info('\tCenter of galaxy at X={0} Y={1}'.format(x, y))
+    log.info('Center of galaxy at x={0}, y={1}'.format(x_center, y_center))
 
-    # LDB:  handle edges better
-    # this will not work because star array does not get trimmed
-    ymin = max(y - radius, 0)
-    ymax = min(y + radius, image.shape[0])
-    xmin = max(x - radius, 0)
-    xmax = min(x + radius, image.shape[1])
-
-    if percent is None:
-        top = 0.0
-    else:
-        top = np.percentile(image[ymin:ymax, xmin:xmax], percent)
-
-    # LDB: should check region around center for places where intensity
-    # plus disk texture are comparable to cusp height and adjust star
-    # height as necessary - NGC3344 star height seems too small
-    star = make_star(radius, height)
-    smask = star != -1
-
-    # LDB: this is redundant with above
-    diam = 2 * radius + 1
-    ymax = min(ymin + diam, image.shape[0])
-    xmax = min(xmin + diam, image.shape[1])
-    # this will not work at edge because star array does not get trimmed
-    cusp_texture[ymin:ymax, xmin:xmax][smask] = top + star[smask]
-
-    return cusp_texture
+    return x_center, y_center
 
 
 def emphasize_regions(input_image, masks, threshold=20, niter=2):
