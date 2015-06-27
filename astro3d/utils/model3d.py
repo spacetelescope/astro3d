@@ -174,12 +174,12 @@ class Model3D(object):
 
         prefixpath, prefixname = os.path.split(prefix)
         for key, reglist in self.region_masks.iteritems():
-            #rpath = os.path.join(prefixpath, '_'.join(['region', key]))
-            #if not os.path.exists(rpath):
-            #    os.mkdir(rpath)
+            # rpath = os.path.join(prefixpath, '_'.join(['region', key]))
+            # if not os.path.exists(rpath):
+            #     os.mkdir(rpath)
             for i, texture_mask in enumerate(reglist, 1):
-                #rname = os.path.join(rpath, '_'.join(
-                #    map(str, [prefixname, reg.description, i])) + '.fits')
+                # rname = os.path.join(rpath, '_'.join(
+                #     map(str, [prefixname, reg.description, i])) + '.fits')
                 filename = '{0}_{1}_{2}.fits'.format(prefixname,
                                                      texture_mask.texture_type,
                                                      i)
@@ -249,7 +249,8 @@ class Model3D(object):
         if not isinstance(val, bool):
             raise ValueError('Must be a boolean')
         self._is_spiralgal = val
-        self._layer_order = [self.lines_key, self.dots_key, self.small_dots_key]
+        self._layer_order = [self.lines_key, self.dots_key,
+                             self.small_dots_key]
 
     @property
     def has_texture(self):
@@ -529,10 +530,10 @@ class Model3D(object):
                 image, markstars, clusters, radius_a=self.clus_r_fac_add,
                 radius_b=self.clus_r_fac_mul, depth=depth,
                 base_percentile=base_percentile)
-            #if h_percentile is not None:
-            #    filt = ndimage.filters.maximum_filter(array, fil_size)
-            #    mask = (filt > 0) & (image > filt) & (array == 0)
-            #    array[mask] = filt[mask]
+            # if h_percentile is not None:
+            #     filt = ndimage.filters.maximum_filter(array, fil_size)
+            #     mask = (filt > 0) & (image > filt) & (array == 0)
+            #     array[mask] = filt[mask]
             image = apply_textures(image, starlike_textures)
 
             # add central cusp for spiral galaxies (do this last,
@@ -541,7 +542,6 @@ class Model3D(object):
             if self.is_spiralgal:
                 if self.has_intensity:
                     cusp_depth = 20
-                    #cusp_percentile = 10
                     cusp_percentile = 0.
                 else:
                     cusp_depth = 20
@@ -652,7 +652,6 @@ class Model3D(object):
                 texture_func = DOTS
             elif layer_key == self.small_dots_key:
                 texture_func = SMALL_DOTS
-                #texture_func = NO_TEXTURE  # Disable small dots
             elif layer_key == self.lines_key:
                 texture_func = LINES
             else:
@@ -662,7 +661,7 @@ class Model3D(object):
 
             log.info('Adding {0}'.format(layer_key))
             for mask in croppedmasks[layer_key]:
-                #cur_texture = texture_func(image, mask)
+                # cur_texture = texture_func(image, mask)
                 cur_texture = texture_func(mask)
                 self._texture_layer[mask] = cur_texture[mask]
                 self._preview_masks[mask] = layer_key
@@ -942,11 +941,12 @@ def emphasize_regions(input_image, masks, threshold=20, niter=2):
             _min = min([image[mask].mean() for mask in masks])
         _min -= image.std() * 0.5
         minmask = image < _min
-        image[minmask] =  image[minmask] * (image[minmask] / _min)
+        image[minmask] = image[minmask] * (image[minmask] / _min)
 
     # Remove low bound
     boolarray = image < threshold
-    log.debug('# background pix set to zero: {0}'.format(len(image[boolarray])))
+    log.debug('# background pix set to '
+              'zero: {0}'.format(len(image[boolarray])))
     image[boolarray] = 0
 
     return image
@@ -961,7 +961,7 @@ def make_star(radius, height):
     """
     a = np.arange(radius * 2 + 1)
     x, y = np.meshgrid(a, a)
-    r = np.sqrt((x - radius) ** 2 + (y - radius) **2)
+    r = np.sqrt((x - radius)**2 + (y - radius)**2)
     star = height / radius ** 2 * r ** 2
     star[r > radius] = -1
     return star
