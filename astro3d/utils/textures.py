@@ -1,5 +1,6 @@
 """
-This module defines and adds textures to an image.
+This module provides tools for defining textures and applying them to an
+image.
 """
 
 from __future__ import (absolute_import, division, print_function,
@@ -13,7 +14,6 @@ from astropy.io import fits
 from astropy.modeling import Parameter, Fittable2DModel
 from astropy.utils.exceptions import AstropyUserWarning
 from .image_utils import resize_image
-#from scipy import ndimage
 
 
 class TextureMask(object):
@@ -33,7 +33,6 @@ class TextureMask(object):
             The type of texture.
         """
 
-        #super(Region, self).__init__()
         self.mask = mask
         self.texture_type = texture_type
         self.description = texture_type
@@ -71,7 +70,7 @@ class TextureMask(object):
         shape : tuple
             If not `None`, then the texture mask will be resized to
             ``shape``.  This is used to save the texture mask with the
-            size of original image.
+            size of original input image.
         """
 
         if shape is not None:
@@ -128,7 +127,6 @@ class TextureMask(object):
 
         log.info('Read {0} (texture type={1}).'.format(filename,
                                                        texture_type))
-
         return texture_mask
 
 
@@ -145,7 +143,7 @@ def combine_textures_max(texture1, texture2):
     properly layer the textures on top of each other (where applicable).
 
     If both ``texture1`` and ``texture2`` contain only zeros, then
-    ``texture1`` is returned (i.e. array of zeros).
+    ``texture1`` is returned (i.e. an array of zeros).
 
     Parameters
     ----------
@@ -190,7 +188,7 @@ def square_grid(shape, spacing, offset=0):
 
     spacing : float
         The spacing in pixels between the centers of adjacent squares.
-        Obviously, this is also the square size.
+        This is the same as the square size.
 
     offset : float, optional
         An optional offset to apply in both the ``x`` and ``y``
@@ -577,12 +575,15 @@ class StarTexture(Fittable2DModel):
     @staticmethod
     def evaluate(x, y, x_0, y_0, radius, depth, base_height):
         """Star model function."""
+
+        # NOTE: min_height is added to keep the star texture values > 0 at
+        #       the bowl center (r=0) when base_height is zero
+        min_height = 0.0001
+
         xx = x - x_0
         yy = y - y_0
         r = np.sqrt(xx**2 + yy**2)
-        # NOTE: 0.0001 added to keep the star texture > 0 at the bowl center
-        #       (r=0) when base_height is zero
-        star = depth * (r / radius)**2 + base_height + 0.0001
+        star = depth * (r / radius)**2 + base_height + min_height
         star[r > radius] = 0.
         return star
 
@@ -845,10 +846,10 @@ def starlike_texture_map(shape, models):
     return data
 
 
-def apply_starlike_textures(image, star_sources, cluster_sources, radius_a=10,
-                            radius_b=5, depth=5, base_percentile=75):
+def make_starlike_textures(image, star_sources, cluster_sources, radius_a=10,
+                           radius_b=5, depth=5, base_percentile=75):
     """
-    Apply star-like textures (stars and star clusters) to an image.
+    Make an image containing star-like textures (stars and star clusters).
 
     Parameters
     ----------
@@ -881,7 +882,7 @@ def apply_starlike_textures(image, star_sources, cluster_sources, radius_a=10,
     Returns
     -------
     data : `~numpy.ndarray`
-        The image with the applied star and star cluster textures.
+        The image containing the star and star cluster textures.
     """
 
     star_models = make_starlike_models(image, 'star', star_sources,
@@ -895,22 +896,12 @@ def apply_starlike_textures(image, star_sources, cluster_sources, radius_a=10,
     starlike_models = star_models + cluster_models
     starlike_textures = starlike_texture_map(image.shape, starlike_models)
 
-    idx = (starlike_textures != 0)
-    data = np.copy(image)
-    data[idx] = starlike_textures[idx]
-
-    #if h_percentile is not None:
-    #    filt = ndimage.filters.maximum_filter(array, fil_size)
-    #    mask = (filt > 0) & (image > filt) & (array == 0)
-    #    array[mask] = filt[mask]
-
-    return data
+    return starlike_textures
 
 
-def apply_cusp_texture(image, x, y, radius=25, depth=40,
-                       base_percentile=None):
+def make_cusp_texture(image, x, y, radius=25, depth=40, base_percentile=None):
     """
-    Apply star-like cusp texture to an image.
+    Make an image containing a star-like cusp texture.
 
     The cusp texture is used to mark the center of a galaxy.
 
@@ -938,17 +929,44 @@ def apply_cusp_texture(image, x, y, radius=25, depth=40,
     Returns
     -------
     data : `~numpy.ndarray`
-        The image with the applied cusp texture.
+        The image containing the cusp texture.
     """
 
     yy, xx = np.indices(image.shape)
-    cusp_texture = starlike_model_base_height(
-        image, 'star', x, y, radius, depth,
-        base_percentile=base_percentile)(xx, yy)
-    idx = (cusp_texture != 0)
+    return starlike_model_base_height(image, 'star', x, y, radius, depth,
+                                      base_percentile=base_percentile)(xx, yy)
+
+
+def apply_textures(image, texture_image):
+    """
+    Apply textures to an image.
+
+    Pixels in the input ``image`` are replaced by the non-zero pixels in
+    the input ``texture_image``.
+
+    This function is used for the star-like textures (central galaxy
+    cusp, stars, and star clusters), which could be added on top of
+    other textures (lines, dots, or small dots).  The star-like textures
+    replace, instead of add to, image values.
+
+    Parameters
+    ----------
+    image : `~numpy.ndarray`
+        The image where the textures will be applied.
+
+    texture_image : `~numpy.ndarray`
+        The texture image, which must be the same shape as the input
+        ``image``.
+
+    Returns
+    -------
+    data : `~numpy.ndarray`
+        The image with the applied textures.
+    """
+
     data = np.copy(image)
-    data[idx] = cusp_texture[idx]
-    log.info('Placed cusp texture at the galaxy center.')
+    idx = (texture_image != 0)
+    data[idx] = texture_image[idx]
     return data
 
 
@@ -1010,4 +1028,3 @@ SMALL_DOTS = partial(
     grid_func=hexagonal_grid, grid_spacing=4.5)
 LINES = partial(lines_texture_map, profile='linear', thickness=13,
                 height=7.8, spacing=20, orientation=0)
-NO_TEXTURE = lambda mask: np.zeros_like(mask)

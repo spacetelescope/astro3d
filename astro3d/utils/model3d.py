@@ -21,8 +21,8 @@ import photutils
 
 from . import image_utils
 from .meshcreator import to_mesh
-from .textures import (TextureMask, apply_starlike_textures,
-                       apply_cusp_texture, DOTS, SMALL_DOTS, LINES)
+from .textures import (TextureMask, apply_textures, make_starlike_textures,
+                       make_cusp_texture, DOTS, SMALL_DOTS, LINES)
 
 
 class Model3D(object):
@@ -497,6 +497,7 @@ class Model3D(object):
         image = image_utils.normalize(image, True)
         image = self.spiralgalaxy_scale_top(image, disk, percent=90)
         image = image_utils.normalize(image, True)
+        # central cusp orginally applied here
         image = self.emphasize_regs(image, scaled_masks)
         (image, croppedmasks, disk, spiralarms,
          clusters, markstars) = self.crop_image(image, scaled_masks,
@@ -515,8 +516,28 @@ class Model3D(object):
 
         # add central cusp and textures
         if self.has_texture:
+            image = self.add_textures(image, croppedmasks)
 
-            # add central cusp for spiral galaxies
+            # apply stars and star clusters
+            if self.has_intensity:
+                base_percentile = 75
+                depth = 5
+            else:
+                base_percentile = None
+                depth = 10
+            starlike_textures = make_starlike_textures(
+                image, markstars, clusters, radius_a=self.clus_r_fac_add,
+                radius_b=self.clus_r_fac_mul, depth=depth,
+                base_percentile=base_percentile)
+            #if h_percentile is not None:
+            #    filt = ndimage.filters.maximum_filter(array, fil_size)
+            #    mask = (filt > 0) & (image > filt) & (array == 0)
+            #    array[mask] = filt[mask]
+            image = apply_textures(image, starlike_textures)
+
+            # add central cusp for spiral galaxies (do this last,
+            # particular after adding the lines texture for the disk
+            # bulge)
             if self.is_spiralgal:
                 if self.has_intensity:
                     cusp_depth = 20
@@ -529,21 +550,6 @@ class Model3D(object):
                 image = self.spiralgalaxy_central_cusp(
                     image, bulge_mask, radius=25, depth=cusp_depth,
                     base_percentile=cusp_percentile)
-
-            image = self.add_textures(image, croppedmasks)
-            #image = self.add_stars_clusters(image, clusters, markstars)
-
-            # apply stars and star clusters
-            if self.has_intensity:
-                base_percentile = 75
-                depth = 5
-            else:
-                base_percentile = None
-                depth = 10
-            image = apply_starlike_textures(
-                image, markstars, clusters, depth=depth,
-                radius_a=self.clus_r_fac_add, radius_b=self.clus_r_fac_mul,
-                base_percentile=base_percentile)
 
         if isinstance(image, np.ma.core.MaskedArray):
             image = image.data
@@ -591,8 +597,11 @@ class Model3D(object):
         """
 
         x, y = find_galaxy_center(image, bulge_mask)
-        return apply_cusp_texture(image, x, y, radius=radius, depth=depth,
-                                  base_percentile=base_percentile)
+        cusp_texture = make_cusp_texture(image, x, y, radius=radius,
+                                         depth=depth,
+                                         base_percentile=base_percentile)
+        log.info('Placed cusp texture at the galaxy center.')
+        return apply_textures(image, cusp_texture)
 
     def emphasize_regs(self, image, scaled_masks):
         log.info('Emphasizing regions')
