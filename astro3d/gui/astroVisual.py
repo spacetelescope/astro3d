@@ -288,7 +288,7 @@ class AstroGUI(QMainWindow):
                  save_all=True):
         """Save files and make 3D model.
 
-        See :func:`~astro3d.utils.meshcreator.to_mesh` for more details.
+        See :func:`~astro3d.utils.meshes.to_mesh` for more details.
 
         Parameters
         ----------

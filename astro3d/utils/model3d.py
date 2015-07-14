@@ -20,7 +20,7 @@ from scipy import ndimage
 import photutils
 
 from . import image_utils
-from .meshcreator import to_mesh
+from .meshes import to_mesh
 from .textures import (TextureMask, apply_textures, make_starlike_textures,
                        make_cusp_texture, DOTS, SMALL_DOTS, LINES)
 
