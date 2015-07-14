@@ -1007,24 +1007,13 @@ def textures_to_jpeg():
             save(hdim, fn)
 
 
-# Pre-defined textures (by Perry Greenfield for NGC 602)
-# This is for XSIZE=1100 YSIZE=1344
-# DOTS = partial(
-#    dots_texture_map, profile='linear', diameter=7, height=10.5,
-#    grid_func=hexagonal_grid, grid_spacing=10)
-# SMALL_DOTS = partial(
-#    dots_texture_map, profile='linear', diameter=7, height=3.5,
-#    grid_func=hexagonal_grid, grid_spacing=7)
-# LINES = partial(lines_texture_map, profile='linear', thickness=15,
-#                 height=5.25, spacing=25, orientation=0)
-
-# Pre-defined textures (by Roshan Rao for NGC 3344 and NGC 1566)
-# This is for roughly XSIZE=1000 YSIZE=1000
 DOTS = partial(
-    dots_texture_map, profile='linear', diameter=5, height=8.0,
-    grid_func=hexagonal_grid, grid_spacing=7)
+    dots_texture_map, profile='spherical', diameter=9.0, height=8.0,
+    grid_func=hexagonal_grid, grid_spacing=9.0)
+
 SMALL_DOTS = partial(
-    dots_texture_map, profile='linear', diameter=5, height=4.5,
-    grid_func=hexagonal_grid, grid_spacing=4.5)
+    dots_texture_map, profile='spherical', diameter=9.0, height=4.0,
+    grid_func=hexagonal_grid, grid_spacing=5.0)
+
 LINES = partial(lines_texture_map, profile='linear', thickness=13,
                 height=7.8, spacing=20, orientation=0)
