@@ -1,5 +1,5 @@
 """This module contains several subclasses of ``QGraphicsScene``.
-These are instantiated by `~astro3d.gui.astroVisual.MainPanel` and
+These are instantiated by `~astro3d.gui.core.MainPanel` and
 are used to display the image and any regions.
 Furthermore, `RegionStarScene` and `ClusterStarScene` allow
 user input upon mouse click.
@@ -68,11 +68,11 @@ class PreviewScene(QGraphicsScene):
 
     Parameters
     ----------
-    parent : `~astro3d.gui.astroVisual.PreviewWindow`
+    parent : `~astro3d.gui.core.PreviewWindow`
         The instantiating class.
 
     width, height : int
-        The size of the `~astro3d.gui.astroVisual.PreviewWindow`,
+        The size of the `~astro3d.gui.core.PreviewWindow`,
         which allows `PreviewScene` to scale the image appropriately.
 
     """
@@ -164,17 +164,17 @@ class StarScene(QGraphicsScene):
 
     Parameters
     ----------
-    parent : `~astro3d.gui.astroVisual.MainPanel`
+    parent : `~astro3d.gui.core.MainPanel`
         The instantiating class.
 
     width, height : int
-        The size of the `~astro3d.gui.astroVisual.MainPanel`,
+        The size of the `~astro3d.gui.core.MainPanel`,
         which allows `StarScene` to scale the image appropriately.
 
     Attributes
     ----------
     size : QSize
-        Size of the `~astro3d.gui.astroVisual.MainPanel`.
+        Size of the `~astro3d.gui.core.MainPanel`.
 
     pixmap : QGraphicsPixmapItem
         Image the regions belong to.
@@ -203,7 +203,7 @@ class StarScene(QGraphicsScene):
 
     def addImg(self, pixmap):
         """Scales the input pixmap to appropriate size for the
-        `~astro3d.gui.astroVisual.MainPanel`, then adds it to
+        `~astro3d.gui.core.MainPanel`, then adds it to
         the display. Adds all regions on top of image.
 
         .. note::
@@ -347,7 +347,7 @@ class _RegionStarScene(QGraphicsScene):
 
     Parameters
     ----------
-    parent : `~astro3d.gui.astroVisual.MainPanel`
+    parent : `~astro3d.gui.core.MainPanel`
         The instantiating class.
 
     pixmap : QPixmap
@@ -900,7 +900,7 @@ class ClusterStarScene(QGraphicsScene):
 
     Parameters
     ----------
-    parent : `~astro3d.gui.astroVisual.MainPanel`
+    parent : `~astro3d.gui.core.MainPanel`
         The instantiating class.
 
     pixmap : QPixmap

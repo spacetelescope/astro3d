@@ -34,7 +34,7 @@ class ThreeDModelWizard(QWizard):
 
     Parameters
     ----------
-    parent : `~astro3d.gui.astroVisual.AstroGUI`
+    parent : `~astro3d.gui.core.AstroGUI`
         The instantiating widget.
 
     debug : bool
@@ -801,7 +801,7 @@ class RegionPage(QWizardPage):
 
     def add_items(self):
         """Clear the region list, then adds all regions from
-        `~astro3d.gui.astroVisual.AstroGUI` region list.
+        `~astro3d.gui.core.AstroGUI` region list.
         This is used after adjustments are made to various regions,
         such as when regions are added or deleted.
 
