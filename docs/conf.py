@@ -30,11 +30,17 @@ import os
 # ones.
 extensions = [
     'sphinx.ext.autodoc',
+    'sphinx.ext.autosummary',
     'sphinx.ext.doctest',
     'sphinx.ext.intersphinx',
     'sphinx.ext.mathjax',
     'sphinx.ext.viewcode',
+    'numpydoc',
 ]
+
+# Class documentation should contain *both* the class docstring and
+# the __init__ docstring
+autoclass_content = "both"
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -265,4 +271,11 @@ texinfo_documents = [
 
 
 # Example configuration for intersphinx: refer to the Python standard library.
-intersphinx_mapping = {'http://docs.python.org/': None}
+intersphinx_mapping = {
+    'python': ('http://docs.python.org/', None),
+    'numpy': ('http://docs.scipy.org/doc/numpy/', None),
+    'scipy': ('http://docs.scipy.org/doc/scipy/reference/', None),
+    'matplotlib': ('http://matplotlib.sourceforge.net/', None),
+    'astropy': ('http://docs.astropy.org/en/stable/', None),
+    'photutils': ('http://photutils.readthedocs.org/en/latest/', None),
+}

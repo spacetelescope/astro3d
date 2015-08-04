@@ -6,7 +6,7 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>Welcome to astro3d’s documentation! &mdash; astro3d 0.4.dev1 documentation</title>
+    <title>Astro3d &mdash; astro3d 0.4.dev1 documentation</title>
     
     <link rel="stylesheet" href="_static/default.css" type="text/css" />
     <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
@@ -24,7 +24,8 @@
     <script type="text/javascript" src="_static/underscore.js"></script>
     <script type="text/javascript" src="_static/doctools.js"></script>
     <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
-    <link rel="top" title="astro3d 0.4.dev1 documentation" href="#" /> 
+    <link rel="top" title="astro3d 0.4.dev1 documentation" href="#" />
+    <link rel="next" title="Reference/API" href="high-level_API.html" /> 
   </head>
   <body>
     <div class="related">
@@ -33,6 +34,12 @@
         <li class="right" style="margin-right: 10px">
           <a href="genindex.html" title="General Index"
              accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="high-level_API.html" title="Reference/API"
+             accesskey="N">next</a> |</li>
         <li><a href="#">astro3d 0.4.dev1 documentation</a> &raquo;</li> 
       </ul>
     </div>  
@@ -42,11 +49,63 @@
         <div class="bodywrapper">
           <div class="body">
             
-  <div class="section" id="welcome-to-astro3d-s-documentation">
-<h1>Welcome to astro3d&#8217;s documentation!<a class="headerlink" href="#welcome-to-astro3d-s-documentation" title="Permalink to this headline">¶</a></h1>
-<p>Contents:</p>
-<div class="toctree-wrapper compound">
+  <div class="section" id="astro3d">
+<h1>Astro3d<a class="headerlink" href="#astro3d" title="Permalink to this headline">¶</a></h1>
+<p>Astro3d provides a GUI and engine to create a <a class="reference external" href="https://en.wikipedia.org/wiki/3D_modeling">3D model</a> from an
+astronomical image.  The 3D model is saved in a <a class="reference external" href="https://en.wikipedia.org/wiki/STL_(file_format)">STL</a> file, which can
+then be sent to a 3D printer.</p>
+</div>
+<div class="section" id="installation">
+<h1>Installation<a class="headerlink" href="#installation" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="requirements">
+<h2>Requirements<a class="headerlink" href="#requirements" title="Permalink to this headline">¶</a></h2>
+<p>Astro3d requires:</p>
 <ul class="simple">
+<li><a class="reference external" href="http://www.python.org/">Python</a> 2.6 (&gt;=2.6.5), 2.7, 3.3, or 3.4</li>
+<li><a class="reference external" href="http://www.numpy.org/">Numpy</a> 1.6 or later</li>
+<li><a class="reference external" href="http://www.scipy.org/">Scipy</a></li>
+<li><a class="reference external" href="http://matplotlib.org/">matplotlib</a></li>
+<li><a class="reference external" href="http://www.astropy.org/">Astropy</a> 1.0 or later</li>
+<li><a class="reference external" href="https://python-pillow.github.io/">Pillow</a> or <a class="reference external" href="http://www.pythonware.com/products/pil/">PIL</a></li>
+<li><a class="reference external" href="http://www.riverbankcomputing.co.uk/software/pyqt/download">PyQt4</a></li>
+<li><a class="reference external" href="https://photutils.readthedocs.org/en/latest/">photutils</a></li>
+<li><a class="reference external" href="https://github.com/hmeine/qimage2ndarray">qimage2ndarray</a></li>
+</ul>
+</div>
+<div class="section" id="obtaining-the-source-package">
+<h2>Obtaining the Source Package<a class="headerlink" href="#obtaining-the-source-package" title="Permalink to this headline">¶</a></h2>
+<p>The latest development version of <tt class="docutils literal"><span class="pre">astro3d</span></tt> can be cloned from
+github using this command:</p>
+<div class="highlight-python"><div class="highlight"><pre>git clone git://github.com/STScI-SSB/astro3d.git
+</pre></div>
+</div>
+</div>
+<div class="section" id="installing-from-the-source-package">
+<h2>Installing from the Source Package<a class="headerlink" href="#installing-from-the-source-package" title="Permalink to this headline">¶</a></h2>
+<p>To install from the root of the source package:</p>
+<div class="highlight-python"><div class="highlight"><pre>python setup.py install
+</pre></div>
+</div>
+</div>
+<div class="section" id="installing-using-pip">
+<h2>Installing using pip<a class="headerlink" href="#installing-using-pip" title="Permalink to this headline">¶</a></h2>
+<p>To install the current <em>development</em> version using <a class="reference external" href="https://pip.pypa.io/en/stable/">pip</a>:</p>
+<div class="highlight-python"><div class="highlight"><pre>pip install git+https://github.com/STScI-SSB/astro3d
+</pre></div>
+</div>
+</div>
+</div>
+<div class="section" id="using-astro3d">
+<h1>Using <tt class="docutils literal"><span class="pre">astro3d</span></tt><a class="headerlink" href="#using-astro3d" title="Permalink to this headline">¶</a></h1>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="high-level_API.html">Reference/API</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="high-level_API.html#module-astro3d.model3d"><tt class="docutils literal"><span class="pre">astro3d.model3d</span></tt></a></li>
+<li class="toctree-l2"><a class="reference internal" href="high-level_API.html#module-astro3d.meshes"><tt class="docutils literal"><span class="pre">astro3d.meshes</span></tt></a></li>
+<li class="toctree-l2"><a class="reference internal" href="high-level_API.html#module-astro3d.textures"><tt class="docutils literal"><span class="pre">astro3d.textures</span></tt></a></li>
+<li class="toctree-l2"><a class="reference internal" href="high-level_API.html#module-astro3d.image_utils"><tt class="docutils literal"><span class="pre">astro3d.image_utils</span></tt></a></li>
+</ul>
+</li>
 </ul>
 </div>
 </div>
@@ -67,10 +126,21 @@
         <div class="sphinxsidebarwrapper">
   <h3><a href="#">Table Of Contents</a></h3>
   <ul>
-<li><a class="reference internal" href="#">Welcome to astro3d&#8217;s documentation!</a></li>
+<li><a class="reference internal" href="#">Astro3d</a></li>
+<li><a class="reference internal" href="#installation">Installation</a><ul>
+<li><a class="reference internal" href="#requirements">Requirements</a></li>
+<li><a class="reference internal" href="#obtaining-the-source-package">Obtaining the Source Package</a></li>
+<li><a class="reference internal" href="#installing-from-the-source-package">Installing from the Source Package</a></li>
+<li><a class="reference internal" href="#installing-using-pip">Installing using pip</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#using-astro3d">Using <tt class="docutils literal"><span class="pre">astro3d</span></tt></a></li>
 <li><a class="reference internal" href="#indices-and-tables">Indices and tables</a></li>
 </ul>
 
+  <h4>Next topic</h4>
+  <p class="topless"><a href="high-level_API.html"
+                        title="next chapter">Reference/API</a></p>
   <h3>This Page</h3>
   <ul class="this-page-menu">
     <li><a href="_sources/index.txt"
@@ -99,6 +169,12 @@
         <li class="right" style="margin-right: 10px">
           <a href="genindex.html" title="General Index"
              >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="high-level_API.html" title="Reference/API"
+             >next</a> |</li>
         <li><a href="#">astro3d 0.4.dev1 documentation</a> &raquo;</li> 
       </ul>
     </div>

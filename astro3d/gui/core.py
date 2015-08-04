@@ -50,9 +50,9 @@ from PyQt4.QtCore import *
 from .star_scenes import (PreviewScene, StarScene, RegionBrushScene,
                           RegionFileScene, ClusterStarScene)
 from .wizard import ThreeDModelWizard
-from ..utils import model3d
-from ..utils import image_utils
-from ..utils.textures import TextureMask
+from .. import model3d
+from .. import image_utils
+from ..textures import TextureMask
 
 
 _gui_title = 'Astronomy 3D Model'

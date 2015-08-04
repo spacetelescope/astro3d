@@ -23,8 +23,8 @@ from PyQt4.QtCore import *
 from qimage2ndarray import array2qimage
 
 # Local
-from ..utils import image_utils
-from ..utils.model3d import combine_masks
+from .. import image_utils
+from ..model3d import combine_masks
 
 
 def mask2pixmap(mask, alpha, i_layer, size=None):
