@@ -21,6 +21,6 @@ setup(name=package_name,
       description='Create a 3D model from an astronomical image',
       author='STScI',
       author_email='help@stsci.edu',
-      packages=['astro3d', 'astro3d.gui'],
+      packages=['astro3d', 'astro3d.gui', 'astro3d.scripts'],
       entry_points=entry_points,
       )

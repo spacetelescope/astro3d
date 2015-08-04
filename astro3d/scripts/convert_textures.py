@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 import os
@@ -9,7 +7,7 @@ import numpy as np
 from astropy import log
 from astropy.table import Table
 from astropy.utils.exceptions import AstropyUserWarning
-from astro3d.utils.textures import TextureMask
+from astro3d.textures import TextureMask
 
 
 def npz_to_fits(filename):
@@ -83,7 +81,7 @@ def convert_starlike_table(filename):
 def main(args=None):
     parser = argparse.ArgumentParser(
         description='Convert older texture masks to new format.')
-    parser.add_argument('filename', metavar='filename', nargs='*',
+    parser.add_argument('filename', metavar='filename', nargs='+',
                         help='filename containing content')
     args = parser.parse_args()
 
