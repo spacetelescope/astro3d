@@ -5,20 +5,22 @@ try:
 except ImportError:
     from distutils.core import setup
 
-# command-line scripts
-#entry_points = {}
-#entry_points['console_scripts'] = [
-#    'astro3d = astro3d.gui.astroVisual:main'
-#    'convert_textures = astro3d.utils.scripts.convert_textures:main'
-#]
 
-setup(
-    name = 'astro3d',
-    version = '0.3.0.dev0',
-    description = 'Hubble Image 3D Printing',
-    author = 'STScI',
-    author_email = 'help@stsci.edu',
-    packages = ['astro3d', 'astro3d.utils', 'astro3d.gui'],
-    scripts = ['scripts/astro3d', 'scripts/convert_textures'],
-    #entry_points=entry_points
-    )
+# command-line scripts
+entry_points = {}
+entry_points['console_scripts'] = [
+    'astro3d = astro3d.gui.core:main',
+    'convert_textures = astro3d.scripts.convert_textures:main',
+]
+
+package_name = 'astro3d'
+version = '0.4.dev0'
+
+setup(name=package_name,
+      version=version,
+      description='Create a 3D model from an astronomical image',
+      author='STScI',
+      author_email='help@stsci.edu',
+      packages=['astro3d', 'astro3d.gui'],
+      entry_points=entry_points,
+      )
