@@ -75,10 +75,9 @@ class AstroGUI(QMainWindow):
 
     Parameters
     ----------
-    argv
-        Arguments from command line.
-        'debug' is used to run the debug script
-        (see :meth:`run_auto_login_script`).
+    debug : boolean, optional
+        If `True` then run the debug script (see
+        :meth:`run_auto_login_script`).
 
     Attributes
     ----------
@@ -110,7 +109,7 @@ class AstroGUI(QMainWindow):
          (3, 'Textured intensity map (one-sided)'),
          (4, 'Textured intensity map (two-sided)')])
 
-    def __init__(self, argv=None):
+    def __init__(self, debug=False):
         super(AstroGUI, self).__init__()
         self.setWindowTitle(_gui_title)
         log.info('Started {0} v{1} ({2}) by {3}'.format(
@@ -125,12 +124,9 @@ class AstroGUI(QMainWindow):
         self.createWidgets()
         self.move(0, 0)
 
-        if argv and argv[0] == 'debug':
-            debug = True
+        if debug:
             log.info('running debug script')
             self.run_auto_login_script()
-        else:
-            debug = False
 
         screen = QDesktopWidget().screenGeometry()
         wizard = ThreeDModelWizard(self, debug=debug)
@@ -999,12 +995,20 @@ class PreviewWindow(QWidget):
         self.scene.draw()
 
 
-def main(argv):
-    """Execute the GUI."""
-    app = QApplication(argv)
-    window = AstroGUI(argv[1:])
+def main(args=None):
+    """Start the GUI."""
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description=('Create a 3D model from an astronomical image.'))
+    parser.add_argument('-d', '--debug', default=False, action='store_true',
+                        help='Run in debug mode (not enabled)')
+    args = parser.parse_args(args)
+
+    app = QApplication([])
+    window = AstroGUI(debug=args.debug)
     sys.exit(app.exec_())
 
 
 if __name__ == '__main__':
-    main(sys.argv)
+    main()
