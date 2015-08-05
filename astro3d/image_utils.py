@@ -437,12 +437,12 @@ def circular_mask(arr_shape, r, xcen, ycen):
         # populate array with mask position
         a[y1:y2, x1:x2][circle] = True
 
-        mask = a[yout:-yout,xout:-xout].copy()
+        mask = a[yout:-yout, xout:-xout].copy()
 
     return mask
 
 
-def dot(v1,v2):
+def dot(v1, v2):
     """Vector dot product."""
     return (v1 * v2).sum(axis=-1)
 
