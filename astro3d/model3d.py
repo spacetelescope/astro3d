@@ -48,21 +48,26 @@ class Model3D(object):
     >>> model.save_peaks(prefix)
     """
 
-    def __init__(self, image):
+    def __init__(self, data, resize_xsize=1000):
         """
         Parameters
         ----------
-        image : array-like
-            The input image from which to create a 3D model.
+        data : array-like
+            The input 2D array from which to create a 3D model.
+
+        resize_xsize : int, optional
+            The size of the x axis of the resized image.
         """
 
-        self.input_image = image
-        self.image = self.resize(image)
+        self.input_data = np.asanyarray(data)
+        self.data = self.resize(self.remove_nonfinite(self.input_data),
+                                x_size=resize_xsize)
 
-        self.has_texture = True
-        self.has_intensity = True
-        self.is_double_sided = False
-        self.is_spiralgal = False      # Also initialize layer order
+        self._has_textures = True
+        self._has_intensity = True
+        self._double_sided = False
+        self._spiral_galaxy = False
+        # spiral_galaxy   # also initialize layer order
 
         self.texture_masks = defaultdict(list)
         self.region_masks = defaultdict(list)
@@ -95,6 +100,37 @@ class Model3D(object):
         # Image is now ready for the rest of processing when user
         # provides the rest of the info
         self._preproc_img = self.resize(image)
+
+    @property
+    def has_textures(self):
+        """
+        Property to determine if the 3D model has textures.
+        `True` or `False`.
+        """
+        return self._has_textures
+
+    @has_textures.setter
+    def has_textures(self, value):
+        if not isinstance(value, bool):
+            raise ValueError('has_textures must be a boolean.')
+        if not value and not self.has_intensity:
+            raise ValueError('3D Model must have textures and/or intensity.')
+        self._has_textures = value
+
+    @property
+    def has_intensity(self):
+        """
+        Property to determine if the 3D model has intensities.
+        """
+        return self._has_intensity
+
+    @has_intensity.setter
+    def has_intensity(self, value):
+        if not isinstance(value, bool):
+            raise ValueError('has_intensity must be a boolean.')
+        if not value and not self.has_textures:
+            raise ValueError('3D Model must have textures and/or intensity.')
+        self._has_intensity = value
 
     @classmethod
     def from_fits(cls, filename):
@@ -220,32 +256,9 @@ class Model3D(object):
                 else:
                     filename = '{0}_{1}.fits'.format(filename_prefix,
                                                      mask_type)
-                mask.write(filename, self.input_image.shape)
+                mask.write(filename, self.input_data.shape)
 
-    def resize(self, image, x_size=1000):
-        """
-        Resize an image.
 
-        The image is proportionally resized such that its ``x`` axis
-        size is ``x_size``.
-
-        Parameters
-        ----------
-        image : array-like
-            The 2D image to be resized.
-        """
-
-        # TODO: handle case when ny >> nx (e.g. rotate 90 deg)
-
-        ny, nx = image.shape
-        y_size = float(x_size) * ny / nx
-        image = np.array(Image.fromarray(image).resize(
-            (x_size, y_size)), dtype=np.float64)
-
-        log.info('Input image was resized from (ny, nx) = {0}x{1} to '
-            '{2}x{3}'.format(ny, nx, y_size, x_size))
-
-        return image
 
 
 
@@ -269,7 +282,7 @@ class Model3D(object):
             Maximum number of sources allowed.
 
         """
-        tab = find_peaks(self.input_image)[:n]
+        tab = find_peaks(self.input_data)[:n]
         self._store_peaks(key, tab)
 
     def load_peaks(self, key, filename):
@@ -303,6 +316,71 @@ class Model3D(object):
             tab.write(tname, format='ascii')
             log.info('{0} saved'.format(tname))
 
+
+
+
+
+    @staticmethod
+    def remove_nonfinite(data):
+        """
+        Remove non-finite values (e.g. NaN, inf, etc.) in an array.
+
+        Parameters
+        ----------
+        data : array-like
+            The input data array.
+
+        Returns
+        -------
+        result : `~numpy.ndarray`
+            The array with non-finite values removed.
+        """
+
+        # TODO: interpolate over non-finite values -
+        # simply setting to zero is not optimal!
+        data_out = deepcopy(np.asanyarray(data))
+        data_out[~np.isfinite(data_out)] = 0.
+        return data_out
+
+    @staticmethod
+    def resize(data, x_size=1000):
+        """
+        Resize a 2D array.
+
+        The array is proportionally resized such that its ``x`` axis
+        size is ``x_size``.
+
+        Parameters
+        ----------
+        data : array-like
+            The 2D array to be resized.
+
+        x_size : int, optional
+            The size of the x axis of the output image.
+
+        Returns
+        -------
+        result : `~numpy.ndarray`
+            The resized array.
+        """
+
+        data = np.asanyarray(data)
+        ny, nx = data.shape
+        if (float(ny) / nx) >= 1.5:
+            # TODO:  raise exception instead?
+            warnings.warn('The image is >= 1.5x taller than wide.  It should '
+                          'be rotated such that the longest axis is in the '
+                          'x direction.', AstropyUserWarning)
+
+        y_size = np.round(float(x_size) * ny / nx)
+        data = np.array(Image.fromarray(data).resize(
+            (x_size, y_size)), dtype=np.float64)
+
+        log.info('The array was resized from {0}x{1} to {2}x{3} '
+                 '(ny * nx)'.format(ny, nx, y_size, x_size))
+
+        return data
+
     @property
     def is_spiralgal(self):
         """Does the model represent a spiral galaxy?"""
@@ -316,34 +394,6 @@ class Model3D(object):
         self._is_spiralgal = val
         self._layer_order = [self.lines_key, self.dots_key,
                              self.small_dots_key]
-
-    @property
-    def has_texture(self):
-        """Apply textures."""
-        return self._has_texture
-
-    @has_texture.setter
-    def has_texture(self, value):
-        """Set to `True` or `False`."""
-        if not isinstance(value, bool):
-            raise ValueError('Must be a boolean')
-        if not self.has_intensity and not value:
-            raise ValueError('Model must have textures or intensity!')
-        self._has_texture = value
-
-    @property
-    def has_intensity(self):
-        """Generate intensity map."""
-        return self._has_intensity
-
-    @has_intensity.setter
-    def has_intensity(self, value):
-        """Set to `True` or `False`."""
-        if not isinstance(value, bool):
-            raise ValueError('Must be a boolean')
-        if not self.has_texture and not value:
-            raise ValueError('Model must have textures or intensity!')
-        self._has_intensity = value
 
     @property
     def smooth_key(self):
@@ -526,7 +576,7 @@ class Model3D(object):
     def _process_peaks(self):
         """Scale peaks."""
         scaled_peaks = deepcopy(self.peaks)
-        fac = self._preproc_img.shape[0] / self.input_image.shape[0]
+        fac = self._preproc_img.shape[0] / self.input_data.shape[0]
 
         for peaks in scaled_peaks.itervalues():  # clusters and stars
             peaks['xcen'] *= fac
