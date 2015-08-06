@@ -55,9 +55,9 @@ class TextureMask(object):
 
         return resize_image(self.mask, shape[0], width=shape[1])
 
-    def save(self, filename, shape=None):
+    def write(self, filename, shape=None):
         """
-        Save the texture mask to a FITS file.
+        Write the texture mask to a FITS file.
 
         Mask `True` and `False` values will be saved as 1 and 0,
         respectively.

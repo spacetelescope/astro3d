@@ -27,9 +27,7 @@ from .textures import (TextureMask, apply_textures, make_starlike_textures,
 
 class Model3D(object):
     """
-    Class to create a 3D model from an image.
-
-    This class also supports image previews for the GUI.
+    Class to create a 3D model from an astronomical image.
 
     Examples
     --------
@@ -50,35 +48,42 @@ class Model3D(object):
     >>> model.save_peaks(prefix)
     """
 
-    _MIN_NPIXELS = 8.1e5    # 900 x 900
-    _MAX_NPIXELS = 1.69e6    # 1300 x 1300
-    _RESIZE_AXIS_LEN = 1000
-
     def __init__(self, image):
         """
         Parameters
         ----------
-        image : array_like
+        image : array-like
             The input image from which to create a 3D model.
         """
 
         self.input_image = image
+        self.image = self.resize(image)
 
-        # This can be set from GUI
+        self.has_texture = True
+        self.has_intensity = True
+        self.is_double_sided = False
+        self.is_spiralgal = False      # Also initialize layer order
+
+        self.texture_masks = defaultdict(list)
         self.region_masks = defaultdict(list)
         self.peaks = {
             self.clusters_key: Table(names=['xcen', 'ycen', 'flux']),
             self.stars_key: Table(names=['xcen', 'ycen', 'flux'])}
+
         self.height = 150.0
         self.base_thickness = 20
+
         self.clus_r_fac_add = 10
         self.clus_r_fac_mul = 5
         self.star_r_fac_add = 10
         self.star_r_fac_mul = 5
-        self.double_sided = False
-        self._has_texture = True
-        self._has_intensity = True
-        self.is_spiralgal = False  # Also initialize layer order
+
+
+        self.allowed_textures = ['remove_star', 'smooth', 'gas',
+                                 'dots_small', 'spiral', 'dots', 'disk',
+                                 'lines']
+
+
 
         # Results
         self._preview_intensity = None
@@ -91,99 +96,159 @@ class Model3D(object):
         # provides the rest of the info
         self._preproc_img = self.resize(image)
 
-    def resize(self, image):
-        """
-        Resize an image such that the longest axes has _RESIZE_AXIS_LEN
-        pixels, preserving the image aspect ratio.
-
-        The image is resized only if it contains less than
-        _MIN_NPIXELS or more than _MAX_NPIXELS.
-        """
-
-        orig_h, orig_w = image.shape
-        ny, nx = image.shape
-        log.info('Input image is {0}x{1} (ny, nx)'.format(ny, nx))
-
-        if (image.size < self._MIN_NPIXELS or
-                image.size > self._MAX_NPIXELS):
-            aspect_ratio = float(ny) / nx
-            if nx <= ny:
-                nx_new = self._RESIZE_AXIS_LEN
-                ny_new = int(nx_new * aspect_ratio)
-            else:
-                ny_new = self._RESIZE_AXIS_LEN
-                nx_new = int(ny_new / aspect_ratio)
-
-            image = np.array(Image.fromarray(image).resize(
-                (nx_new, ny_new)), dtype=np.float64)
-            log.info('Input image was resized from {0}x{1} to {2}x{3}'.format(
-                ny, nx, ny_new, nx_new))
-        else:
-            image = image.astype(np.float64)
-            log.info('Input image was not resized.')
-
-        return image
-
     @classmethod
     def from_fits(cls, filename):
-        """Create class instance from FITS file."""
+        """
+        Create a `Model3D` class instance from a FITS file.
+
+        Parameters
+        ----------
+        filename : str
+            The name of the FITS file.
+        """
+
         data = fits.getdata(filename)
         if data is None:
-            raise ValueError('FITS file does not have image data')
-        elif data.ndim == 3:  # RGB cube from HLA
-            data[~np.isfinite(data)] = 0  # Replace NaNs
+            raise ValueError('FITS file does not have image data.')
+
+        # TODO: interpolate over non-finite values?
+        if data.ndim == 2:
+            data[~np.isfinite(data)] = 0.
+        elif data.ndim == 3:    # RGB cube
+            # TODO: improve RGB to grayscale conversion
+            data[~np.isfinite(data)] = 0.
             data = data.sum(axis=0)
+        else:
+            raise ValueError('data is not a 2D image or a 3D RGB cube')
 
         return cls(data)
 
     @classmethod
     def from_rgb(cls, filename):
-        """Create class instance from RGB images like JPEG and TIFF."""
-        data = np.array(
-            Image.open(filename), dtype=np.float32)[::-1, :, :].sum(axis=2)
+        """
+        Create a `Model3D` class instance from a RGB file (e.g. JPG,
+        PNG, TIFF).
+
+        Parameters
+        ----------
+        filename : str
+            The name of the RGB file.
+        """
+
+        data = np.array(Image.open(filename).convert('L'),
+                        dtype=np.float32)[::-1]
         return cls(data)
 
-    def read_texture_masks(self, search_string):
+    def read_mask(self, filename):
         """
-        Read texture masks from FITS files and save directly into
-        ``self.texture_masks``.
+        Read a texture or region mask from a FITS file.
 
-        This method should not be used with the GUI.
+        The mask is read into a `TextureMask` object and then stored in
+        the `region_masks` or `texture_masks` dictionary, keyed by the
+        mask type.
+
+        Parameters
+        ----------
+        filename : str
+            The name of the FITS file.  The mask data must be in the
+            primary FITS extension and the header must have a 'TX_TYPE'
+            keyword defining the texture/region type.
+        """
+
+        texture_mask = TextureMask.read(filename)
+        texture_type = texture_mask.texture_type
+        if texture_type not in self.allowed_textures:
+            warnings.warn('{0} is not a valid texture '
+                          'type'.format(texture_type), AstropyUserWarning)
+            return
+
+        if texture_type in ['smooth', 'remove_star']:
+            self.region_masks[texture_type].append(texture_mask)
+            region_type = 'Region'
+        else:
+            self.texture_masks[texture_type].append(texture_mask)
+            region_type = 'Texture'
+
+        log.info('{0} type "{1}" loaded from {2}'.format(region_type,
+                                                         texture_type,
+                                                         filename))
+
+    def read_all_masks(self, pathname):
+        """
+        Read all texture and region masks matching the specified
+        ``pathname``.
+
+        Parameters
+        ----------
+        pathname : str
+            The pathname pattern of mask files to read.  Wildcards
+            are allowed.
+
+        Examples
+        --------
+        >>> model3d = Model3D()
+        >>> model3d.read_all_masks('*.fits')
+        >>> model3d.read_all_masks('masks/*.fits')
         """
 
         import glob
+        for filename in glob.iglob(pathname):
+            self.read_mask(filename)
 
-        for filename in glob.iglob(search_string):
-            texture_mask = TextureMask.read(filename)
-            texture_type = texture_mask.texture_type
-            if texture_type not in self.allowed_textures():
-                warnings.warn('{0} is not a valid texture type, '
-                              'skipping {1}'.format(texture_type, filename),
-                              AstropyUserWarning)
-                continue
-            self.region_masks[texture_type].append(texture_mask)
-            log.info('{0} loaded from {1}'.format(texture_type, filename))
-
-    def save_texture_masks(self, prefix):
+    def write_all_masks(self, filename_prefix):
         """
-        Save (uncropped) texture masks to FITS files.
+        Write all texture and region masks as FITS files.  The files are
+        saved to the current directory.
 
-        The texture masks are resized to match the original image
-        size.
+        The saved masks will have the same shape as the original input
+        image.
+
+        Parameters
+        ----------
+        filename_prefix : str
+            The prefix for the output filenames.  The output filenames
+            will be '<filename_prefix>_<mask_type>.fits'.  If there is
+            more than one mask for a given mask type then they will be
+            numbered with consecutive integers starting at 1.
         """
 
-        prefixpath, prefixname = os.path.split(prefix)
-        for key, reglist in self.region_masks.iteritems():
-            # rpath = os.path.join(prefixpath, '_'.join(['region', key]))
-            # if not os.path.exists(rpath):
-            #     os.mkdir(rpath)
-            for i, texture_mask in enumerate(reglist, 1):
-                # rname = os.path.join(rpath, '_'.join(
-                #     map(str, [prefixname, reg.description, i])) + '.fits')
-                filename = '{0}_{1}_{2}.fits'.format(prefixname,
-                                                     texture_mask.texture_type,
-                                                     i)
-                texture_mask.save(filename, self.input_image.shape)
+        for mask_type, masks in self.region_masks.iteritems():
+            for i, mask in enumerate(masks, 1):
+                if len(masks) > 1:
+                    filename = '{0}_{1}_{2}.fits'.format(filename_prefix,
+                                                         mask_type, i)
+                else:
+                    filename = '{0}_{1}.fits'.format(filename_prefix,
+                                                     mask_type)
+                mask.write(filename, self.input_image.shape)
+
+    def resize(self, image, x_size=1000):
+        """
+        Resize an image.
+
+        The image is proportionally resized such that its ``x`` axis
+        size is ``x_size``.
+
+        Parameters
+        ----------
+        image : array-like
+            The 2D image to be resized.
+        """
+
+        # TODO: handle case when ny >> nx (e.g. rotate 90 deg)
+
+        ny, nx = image.shape
+        y_size = float(x_size) * ny / nx
+        image = np.array(Image.fromarray(image).resize(
+            (x_size, y_size)), dtype=np.float64)
+
+        log.info('Input image was resized from (ny, nx) = {0}x{1} to '
+            '{2}x{3}'.format(ny, nx, y_size, x_size))
+
+        return image
+
+
+
 
     def _store_peaks(self, key, tab):
         """Store peaks in attribute."""
