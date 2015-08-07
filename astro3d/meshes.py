@@ -156,9 +156,10 @@ def get_cross(triset):
     return triset
 
 
-def to_mesh(image, filename, depth=1, double_sided=False, _ascii=False):
+def write_mesh(image, filename_prefix, depth=1, double_sided=False,
+               stl_format='binary'):
     """
-    Write an image to STL file by splitting each pixel into two
+    Write an image to a STL file by splitting each pixel into two
     triangles.
 
     Parameters
@@ -166,8 +167,8 @@ def to_mesh(image, filename, depth=1, double_sided=False, _ascii=False):
     image : ndarray
         The image to convert.
 
-    filename : str
-        Prefix of output file. ``.stl`` is automatically appended.
+    filename_prefix : str
+        The prefix of output file. ``'.stl'`` is automatically appended.
 
     depth : int
         The depth of the back plate. Should probably be between
@@ -177,12 +178,13 @@ def to_mesh(image, filename, depth=1, double_sided=False, _ascii=False):
         suffices.
 
     double_sided : bool
-        Set to `True` for a double-sided model.
+        Set to `True` for a double-sided model, which will be a simple
+        reflection..
 
-    _ascii : bool
-        Write in binary or ASCII format.
-        Binary STL file is harder to debug, but takes up less
-        storage space.
+    stl_format : {'binary', 'ascii'}
+        Format for the output STL file.  The default is 'binary'.  The
+        binary STL file is harder to debug, but takes up less storage
+        space.
     """
 
     if isinstance(image, np.ma.core.MaskedArray):
@@ -198,14 +200,16 @@ def to_mesh(image, filename, depth=1, double_sided=False, _ascii=False):
         triset2[:, 1:, 2] = -triset2[:, 1:, 2]
         triset = np.concatenate((triset, triset2))
 
-    if _ascii:
+    if stl_format == 'binary':
+        write_func = write_binary
+    elif stl_format == 'ascii':
         write_func = write_ascii
     else:
-        write_func = write_binary
+        raise ValueError('stl_format must be "binary" or "ascii"')
 
-    fname = filename + '.stl'
-    write_func(triset, fname)
-    log.info('{0} saved'.format(fname))
+    filename = filename_prefix + '.stl'
+    write_func(triset, filename)
+    log.info('Saved "{0}"'.format(filename))
 
 
 def write_binary(triset, filename):
