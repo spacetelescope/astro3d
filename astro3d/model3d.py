@@ -75,6 +75,15 @@ class Model3D(object):
             self.clusters_key: Table(names=['xcen', 'ycen', 'flux']),
             self.stars_key: Table(names=['xcen', 'ycen', 'flux'])}
 
+        self._layer_order = [self.lines_key, self.dots_key,
+                             self.small_dots_key]
+
+        spiral_translation = {}
+        spiral_translation['remove_star'] = 'smooth'
+        spiral_translation['gas'] = 'dots_small'
+        spiral_translation['spiral'] = 'dots'
+        spiral_translation['disk'] = 'lines'
+
         self.height = 150.0
         self.base_thickness = 20
 
@@ -323,7 +332,7 @@ class Model3D(object):
     @staticmethod
     def remove_nonfinite(data):
         """
-        Remove non-finite values (e.g. NaN, inf, etc.) in an array.
+        Remove non-finite values (e.g. NaN, inf, etc.) from an array.
 
         Parameters
         ----------
@@ -381,119 +390,7 @@ class Model3D(object):
 
         return data
 
-    @property
-    def is_spiralgal(self):
-        """Does the model represent a spiral galaxy?"""
-        return self._is_spiralgal
 
-    @is_spiralgal.setter
-    def is_spiralgal(self, val):
-        """Set spiral galaxy property. Also reset layer order."""
-        if not isinstance(val, bool):
-            raise ValueError('Must be a boolean')
-        self._is_spiralgal = val
-        self._layer_order = [self.lines_key, self.dots_key,
-                             self.small_dots_key]
-
-    @property
-    def smooth_key(self):
-        """Key identifying regions to smooth."""
-        if self.is_spiralgal:
-            key = 'remove_star'
-        else:
-            key = 'smooth'
-        return key
-
-    @property
-    def small_dots_key(self):
-        """Key identifying regions to mark with small dots."""
-        if self.is_spiralgal:
-            key = 'gas'
-        else:
-            key = 'dots_small'
-        return key
-
-    @property
-    def dots_key(self):
-        """Key identifying regions to mark with dots."""
-        if self.is_spiralgal:
-            key = 'spiral'
-        else:
-            key = 'dots'
-        return key
-
-    @property
-    def lines_key(self):
-        """Key identifying regions to mark with lines."""
-        if self.is_spiralgal:
-            key = 'disk'
-        else:
-            key = 'lines'
-        return key
-
-    @property
-    def clusters_key(self):
-        """Key identifying star clusters to be marked."""
-        return 'clusters'
-
-    @property
-    def stars_key(self):
-        """Key identifying stars to be marked."""
-        return 'stars'
-
-    @property
-    def layer_order(self):
-        """Layer ordering, listed by highest priority first."""
-        return self._layer_order
-
-    @layer_order.setter
-    def layer_order(self, value):
-        if self.is_spiralgal:
-            raise ValueError('Layer order is fixed for spiral galaxy')
-        if set(value) != set(self.layer_order):
-            raise ValueError(
-                'Layers can be reordered but cannot be added or removed.')
-        self._layer_order = value
-
-    def allowed_textures(self):
-        """Return a list of allowed texture names."""
-        return [self.dots_key, self.small_dots_key, self.lines_key,
-                self.smooth_key]
-
-    def texture_names(self):
-        """Return existing region texture names, except for the one used
-        for smoothing.
-
-        .. note::
-
-            This is targeted at textures with dots and lines,
-            where lines belong in the foreground layer by default,
-            hence listed first.
-
-        """
-        names = sorted(
-            self.region_masks, key=lambda x: self.layer_order.index(x)
-            if x in self.layer_order else 99, reverse=True)
-        if self.smooth_key in names:
-            names.remove(self.smooth_key)
-        for key in names:
-            if len(self.region_masks[key]) < 1:
-                names.remove(key)
-        return names
-
-    @property
-    def preview_intensity(self):
-        """Monochrome intensity for GUI preview."""
-        if self._preview_intensity is None:
-            raise ValueError('Run make() first')
-        return self._preview_intensity
-
-    @property
-    def out_image(self):
-        """Final result for STL generator."""
-        if self._out_image is None:
-            raise ValueError('Run make() first')
-        return self._out_image
 
     def save_stl(self, fname, split_halves=True, _ascii=False):
         """Save 3D model to STL file(s)."""
