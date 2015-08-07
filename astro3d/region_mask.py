@@ -12,7 +12,7 @@ class RegionMask(object):
     This class defines a region mask.
     """
 
-    def __init__(self, mask, mask_type):
+    def __init__(self, mask, mask_type, required_shape=None, shape=None):
         """
         Parameters
         ----------
@@ -24,27 +24,27 @@ class RegionMask(object):
         mask_type : str
             The type of mask.  Some examples include 'dots', 'small_dots',
             'lines', 'gas', 'spiral'.
+
+        required_shape : tuple, optional
+            If not `None`, then the ``(ny, nx)`` shape required for the
+            input mask.
+
+        shape : tuple, optional
+            If not `None`, then the input mask will be resized to
+            ``shape``.
         """
 
         self.mask = np.asanyarray(mask)
         self.mask_type = mask_type
 
-    def resize(self, shape):
-        """
-        Return the region mask resized to the given ``shape``.
+        if required_shape is not None:
+            if self.mask.shape != required_shape:
+                raise ValueError('Input mask does not have the correct '
+                                 'shape.')
 
-        Parameters
-        ----------
-        shape : tuple
-            Desired shape of the region mask.
-
-        Returns
-        -------
-        mask : `~numpy.ndarray`
-            The resized region mask.
-        """
-
-        return resize_image(self.mask, shape[0], width=shape[1])
+        if shape is not None:
+            self.mask = resize_image(self.mask, x_size=shape[1],
+                                     y_size=shape[0])
 
     def write(self, filename, shape=None):
         """
@@ -60,14 +60,13 @@ class RegionMask(object):
 
         shape : tuple
             If not `None`, then the region mask will be resized to
-            ``shape``.  This is used to save the mask as the same size
-            of original input image.
+            ``shape``.  This is used to save the mask with the same size
+            as the original input image.
         """
 
+        mask = self.mask
         if shape is not None:
-            mask = self.resize(shape)
-        else:
-            mask = self.mask
+            mask = resize_image(self.mask, x_size=shape[1], y_size=shape[0])
 
         header = fits.Header()
         header['MASKTYPE'] = self.mask_type
@@ -77,7 +76,7 @@ class RegionMask(object):
                                                        self.mask_type))
 
     @classmethod
-    def from_fits(cls, filename, shape=None):
+    def from_fits(cls, filename, required_shape=None, output_shape=None):
         """
         Create a `RegionMask` instance from a FITS file.
 
@@ -92,11 +91,13 @@ class RegionMask(object):
         filename : str
             The input FITS filename.
 
-        shape : tuple
+        required_shape : tuple, optional
+            If not `None`, then the ``(ny, nx)`` shape required for the
+            input mask.
+
+        output_shape : tuple, optional
             If not `None`, then the input mask will be resized to
-            ``shape``.  This is used to resize the region mask to the
-            same size of the (smaller) working image (e.g used in the
-            GUI, etc.).
+            ``output_shape``.
 
         Returns
         -------
@@ -107,12 +108,9 @@ class RegionMask(object):
         fobj = fits.open(filename)
         header = fobj[0].header
         mask = fobj[0].data.astype(np.bool)
-
-        if shape is not None:
-            mask = resize_image(mask, shape[0], width=shape[1])
-
         mask_type = header['MASKTYPE']
-        region_mask = cls(mask, mask_type)
+        region_mask = cls(mask, mask_type, required_shape=required_shape,
+                          output_shape=output_shape)
         log.info('Read {0} (mask type="{1}").'.format(filename, mask_type))
 
         return region_mask

@@ -123,7 +123,7 @@ class Model3D(object):
     @has_textures.setter
     def has_textures(self, value):
         if not isinstance(value, bool):
-            raise ValueError('has_textures must be a boolean.')
+            raise ValueError('Must be a boolean.')
         if not value and not self.has_intensity:
             raise ValueError('3D Model must have textures and/or intensity.')
         self._has_textures = value
@@ -138,7 +138,7 @@ class Model3D(object):
     @has_intensity.setter
     def has_intensity(self, value):
         if not isinstance(value, bool):
-            raise ValueError('has_intensity must be a boolean.')
+            raise ValueError('Must be a boolean.')
         if not value and not self.has_textures:
             raise ValueError('3D Model must have textures and/or intensity.')
         self._has_intensity = value
@@ -156,25 +156,24 @@ class Model3D(object):
 
         data = fits.getdata(filename)
         if data is None:
-            raise ValueError('FITS file does not have image data.')
+            raise ValueError('data not found in the FITS file')
 
-        # TODO: interpolate over non-finite values?
-        if data.ndim == 2:
-            data[~np.isfinite(data)] = 0.
-        elif data.ndim == 3:    # RGB cube
+        if data.ndim not in [2, 3]:
+            raise ValueError('data is not a 2D image or a 3D RGB cube')
+
+        if data.ndim == 3:    # RGB cube
+            # TODO: interpolate over non-finite values?
             # TODO: improve RGB to grayscale conversion
             data[~np.isfinite(data)] = 0.
             data = data.sum(axis=0)
-        else:
-            raise ValueError('data is not a 2D image or a 3D RGB cube')
 
         return cls(data)
 
     @classmethod
     def from_rgb(cls, filename):
         """
-        Create a `Model3D` class instance from a RGB file (e.g. JPG,
-        PNG, TIFF).
+        Create a `Model3D` instance from a RGB file (e.g. JPG, PNG,
+        TIFF).
 
         Parameters
         ----------
@@ -194,6 +193,9 @@ class Model3D(object):
         the `region_masks` or `texture_masks` dictionary, keyed by the
         mask type.
 
+        The mask data must have the same shape as the input ``data``.
+        The masks are resized to have the same shape as ``self.data``.
+
         Parameters
         ----------
         filename : str
@@ -202,7 +204,9 @@ class Model3D(object):
             keyword defining the mask type.
         """
 
-        region_mask = RegionMask.from_fits(filename)
+        region_mask = RegionMask.from_fits(
+            filename, required_shape=self.input_data.shape,
+            shape=self.data.shape)
         mask_type = region_mask.mask_type
         if mask_type not in self.allowed_mask_types:
             warnings.warn('"{0}" is not a valid mask '
@@ -260,14 +264,15 @@ class Model3D(object):
         """
 
         for mask_type, masks in self.region_masks.iteritems():
+            nmasks = len(masks)
             for i, mask in enumerate(masks, 1):
-                if len(masks) > 1:
+                if nmasks > 1:
                     filename = '{0}_{1}_{2}.fits'.format(filename_prefix,
                                                          mask_type, i)
                 else:
                     filename = '{0}_{1}.fits'.format(filename_prefix,
                                                      mask_type)
-                mask.write(filename, self.input_data.shape)
+                mask.write(filename, shape=self.input_data.shape)
 
 
 
