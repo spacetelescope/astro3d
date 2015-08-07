@@ -11,7 +11,7 @@ from copy import deepcopy
 
 import numpy as np
 from astropy import log
-from astropy.io import ascii, fits
+from astropy.io import fits
 from astropy.table import Table
 from astropy.utils.exceptions import AstropyUserWarning
 from PIL import Image
@@ -19,7 +19,7 @@ from scipy import ndimage
 import photutils
 
 from . import image_utils
-from .meshes import to_mesh
+from .meshes import write_mesh
 from .region_mask import RegionMask
 from .textures import (apply_textures, make_starlike_textures,
                        make_cusp_texture, DOTS, SMALL_DOTS, LINES)
@@ -78,9 +78,9 @@ class Model3D(object):
             The size of the x axis of the resized image.
         """
 
-        self.input_data = np.asanyarray(data)
+        self.data_input = np.asanyarray(data)
         self.data = image_utils.resize_image(
-            image_utils.remove_nonfinite(self.input_data),
+            image_utils.remove_nonfinite(self.data_input),
             x_size=resize_xsize)
 
         self._model_complete = False
@@ -98,10 +98,9 @@ class Model3D(object):
 
         self.texture_masks = defaultdict(list)
         self.region_masks = defaultdict(list)
-        self.stellar_tables = {}
+        self.stellar_tables_original = {}
         for key in self.allowed_stellar_types:
-            self.stellar_tables[key] = None
-
+            self.stellar_tables_original[key] = None
 
         self._layer_order = [self.lines_key, self.dots_key,
                              self.small_dots_key]
@@ -254,7 +253,7 @@ class Model3D(object):
         """
 
         region_mask = RegionMask.from_fits(
-            filename, required_shape=self.input_data.shape,
+            filename, required_shape=self.data_input.shape,
             shape=self.data.shape)
         mask_type = region_mask.mask_type
         if mask_type not in self.allowed_mask_types:
@@ -322,7 +321,7 @@ class Model3D(object):
                 else:
                     filename = '{0}_{1}.fits'.format(filename_prefix,
                                                      mask_type)
-                mask.write(filename, shape=self.input_data.shape)
+                mask.write(filename, shape=self.data_input.shape)
 
     def read_stellar_table(self, filename, stellar_type):
         """
@@ -344,7 +343,7 @@ class Model3D(object):
         # TODO: check for required columns
         # TODO: rename input columns, e.g. xcen/x_cen/xcenter -> x_center
         table.keep_columns(['x_center', 'y_center', 'flux'])
-        self.stellar_tables[stellar_type] = table
+        self.stellar_tables_original[stellar_type] = table
 
     def read_star_clusters(self, filename):
         """Read star clusters table from an ASCII file."""
@@ -369,7 +368,8 @@ class Model3D(object):
         """
 
         filename = '{0}_{1}.txt'.format(filename_prefix, stellar_type)
-        self.stellar_tables[stellar_type].write(filename, format='ascii')
+        self.stellar_tables_original[stellar_type].write(filename,
+                                                         format='ascii')
         log.info('Saved {0} table to {1}'.format(stellar_type, filename))
 
     def write_all_stellar_tables(self, filename_prefix):
@@ -409,7 +409,7 @@ class Model3D(object):
         """
 
         if not self._model_complete:
-            warn.warnings('The model has not been constructed yet. '
+            warnings.warn('The model has not been constructed yet. '
                           'Please run the .make() method before saving '
                           'the STL file.', AstropyUserWarning)
             return
@@ -422,29 +422,10 @@ class Model3D(object):
             write_mesh(model2, filename_prefix + '_2',
                        double_sided=self.double_sided, stl_format=stl_format)
         else:
-            write_mesh(model, filename_prefix,
+            write_mesh(self.data, filename_prefix,
                        double_sided=self.double_sided, stl_format=stl_format)
 
 
-
-
-    def get_preview_mask(self, key):
-        """Boolean mask for given texture key for GUI preview."""
-        if self._preview_masks is None:
-            raise ValueError('Run make() first')
-        return self._preview_masks == key
-
-    def get_final_clusters(self):
-        """Star clusters for GUI preview (not in native coords)."""
-        if self.clusters_key not in self._final_peaks:
-            raise ValueError('Run make() first')
-        return self._final_peaks[self.clusters_key]
-
-    def get_final_stars(self):
-        """Stars for GUI preview (not in native coords)."""
-        if self.stars_key not in self._final_peaks:
-            raise ValueError('Run make() first')
-        return self._final_peaks[self.stars_key]
 
     def _process_masks(self):
         """Scale and combine masks."""
@@ -469,6 +450,16 @@ class Model3D(object):
 
         return scaled_masks, disk, spiralarms
 
+
+    def _prepare_stellar_tables(self):
+        self.stellar_tables = deepcopy(self.stellar_tables_original)
+        scale = float(self.data.shape[0] / self.data_input.shape[0])
+
+        for table in self.stellar_tables.itervalues():
+            table['x_center'] *= scale
+            table['y_center'] *= scale
+
+
     def _crop_masks(self, scaled_masks, ix1, ix2, iy1, iy2):
         """Crop masks."""
         croppedmasks = defaultdict(list)
@@ -488,17 +479,6 @@ class Model3D(object):
                 spiralarms = croppedmasks[self.dots_key][0]
 
         return croppedmasks, disk, spiralarms
-
-    def _process_peaks(self):
-        """Scale peaks."""
-        scaled_peaks = deepcopy(self.peaks)
-        fac = self._preproc_img.shape[0] / self.input_data.shape[0]
-
-        for peaks in scaled_peaks.itervalues():  # clusters and stars
-            peaks['xcen'] *= fac
-            peaks['ycen'] *= fac
-
-        return scaled_peaks
 
     def _crop_peaks(self, scaled_peaks, key, ix1, ix2, iy1, iy2):
         """Crop peaks."""
