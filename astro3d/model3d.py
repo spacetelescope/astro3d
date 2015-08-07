@@ -50,17 +50,21 @@ class Model3D(object):
     >>> model.read_star_clusters('object_star_clusters.txt')   # same as above
 
 
-
     >>> model.make()
     >>> preview_intensity = model.preview_intensity
     >>> preview_dots_mask = model.get_preview_mask(model.dots_key)
     >>> preview_clusters = model.get_final_clusters()
     >>> preview_stars = model.get_final_stars()
     >>> image_for_stl = model.out_image
-    >>> prefix = 'myprefix'
-    >>> model.save_stl(prefix)
-    >>> model.save_texture_masks(prefix)
-    >>> model.save_peaks(prefix)
+
+
+    >>> filename_prefix = 'myobject'
+    >>> model.write_stl(prefix, split_model=True)
+    >>> model.write_all_masks(filename_prefix)
+
+    >>> # write stellar tables separately or all at once
+    >>> model.write_stellar_table(filename_prefix, stellar_type='stars')
+    >>> model.write_all_stellar_tables(filename_prefix)
     """
 
     def __init__(self, data, resize_xsize=1000):
@@ -79,6 +83,7 @@ class Model3D(object):
             image_utils.remove_nonfinite(self.input_data),
             x_size=resize_xsize)
 
+        self._model_complete = False
         self._has_textures = True
         self._has_intensity = True
         self._double_sided = False
@@ -349,9 +354,9 @@ class Model3D(object):
         """Read stars table from an ASCII file."""
         self.read_stellar_table(filename, 'stars')
 
-    def save_stellar_table(self, filename_prefix, stellar_type):
+    def write_stellar_table(self, filename_prefix, stellar_type):
         """
-        Save a table of stars or star clusters to an ASCII file.
+        Write a table of stars or star clusters to an ASCII file.
 
         Parameters
         ----------
@@ -367,9 +372,9 @@ class Model3D(object):
         self.stellar_tables[stellar_type].write(filename, format='ascii')
         log.info('Saved {0} table to {1}'.format(stellar_type, filename))
 
-    def save_all_stellar_tables(self, filename_prefix):
+    def write_all_stellar_tables(self, filename_prefix):
         """
-        Save all tables of stars and star clusters to ASCII files.
+        Write all tables of stars and star clusters to ASCII files.
 
         Parameters
         ----------
@@ -379,27 +384,49 @@ class Model3D(object):
         """
 
         for stellar_type in self.allowed_stellar_types:
-            self.save_stellar_table(filename_prefix, stellar_type)
+            self.write_stellar_table(filename_prefix, stellar_type)
 
+    def write_stl(self, filename_prefix, split_model=True,
+                  stl_format='binary'):
+        """
+        Write the 3D model to a STL file(s).
 
+        Parameters
+        ----------
+        filename_prefix : str
+            The prefix for the output filenames.  The output filename
+            will be '<filename_prefix>.stl'.  If ``split_image=True``,
+            then the filename will be '<filename_prefix>_[1|2].stl'.
 
+        split_model : bool, optional
+            If `True`, then split the model into two halves, a bottom
+            and top part.
 
-    def save_stl(self, fname, split_halves=True, _ascii=False):
-        """Save 3D model to STL file(s)."""
-        model = self.out_image
+        stl_format : {'binary', 'ascii'}, optional
+            Format for the output STL file.  The default is 'binary'.
+            The binary STL file is harder to debug, but takes up less
+            storage space.
+        """
 
-        # Remove any .stl suffix because it is added by to_mesh()
-        if fname.lower().endswith('.stl'):
-            fname = fname[:-4]
+        if not self._model_complete:
+            warn.warnings('The model has not been constructed yet. '
+                          'Please run the .make() method before saving '
+                          'the STL file.', AstropyUserWarning)
+            return
 
-        # Depth is set to 1 here because it is accounted for in make()
-        depth = 1
-        if split_halves:
-            model1, model2 = image_utils.split_image(model, axis='horizontal')
-            to_mesh(model1, fname + '_1', depth, self.double_sided, _ascii)
-            to_mesh(model2, fname + '_2', depth, self.double_sided, _ascii)
+        if split_model:
+            model1, model2 = image_utils.split_image(self.data,
+                                                     axis='horizontal')
+            write_mesh(model1, filename_prefix + '_1',
+                       double_sided=self.double_sided, stl_format=stl_format)
+            write_mesh(model2, filename_prefix + '_2',
+                       double_sided=self.double_sided, stl_format=stl_format)
         else:
-            to_mesh(model, fname, depth, self.double_sided, _ascii)
+            write_mesh(model, filename_prefix,
+                       double_sided=self.double_sided, stl_format=stl_format)
+
+
+
 
     def get_preview_mask(self, key):
         """Boolean mask for given texture key for GUI preview."""
