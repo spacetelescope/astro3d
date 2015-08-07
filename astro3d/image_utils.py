@@ -8,6 +8,10 @@ from astropy.io import fits
 from PIL import Image
 from PyQt4.QtCore import Qt
 from scipy.misc import imresize
+from copy import deepcopy
+import warnings
+from astropy.utils.exceptions import AstropyUserWarning
+
 
 # THIRD-PARTY
 import qimage2ndarray as q2a
@@ -17,6 +21,71 @@ from astropy.visualization import (PercentileInterval, LinearStretch,
 scale_linear = LinearStretch() + PercentileInterval(99.)
 scale_log = LogStretch() + PercentileInterval(99.)
 scale_sqrt = SqrtStretch() + PercentileInterval(99.)
+
+
+def remove_nonfinite(data):
+    """
+    Remove non-finite values (e.g. NaN, inf, etc.) from an array.
+
+    Parameters
+    ----------
+    data : array-like
+        The input data array.
+
+    Returns
+    -------
+    result : `~numpy.ndarray`
+        The array with non-finite values removed.
+    """
+
+    # TODO: interpolate over non-finite values -
+    # simply setting to zero is not optimal!
+    data_out = deepcopy(np.asanyarray(data))
+    data_out[~np.isfinite(data_out)] = 0.
+    return data_out
+
+
+def resize_image(data, x_size=1000):
+    """
+    Resize a 2D array.
+
+    The array is proportionally resized such that its ``x`` axis
+    size is ``x_size``.
+
+    Given that 3D printing cannot handle fine resolution, any loss of
+    resolution is ultimately unimportant.
+
+    Parameters
+    ----------
+    data : array-like
+        The 2D array to be resized.
+
+    x_size : int, optional
+        The size of the x axis of the output image.
+
+    Returns
+    -------
+    result : `~numpy.ndarray`
+        The resized array.
+    """
+
+    data = np.asanyarray(data)
+    ny, nx = data.shape
+    if (float(ny) / nx) >= 1.5:
+        # TODO:  raise exception instead?
+        warnings.warn('The image is >= 1.5x taller than wide.  It should '
+                      'be rotated such that the longest axis is in the '
+                      'x direction.', AstropyUserWarning)
+
+    y_size = np.round(float(x_size) * ny / nx)
+    #data = np.array(Image.fromarray(data).resize(
+    #    (x_size, y_size)), dtype=np.float64)
+    data = imresize(data, (y_size, x_size)).astype(data.dtype)
+
+    log.info('The array was resized from {0}x{1} to {2}x{3} '
+             '(ny * nx)'.format(ny, nx, y_size, x_size))
+
+    return data
 
 
 def makeqimage(nparray, transformation, size):
@@ -154,36 +223,6 @@ def scale_rgb(image, rgb_scaling=None):
         scaled_image[:, :, i] = rgb_scaling[i] * image[:, :, i]
 
     return scaled_image
-
-
-def resize_image(image, height, width=None):
-    """Resize the image.
-
-    Given that 3D printing cannot handle fine resolution,
-    any loss of resolution is ultimately unimportant.
-
-    Parameters
-    ----------
-    image : ndarray
-        Input image.
-
-    height : int
-        Desired height.
-
-    width : int or `None`
-        Desired width. If not given, calculate from given
-        height and image aspect ratio.
-
-    Returns
-    -------
-    array : ndarray
-        Resized image.
-
-    """
-    h, w = image.shape
-    if width is None:
-        width = int(round(w * height / h))
-    return imresize(image, (height, width)).astype(image.dtype)
 
 
 def crop_image(image, _max=0):

@@ -5,7 +5,6 @@ This module provides tools to apply textures to an image and to create a
 
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
-import os
 import warnings
 from collections import defaultdict
 from copy import deepcopy
@@ -61,8 +60,9 @@ class Model3D(object):
         """
 
         self.input_data = np.asanyarray(data)
-        self.data = self.resize(self.remove_nonfinite(self.input_data),
-                                x_size=resize_xsize)
+        self.data = image_utils.resize_image(
+            image_utils.remove_nonfinite(self.input_data),
+            x_size=resize_xsize)
 
         self._has_textures = True
         self._has_intensity = True
@@ -110,7 +110,7 @@ class Model3D(object):
 
         # Image is now ready for the rest of processing when user
         # provides the rest of the info
-        self._preproc_img = self.resize(image)
+        self._preproc_img = self.resize(data)
 
     @property
     def has_textures(self):
@@ -186,8 +186,7 @@ class Model3D(object):
                         dtype=np.float32)[::-1]
         return cls(data)
 
-    def read_mask(self, filename, shape=self.):
-        zzzz
+    def read_mask(self, filename):
         """
         Read a region mask from a FITS file.
 
@@ -210,15 +209,15 @@ class Model3D(object):
                           'type'.format(mask_type), AstropyUserWarning)
             return
 
-        if mask_type self.region_mask_types:
-            self.region_masks[texture_type].append(texture_mask)
+        if mask_type in self.region_mask_types:
+            self.region_masks[mask_type].append(region_mask)
             region_type = 'Region'
         else:
-            self.texture_masks[texture_type].append(texture_mask)
+            self.texture_masks[mask_type].append(region_mask)
             region_type = 'Texture'
 
         log.info('{0} type "{1}" loaded from {2}'.format(region_type,
-                                                         texture_type,
+                                                         mask_type,
                                                          filename))
 
     def read_all_masks(self, pathname):
@@ -327,73 +326,6 @@ class Model3D(object):
             tname = '{0}_{1}.txt'.format(prefix, key)
             tab.write(tname, format='ascii')
             log.info('{0} saved'.format(tname))
-
-
-
-
-
-    @staticmethod
-    def remove_nonfinite(data):
-        """
-        Remove non-finite values (e.g. NaN, inf, etc.) from an array.
-
-        Parameters
-        ----------
-        data : array-like
-            The input data array.
-
-        Returns
-        -------
-        result : `~numpy.ndarray`
-            The array with non-finite values removed.
-        """
-
-        # TODO: interpolate over non-finite values -
-        # simply setting to zero is not optimal!
-        data_out = deepcopy(np.asanyarray(data))
-        data_out[~np.isfinite(data_out)] = 0.
-        return data_out
-
-    @staticmethod
-    def resize(data, x_size=1000):
-        """
-        Resize a 2D array.
-
-        The array is proportionally resized such that its ``x`` axis
-        size is ``x_size``.
-
-        Parameters
-        ----------
-        data : array-like
-            The 2D array to be resized.
-
-        x_size : int, optional
-            The size of the x axis of the output image.
-
-        Returns
-        -------
-        result : `~numpy.ndarray`
-            The resized array.
-        """
-
-        data = np.asanyarray(data)
-        ny, nx = data.shape
-        if (float(ny) / nx) >= 1.5:
-            # TODO:  raise exception instead?
-            warnings.warn('The image is >= 1.5x taller than wide.  It should '
-                          'be rotated such that the longest axis is in the '
-                          'x direction.', AstropyUserWarning)
-
-        y_size = np.round(float(x_size) * ny / nx)
-        data = np.array(Image.fromarray(data).resize(
-            (x_size, y_size)), dtype=np.float64)
-
-        log.info('The array was resized from {0}x{1} to {2}x{3} '
-                 '(ny * nx)'.format(ny, nx, y_size, x_size))
-
-        return data
-
-
 
     def save_stl(self, fname, split_halves=True, _ascii=False):
         """Save 3D model to STL file(s)."""
