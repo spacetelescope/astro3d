@@ -21,7 +21,8 @@ import photutils
 
 from . import image_utils
 from .meshes import to_mesh
-from .textures import (TextureMask, apply_textures, make_starlike_textures,
+from .region_mask import RegionMask
+from .textures import (apply_textures, make_starlike_textures,
                        make_cusp_texture, DOTS, SMALL_DOTS, LINES)
 
 
@@ -93,10 +94,11 @@ class Model3D(object):
         self.star_r_fac_mul = 5
 
 
-        self.allowed_textures = ['remove_star', 'smooth', 'gas',
-                                 'dots_small', 'spiral', 'dots', 'disk',
-                                 'lines']
-
+        self.texture_mask_types = ['gas', 'dots_small', 'spiral', 'dots',
+                                   'disk', 'lines']
+        self.region_mask_types = ['smooth', 'remove_star']
+        self.allowed_mask_types = (self.texture_mask_types +
+                                   self.region_mask_types)
 
 
         # Results
@@ -144,7 +146,7 @@ class Model3D(object):
     @classmethod
     def from_fits(cls, filename):
         """
-        Create a `Model3D` class instance from a FITS file.
+        Create a `Model3D` instance from a FITS file.
 
         Parameters
         ----------
@@ -184,11 +186,12 @@ class Model3D(object):
                         dtype=np.float32)[::-1]
         return cls(data)
 
-    def read_mask(self, filename):
+    def read_mask(self, filename, shape=self.):
+        zzzz
         """
-        Read a texture or region mask from a FITS file.
+        Read a region mask from a FITS file.
 
-        The mask is read into a `TextureMask` object and then stored in
+        The mask is read into a `RegionMask` object and then stored in
         the `region_masks` or `texture_masks` dictionary, keyed by the
         mask type.
 
@@ -196,18 +199,18 @@ class Model3D(object):
         ----------
         filename : str
             The name of the FITS file.  The mask data must be in the
-            primary FITS extension and the header must have a 'TX_TYPE'
-            keyword defining the texture/region type.
+            primary FITS extension and the header must have a 'MASKTYPE'
+            keyword defining the mask type.
         """
 
-        texture_mask = TextureMask.read(filename)
-        texture_type = texture_mask.texture_type
-        if texture_type not in self.allowed_textures:
-            warnings.warn('{0} is not a valid texture '
-                          'type'.format(texture_type), AstropyUserWarning)
+        region_mask = RegionMask.from_fits(filename)
+        mask_type = region_mask.mask_type
+        if mask_type not in self.allowed_mask_types:
+            warnings.warn('"{0}" is not a valid mask '
+                          'type'.format(mask_type), AstropyUserWarning)
             return
 
-        if texture_type in ['smooth', 'remove_star']:
+        if mask_type self.region_mask_types:
             self.region_masks[texture_type].append(texture_mask)
             region_type = 'Region'
         else:
@@ -220,13 +223,13 @@ class Model3D(object):
 
     def read_all_masks(self, pathname):
         """
-        Read all texture and region masks matching the specified
+        Read all region masks (FITS files) matching the specified
         ``pathname``.
 
         Parameters
         ----------
         pathname : str
-            The pathname pattern of mask files to read.  Wildcards
+            The pathname pattern of mask FITS files to read.  Wildcards
             are allowed.
 
         Examples
@@ -242,8 +245,8 @@ class Model3D(object):
 
     def write_all_masks(self, filename_prefix):
         """
-        Write all texture and region masks as FITS files.  The files are
-        saved to the current directory.
+        Write all region masks as FITS files.  The files are saved to
+        the current directory.
 
         The saved masks will have the same shape as the original input
         image.
@@ -794,13 +797,13 @@ class Model3D(object):
         sdmask_thres = np.percentile(image, percentile_lo)
         sdmask = (image > sdmask_thres) & (~dmask)
 
-        # Resize and save them as TextureMask
+        # Resize and save them as RegionMask
         if shape is not None:
             dmask = image_utils.resize_image(dmask, shape[0], width=shape[1])
             sdmask = image_utils.resize_image(sdmask, shape[0], width=shape[1])
-        self.region_masks[self.dots_key] = [TextureMask(dmask, self.dots_key)]
+        self.region_masks[self.dots_key] = [RegionMask(dmask, self.dots_key)]
         self.region_masks[self.small_dots_key] = [
-            TextureMask(sdmask, self.small_dots_key)]
+            RegionMask(sdmask, self.small_dots_key)]
 
         log.info('auto find min dthres sdthres max: {0} {1} {2} {3}'.format(
             image.min(), sdmask_thres, dmask_thres, image.max()))
