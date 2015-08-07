@@ -32,10 +32,25 @@ class Model3D(object):
     Examples
     --------
     >>> model = Model3D.from_fits('myimage.fits')
-    >>> model.is_spiralgal = True
+
+    >>> # define the type of 3D model
+    >>> model.has_textures = True
+    >>> model.has_intensity = True
     >>> model.double_sided = True
-    >>> model.read_texture_masks('*.fits')
-    >>> model.load_peaks(model.clusters_key, 'myclusters.txt')
+    >>> model.spiral_galaxy = True
+
+    >>> # read the region/texture masks
+    >>> model.read_mask('mask_file.fits')      # can read one by one
+    >>> model.read_all_masks('*.fits')         # or several at once
+
+    >>> # read the stars and/or star clusters
+    >>> model.read_stellar_table('object_stars.txt', 'stars')
+    >>> model.read_stars('object_stars.txt')     # same as above
+    >>> model.read_stellar_table('object_star_clusters.txt', 'star_clusters')
+    >>> model.read_star_clusters('object_star_clusters.txt')   # same as above
+
+
+
     >>> model.make()
     >>> preview_intensity = model.preview_intensity
     >>> preview_dots_mask = model.get_preview_mask(model.dots_key)
@@ -68,13 +83,20 @@ class Model3D(object):
         self._has_intensity = True
         self._double_sided = False
         self._spiral_galaxy = False
-        # spiral_galaxy   # also initialize layer order
+
+        self.texture_mask_types = ['gas', 'dots_small', 'spiral', 'dots',
+                                   'disk', 'lines']
+        self.region_mask_types = ['smooth', 'remove_star']
+        self.allowed_mask_types = (self.texture_mask_types +
+                                   self.region_mask_types)
+        self.allowed_stellar_types = ['stars', 'star_clusters']
 
         self.texture_masks = defaultdict(list)
         self.region_masks = defaultdict(list)
-        self.peaks = {
-            self.clusters_key: Table(names=['xcen', 'ycen', 'flux']),
-            self.stars_key: Table(names=['xcen', 'ycen', 'flux'])}
+        self.stellar_tables = {}
+        for key in self.allowed_stellar_types:
+            self.stellar_tables[key] = None
+
 
         self._layer_order = [self.lines_key, self.dots_key,
                              self.small_dots_key]
@@ -93,12 +115,6 @@ class Model3D(object):
         self.star_r_fac_add = 10
         self.star_r_fac_mul = 5
 
-
-        self.texture_mask_types = ['gas', 'dots_small', 'spiral', 'dots',
-                                   'disk', 'lines']
-        self.region_mask_types = ['smooth', 'remove_star']
-        self.allowed_mask_types = (self.texture_mask_types +
-                                   self.region_mask_types)
 
 
         # Results
@@ -142,6 +158,34 @@ class Model3D(object):
         if not value and not self.has_textures:
             raise ValueError('3D Model must have textures and/or intensity.')
         self._has_intensity = value
+
+    @property
+    def double_sided(self):
+        """
+        Property to determine if the 3D model is double sided (simple
+        reflection).
+        """
+        return self._double_sided
+
+    @double_sided.setter
+    def double_sided(self, value):
+        if not isinstance(value, bool):
+            raise ValueError('Must be a boolean.')
+        self._double_sided = value
+
+    @property
+    def spiral_galaxy(self):
+        """
+        Property to determine if the 3D model is a spiral galaxy, which
+        uses special processing.
+        """
+        return self._spiral_galaxy
+
+    @spiral_galaxy.setter
+    def spiral_galaxy(self, value):
+        if not isinstance(value, bool):
+            raise ValueError('Must be a boolean.')
+        self._spiral_galaxy = value
 
     @classmethod
     def from_fits(cls, filename):
@@ -251,7 +295,7 @@ class Model3D(object):
         Write all region masks as FITS files.  The files are saved to
         the current directory.
 
-        The saved masks will have the same shape as the original input
+        The ouput masks will have the same shape as the original input
         image.
 
         Parameters
@@ -260,7 +304,8 @@ class Model3D(object):
             The prefix for the output filenames.  The output filenames
             will be '<filename_prefix>_<mask_type>.fits'.  If there is
             more than one mask for a given mask type then they will be
-            numbered with consecutive integers starting at 1.
+            numbered with consecutive integers starting at 1:
+            '<filename_prefix>_<mask_type>_<num>.fits'.
         """
 
         for mask_type, masks in self.region_masks.iteritems():
@@ -274,63 +319,70 @@ class Model3D(object):
                                                      mask_type)
                 mask.write(filename, shape=self.input_data.shape)
 
-
-
-
-
-
-    def _store_peaks(self, key, tab):
-        """Store peaks in attribute."""
-        tab.keep_columns(['xcen', 'ycen', 'flux'])
-        self.peaks[key] = tab
-
-    def find_peaks(self, key, n):
-        """Find point sources and store them in ``self.peaks[key]``.
-
-        .. note:: Overwrites :meth:`load_peaks`.
-
-        Parameters
-        ----------
-        key : {self.clusters_key, self.stars_key}
-            Stars or star clusters.
-
-        n : int
-            Maximum number of sources allowed.
-
+    def read_stellar_table(self, filename, stellar_type):
         """
-        tab = find_peaks(self.input_data)[:n]
-        self._store_peaks(key, tab)
+        Read a table of stars or star clusters from a file.
 
-    def load_peaks(self, key, filename):
-        """Load existing point sources and store them in ``self.peaks[key]``.
-
-        .. note:: Overwrites :meth:`find_peaks`.
+        The table must have ``'x_center'``, ``'y_center'``, and
+        ``'flux'`` columns.
 
         Parameters
         ----------
-        key : {self.clusters_key, self.stars_key}
-            Stars or star clusters.
-
         filename : str
-            ASCII table generated by ``photutils``.
+            The filename containing an `~astropy.Table` in ASCII format.
 
+        stellar_type : {'stars', 'star_clusters'}
+            The type of the table.
         """
-        tab = ascii.read(filename, data_start=1)
-        self._store_peaks(key, tab)
 
-    def save_peaks(self, prefix):
-        """Save stars and star clusters to text files.
+        table = Table.read(filename, format='ascii')
+        # TODO: check for required columns
+        # TODO: rename input columns, e.g. xcen/x_cen/xcenter -> x_center
+        table.keep_columns(['x_center', 'y_center', 'flux'])
+        self.stellar_tables[stellar_type] = table
 
-        Coordinates already match original image.
-        One output file per table, each named ``<prefix>_<type>.txt``.
+    def read_star_clusters(self, filename):
+        """Read star clusters table from an ASCII file."""
+        self.read_stellar_table(filename, 'star_clusters')
 
+    def read_stars(self, filename):
+        """Read stars table from an ASCII file."""
+        self.read_stellar_table(filename, 'stars')
+
+    def save_stellar_table(self, filename_prefix, stellar_type):
         """
-        for key, tab in self.peaks.iteritems():
-            if len(tab) < 1:
-                continue
-            tname = '{0}_{1}.txt'.format(prefix, key)
-            tab.write(tname, format='ascii')
-            log.info('{0} saved'.format(tname))
+        Save a table of stars or star clusters to an ASCII file.
+
+        Parameters
+        ----------
+        filename_prefix : str
+            The prefix for the output filenames.  The output filenames
+            will be '<filename_prefix>_<stellar_type>.txt'.
+
+        stellar_type : {'stars', 'star_clusters'}
+            The type of the table.
+        """
+
+        filename = '{0}_{1}.txt'.format(filename_prefix, stellar_type)
+        self.stellar_tables[stellar_type].write(filename, format='ascii')
+        log.info('Saved {0} table to {1}'.format(stellar_type, filename))
+
+    def save_all_stellar_tables(self, filename_prefix):
+        """
+        Save all tables of stars and star clusters to ASCII files.
+
+        Parameters
+        ----------
+        filename_prefix : str
+            The prefix for the output filenames.  The output filenames
+            will be '<filename_prefix>_<stellar_type>.txt'.
+        """
+
+        for stellar_type in self.allowed_stellar_types:
+            self.save_stellar_table(filename_prefix, stellar_type)
+
+
+
 
     def save_stl(self, fname, split_halves=True, _ascii=False):
         """Save 3D model to STL file(s)."""
