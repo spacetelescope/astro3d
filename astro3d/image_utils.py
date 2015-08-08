@@ -85,9 +85,9 @@ def resize_image(data, x_size=1000, y_size=None):
     if y_size is None:
         y_size = int(np.round(float(x_size) * ny / nx))
 
-    #data = np.array(Image.fromarray(data).resize(
-    #    (x_size, y_size)), dtype=np.float64)
-    data = imresize(data, (y_size, x_size)).astype(data.dtype)
+    data = np.array(Image.fromarray(data.astype(float)).resize(
+        (x_size, y_size)), dtype=data.dtype)
+    #data = imresize(data, (y_size, x_size)).astype(data.dtype)
 
     log.info('The array was resized from {0}x{1} to {2}x{3} '
              '(ny * nx)'.format(ny, nx, y_size, x_size))
