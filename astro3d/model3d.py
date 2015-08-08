@@ -502,8 +502,10 @@ class Model3D(object):
                                   '\n'.join(warn_msg)), AstropyUserWarning)
                 continue
 
-            regions_median = [np.median(region) for region in nearest_regions]
-            self.data[mask] = nearest_regions[np.argmax(regions_median)]
+            # regions_median = [np.median(region) for region in
+            #                   nearest_regions]
+            # self.data[mask] = nearest_regions[np.argmax(regions_median)]
+            self.data[mask] = np.array(nearest_regions).mean(axis=0)
 
 
 
