@@ -81,8 +81,9 @@ def resize_image(data, x_size=1000, y_size=None):
                       'be rotated such that the longest axis is in the '
                       'x direction.', AstropyUserWarning)
 
+    x_size = int(x_size)
     if y_size is None:
-        y_size = np.round(float(x_size) * ny / nx)
+        y_size = int(np.round(float(x_size) * ny / nx))
 
     #data = np.array(Image.fromarray(data).resize(
     #    (x_size, y_size)), dtype=np.float64)

@@ -76,7 +76,7 @@ class RegionMask(object):
                                                        self.mask_type))
 
     @classmethod
-    def from_fits(cls, filename, required_shape=None, output_shape=None):
+    def from_fits(cls, filename, required_shape=None, shape=None):
         """
         Create a `RegionMask` instance from a FITS file.
 
@@ -95,9 +95,9 @@ class RegionMask(object):
             If not `None`, then the ``(ny, nx)`` shape required for the
             input mask.
 
-        output_shape : tuple, optional
+        shape : tuple, optional
             If not `None`, then the input mask will be resized to
-            ``output_shape``.
+            ``shape``.
 
         Returns
         -------
@@ -110,7 +110,7 @@ class RegionMask(object):
         mask = fobj[0].data.astype(np.bool)
         mask_type = header['MASKTYPE']
         region_mask = cls(mask, mask_type, required_shape=required_shape,
-                          output_shape=output_shape)
+                          shape=shape)
         log.info('Read {0} (mask type="{1}").'.format(filename, mask_type))
 
         return region_mask

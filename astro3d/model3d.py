@@ -1,13 +1,11 @@
 """
-This module provides tools to apply textures to an image and to create a
-3D model.
+This module provides tools create a 3D model from an astronomical image.
 """
-
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
-import warnings
 from collections import defaultdict
 from copy import deepcopy
+import warnings
 
 import numpy as np
 from astropy import log
@@ -23,6 +21,9 @@ from .meshes import write_mesh
 from .region_mask import RegionMask
 from .textures import (apply_textures, make_starlike_textures,
                        make_cusp_texture, DOTS, SMALL_DOTS, LINES)
+
+
+__all__ = ['Model3D']
 
 
 class Model3D(object):
@@ -79,7 +80,7 @@ class Model3D(object):
         """
 
         self.data_input = np.asanyarray(data)
-        self.data = image_utils.resize_image(
+        self.data_resized = image_utils.resize_image(
             image_utils.remove_nonfinite(self.data_input),
             x_size=resize_xsize)
 
@@ -96,14 +97,14 @@ class Model3D(object):
                                    self.region_mask_types)
         self.allowed_stellar_types = ['stars', 'star_clusters']
 
-        self.texture_masks = defaultdict(list)
-        self.region_masks = defaultdict(list)
+        self.texture_masks_original = defaultdict(list)
+        self.region_masks_original = defaultdict(list)
         self.stellar_tables_original = {}
         for key in self.allowed_stellar_types:
             self.stellar_tables_original[key] = None
 
-        self._layer_order = [self.lines_key, self.dots_key,
-                             self.small_dots_key]
+        #self._layer_order = [self.lines_key, self.dots_key,
+        #                     self.small_dots_key]
 
         spiral_translation = {}
         spiral_translation['remove_star'] = 'smooth'
@@ -130,7 +131,7 @@ class Model3D(object):
 
         # Image is now ready for the rest of processing when user
         # provides the rest of the info
-        self._preproc_img = self.resize(data)
+        #self._preproc_img = self.resize(data)
 
     @property
     def has_textures(self):
@@ -238,11 +239,10 @@ class Model3D(object):
         Read a region mask from a FITS file.
 
         The mask is read into a `RegionMask` object and then stored in
-        the `region_masks` or `texture_masks` dictionary, keyed by the
-        mask type.
+        the `region_masks_original` or `texture_masks_original`
+        dictionary, keyed by the mask type.
 
         The mask data must have the same shape as the input ``data``.
-        The masks are resized to have the same shape as ``self.data``.
 
         Parameters
         ----------
@@ -253,8 +253,7 @@ class Model3D(object):
         """
 
         region_mask = RegionMask.from_fits(
-            filename, required_shape=self.data_input.shape,
-            shape=self.data.shape)
+            filename, required_shape=self.data_input.shape)
         mask_type = region_mask.mask_type
         if mask_type not in self.allowed_mask_types:
             warnings.warn('"{0}" is not a valid mask '
@@ -262,10 +261,10 @@ class Model3D(object):
             return
 
         if mask_type in self.region_mask_types:
-            self.region_masks[mask_type].append(region_mask)
+            self.region_masks_original[mask_type].append(region_mask)
             region_type = 'Region'
         else:
-            self.texture_masks[mask_type].append(region_mask)
+            self.texture_masks_original[mask_type].append(region_mask)
             region_type = 'Texture'
 
         log.info('{0} type "{1}" loaded from {2}'.format(region_type,
@@ -312,7 +311,7 @@ class Model3D(object):
             '<filename_prefix>_<mask_type>_<num>.fits'.
         """
 
-        for mask_type, masks in self.region_masks.iteritems():
+        for mask_type, masks in self.region_masks_original.iteritems():
             nmasks = len(masks)
             for i, mask in enumerate(masks, 1):
                 if nmasks > 1:
@@ -368,9 +367,13 @@ class Model3D(object):
         """
 
         filename = '{0}_{1}.txt'.format(filename_prefix, stellar_type)
-        self.stellar_tables_original[stellar_type].write(filename,
-                                                         format='ascii')
-        log.info('Saved {0} table to {1}'.format(stellar_type, filename))
+        table = self.stellar_tables_original[stellar_type]
+        if table is not None:
+            table.write(filename, format='ascii')
+            log.info('Saved {0} table to {1}'.format(stellar_type, filename))
+        else:
+            log.info('{0} table was empty and not '
+                     'saved.'.format(stellar_type))
 
     def write_all_stellar_tables(self, filename_prefix):
         """
@@ -425,39 +428,83 @@ class Model3D(object):
             write_mesh(self.data, filename_prefix,
                        double_sided=self.double_sided, stl_format=stl_format)
 
+    def _prepare_masks(self):
+        """
+        Prepare texture and region masks.
 
+        Texture masks are combined and resized.  Region masks are
+        resized, but not combined.
+        """
 
-    def _process_masks(self):
-        """Scale and combine masks."""
-        scaled_masks = defaultdict(list)
-        disk = None
-        spiralarms = None
+        self.texture_masks = {}
+        self.region_masks = {}
+        x_size = self.data_resized.shape[1]
 
-        for key, reglist in self.region_masks.iteritems():
-            masklist = [reg.resize(self._preproc_img.shape)
-                        for reg in reglist]
+        # combine and resize texture_masks
+        for mask_type, masks in self.texture_masks_original.iteritems():
+            prepared_mask = image_utils.resize_image(
+                combine_region_masks(masks), x_size=x_size)
+            self.texture_masks[mask_type] = prepared_mask   # ndarray
 
-            if key != self.smooth_key:
-                scaled_masks[key] = [combine_masks(masklist)]
-            else:  # To be smoothed
-                scaled_masks[key] = masklist
-
-        if self.is_spiralgal:
-            if len(scaled_masks[self.lines_key]) > 0:
-                disk = scaled_masks[self.lines_key][0]
-            if len(scaled_masks[self.dots_key]) > 0:
-                spiralarms = scaled_masks[self.dots_key][0]
-
-        return scaled_masks, disk, spiralarms
-
+        # resize but do not combine region_masks
+        for mask_type, masks in self.region_masks_original.iteritems():
+            resized_masks = [image_utils.resize_image(mask.mask,
+                                                      x_size=x_size)
+                             for mask in masks]
+            self.region_masks[mask_type] = resized_masks   # list of ndarrays
 
     def _prepare_stellar_tables(self):
+        """
+        Prepare stellar tables.
+
+        The image resize factor is applied to the ``x_center`` and
+        ``y_center`` columns.
+        """
+
         self.stellar_tables = deepcopy(self.stellar_tables_original)
-        scale = float(self.data.shape[0] / self.data_input.shape[0])
+        resize_scale = float(self.data_resized.shape[0] /
+                             self.data_input.shape[0])
 
         for table in self.stellar_tables.itervalues():
-            table['x_center'] *= scale
-            table['y_center'] *= scale
+            if table is not None:
+                table['x_center'] *= resize_scale
+                table['y_center'] *= resize_scale
+
+    def _remove_stars(self):
+        """
+        Remove stars by patching the regions defined by ``remove_stars``
+        region masks.
+        """
+
+        for mask in self.region_masks['remove_star']:
+            y, x = mask.nonzero()
+            xsize, ysize = x.ptp(), y.ptp()
+
+            # Four shifted masked regions (bottom, top, left, right)
+            # immediately adjacent to the masked region
+            regions_x = [x, x, x - xsize, x + xsize]
+            regions_y = [y - ysize, y + ysize, y, y]
+
+            nearest_regions = []
+            warn_msg = []
+            for x, y in zip(regions_x, regions_y):
+                try:
+                    values = self.data[y, x]
+                except IndexError as err:
+                    # don't include regions outside of the image
+                    warn_msg.append('\t{0}'.format(err))
+                else:
+                    nearest_regions.append(values)
+
+            if len(nearest_regions) == 0:
+                warnings.warn('The _remove_stars() method '
+                              'failed:\n{0}'.format(
+                                  '\n'.join(warn_msg)), AstropyUserWarning)
+                continue
+
+            regions_median = [np.median(region) for region in nearest_regions]
+            self.data[mask] = nearest_regions[np.argmax(regions_median)]
+
 
 
     def _crop_masks(self, scaled_masks, ix1, ix2, iy1, iy2):
@@ -500,9 +547,17 @@ class Model3D(object):
     def make(self):
         """Make the model."""
 
-        # Don't want to change input for repeated calls
-        image = deepcopy(self._preproc_img)
+        self.data = deepcopy(self.data_resized)     # always start fresh
+        self._prepare_masks()
+        self._prepare_stellar_tables()
+        self._remove_stars()
 
+
+
+
+
+
+        image = None
         scaled_masks, disk, spiralarms, scaled_peaks = self.resize_masks()
         image = self.remove_stars(image, scaled_masks)
         image = self.filter_image1(image, size=10)
@@ -1017,6 +1072,22 @@ def make_base(image, dist=60, height=10, snapoff=True):
         max_filt = np.zeros(image.shape) + height
 
     return max_filt
+
+
+def combine_region_masks(region_masks):
+    """
+    region_masks : list of `RegionMask`
+    """
+
+    nmasks = len(region_masks)
+    if nmasks == 0:
+        return region_masks
+    elif nmasks == 1:
+        return region_masks[0].mask
+    else:
+        return reduce(
+            lambda regm1, regm2: np.logical_or(regm1.mask, regm2.mask),
+            region_masks)
 
 
 def combine_masks(masks):
