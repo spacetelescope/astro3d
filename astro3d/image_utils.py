@@ -119,6 +119,40 @@ def normalize_data(data, max_value=100.):
     return (data - minval) / (maxval - minval) * max_value
 
 
+def crop_below_threshold(data, threshold=0):
+    """
+    Calculate a slice tuple to crop an array where its values
+    are less than ``threshold``.
+
+    Parameters
+    ----------
+    data : array-like
+        The input data array.
+
+    threshold : float, optional
+        The values equal to and below which to crop from the array.
+
+    Returns
+    -------
+    result : tuple of slice objects
+        The slice tuple that can be used to crop the array.
+
+    Examples
+    --------
+    >>> data = np.zeros((100, 100))
+    >>> data[40:50, 40:50] = 100
+    >>> slc = crop_below_threshold(data, 10)
+    >>> slc
+    (slice(40, 49, None), slice(40, 49, None))
+    >>> data_cropped = data[slc]
+    """
+
+    idx = np.where(data > threshold)
+    y0, y1 = min(idx[0]), max(idx[0])
+    x0, x1 = min(idx[1]), max(idx[1])
+    return (slice(y0, y1), slice(x0, x1))
+
+
 def makeqimage(nparray, transformation, size):
     """Performs various transformations (linear, log, sqrt, etc.)
     on the image. Clips and scales pixel values between 0 and 255.
