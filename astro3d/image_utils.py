@@ -95,6 +95,30 @@ def resize_image(data, x_size=1000, y_size=None):
     return data
 
 
+def normalize_data(data, max_value=100.):
+    """
+    Normalize an array such that its values range from 0 to
+    ``max_value``.
+
+    Parameters
+    ----------
+    data : array-like
+        The input data array.
+
+    max_value : float, optional
+        The maximum value of the normalized array.
+
+    Returns
+    -------
+    result : `~numpy.ndarray`
+        The normalized array.
+    """
+
+    data = np.asanyarray(data)
+    minval, maxval = np.min(data), np.max(data)
+    return (data - minval) / (maxval - minval) * max_value
+
+
 def makeqimage(nparray, transformation, size):
     """Performs various transformations (linear, log, sqrt, etc.)
     on the image. Clips and scales pixel values between 0 and 255.
