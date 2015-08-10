@@ -91,7 +91,7 @@ class Model3D(object):
         self._spiral_galaxy = False
 
         self.texture_mask_types = ['gas', 'dots_small', 'spiral', 'dots',
-                                   'disk', 'lines']
+                                   'disk', 'bulge', 'lines']
         self.region_mask_types = ['smooth', 'remove_star']
         self.allowed_mask_types = (self.texture_mask_types +
                                    self.region_mask_types)
@@ -507,6 +507,75 @@ class Model3D(object):
             # self.data[mask] = nearest_regions[np.argmax(regions_median)]
             self.data[mask] = np.array(nearest_regions).mean(axis=0)
 
+    def _spiralgalaxy_compress_bulge(self, percentile=30., factor=0.04):
+        """
+        Compress the image values in the bulge region of a spiral
+        galaxy.
+
+        This is needed to compress the large dynamic range of
+        intensities in spiral galaxy images.
+
+        A base value is first taken a the ``percentile`` of data values
+        within the bulge mask.  Values above this are then compressed by
+        ``factor``.
+
+        Parameters
+        ----------
+        percentile: float in range of [0, 100], optional
+            The percentile of pixel values within the bulge mask to use
+            as the base level.
+
+        factor : float, optional
+            The scale factor to apply to the region above the base
+            level.
+        """
+
+        if self.spiralgal:
+            bulge_mask = self.texture_masks['bulge']
+            if bulge_mask is not None:
+                base_level = np.percentile(self.data[bulge_mask],
+                                           percentile)
+                compress_mask = self.data > base_level
+                self.data[compress_mask] = (base_level +
+                    (self.data[compress_mask] - base_level) * factor)
+            else:
+                warnings.warn('A "bulge" mask must be input.')
+
+    def _suppress_background(self, percentile=90., factor=0.2, floor=10.):
+        """
+        Suppress image values in regions that are not within any texture
+        mask.
+
+        This is used to suppress the "background".
+
+        A base value is first taken a the ``percentile`` of data values
+        in regions that are not in any texture mask.  Values below this
+        are then compressed by ``factor``.  Values below ``floor`` are
+        then set to zero.
+
+        Parameters
+        ----------
+        percentile: float in range of [0, 100], optional
+            The percentile of pixel values within the bulge mask to use
+            as the base level.
+
+        factor : float, optional
+            The scale factor to apply to the region above the base
+            level.
+
+        floor_percentile : float, optional
+            The percentile of image values equal to and below which to
+            set to zero after the initial background suppression.
+        """
+
+        log.info('Suppressing the background.')
+        texture_masks = [self.texture_masks[i] for i in self.texture_masks]
+        mask = combine_masks(texture_masks)
+        level = np.percentile(self.data[~mask], percentile)
+        bkgrd_mask = self.data < level
+        self.data[bkgrd_mask] = self.data[bkgrd_mask] * factor
+        floor = np.percentile(self.data, floor_percentile)
+        self.data[self.data < floor] = 0.
 
 
     def _crop_masks(self, scaled_masks, ix1, ix2, iy1, iy2):
@@ -553,9 +622,12 @@ class Model3D(object):
         self._prepare_masks()
         self._prepare_stellar_tables()
         self._remove_stars()
+        self._spiralgalaxy_compress_bulge(percentile=30., factor=0.04)
+        self._suppress_background(percentile=90., factor=0.2)
 
 
 
+        self._median_filter(size=10)
 
 
 
@@ -576,8 +648,6 @@ class Model3D(object):
         # Renormalize again so that height is more predictable
         image = image_utils.normalize(image, True, self.height)
 
-        # Generate monochrome intensity for GUI preview
-        self._preview_intensity = deepcopy(image.data)
 
         # To store non-overlapping key-coded texture info
         self._preview_masks = np.zeros(
@@ -1095,12 +1165,12 @@ def combine_region_masks(region_masks):
 def combine_masks(masks):
     """
     Combine boolean masks into a single mask.
-    NOTE:  also used by GUI
     """
-    if len(masks) == 0:
-        return masks
 
-    return reduce(lambda m1, m2: m1 | m2, masks)
+    if len(masks) == 0:
+        return None
+
+    return reduce(lambda mask1, mask2: np.logical_or(mask1, mask2), masks)
 
 
 def find_peaks(image, remove=0, num=None, threshold=8, npix=10, minpeaks=35):
