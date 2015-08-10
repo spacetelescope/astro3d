@@ -428,6 +428,7 @@ class Model3D(object):
             write_mesh(self.data, filename_prefix,
                        double_sided=self.double_sided, stl_format=stl_format)
 
+
     def _prepare_masks(self):
         """
         Prepare texture and region masks.
@@ -453,15 +454,16 @@ class Model3D(object):
                              for mask in masks]
             self.region_masks[mask_type] = resized_masks   # list of ndarrays
 
-    def _prepare_stellar_tables(self):
+
+    def _scale_stellar_table_positions(self, stellar_tables):
         """
-        Prepare stellar tables.
+        Scale the ``(x, y)`` positions in the stellar tables.
 
         The image resize factor is applied to the ``x_center`` and
         ``y_center`` columns.
         """
 
-        self.stellar_tables = deepcopy(self.stellar_tables_original)
+        self.stellar_tables = deepcopy(stellar_tables)
         resize_scale = float(self.data_resized.shape[0] /
                              self.data_input.shape[0])
 
@@ -536,8 +538,9 @@ class Model3D(object):
                 base_level = np.percentile(self.data[bulge_mask],
                                            percentile)
                 compress_mask = self.data > base_level
-                self.data[compress_mask] = (base_level +
-                    (self.data[compress_mask] - base_level) * factor)
+                new_values = (base_level + (self.data[compress_mask] -
+                                            base_level) * factor)
+                self.data[compress_mask] = new_values
             else:
                 warnings.warn('A "bulge" mask must be input.')
 
@@ -577,60 +580,61 @@ class Model3D(object):
         floor = np.percentile(self.data, floor_percentile)
         self.data[self.data < floor] = 0.
 
+    def _crop_data(self, threshold=0.0, resize=True):
+        """
+        Crop the image, masks, and stellar tables.
 
-    def _crop_masks(self, scaled_masks, ix1, ix2, iy1, iy2):
-        """Crop masks."""
-        croppedmasks = defaultdict(list)
-        disk = None
-        spiralarms = None
+        They are then resized to have the same size of
+        ``self.data_resized`` to ensure a consistent 3D scaling of the
+        model in MakerBot.
 
-        for key, mlist in scaled_masks.iteritems():
-            if key == self.smooth_key:  # Smoothing already done
-                continue
-            for mask in mlist:
-                croppedmasks[key].append(mask[iy1:iy2, ix1:ix2])
+        Parameters
+        ----------
+        threshold : float, optional
+            The values equal to and below which to crop from the data.
 
-        if self.is_spiralgal:
-            if len(croppedmasks[self.lines_key]) > 0:
-                disk = croppedmasks[self.lines_key][0]
-            if len(croppedmasks[self.dots_key]) > 0:
-                spiralarms = croppedmasks[self.dots_key][0]
+        resize : bool, optional
+            Set to `True` to resize the data, masks, and stellar tables
+            back to the original size of ``self.data._resized``.
+        """
 
-        return croppedmasks, disk, spiralarms
+        log.info('Cropping the data values equal to or below a threshold of '
+                 '"{0}"'.format(threshold))
+        slc = image_utils.crop_below_threshold(self.data, threshold=threshold)
+        self.data = self.data[slc]
 
-    def _crop_peaks(self, scaled_peaks, key, ix1, ix2, iy1, iy2):
-        """Crop peaks."""
-        if key in scaled_peaks:
-            cropped_peak = deepcopy(scaled_peaks[key])
-            cropped_peak = cropped_peak[(cropped_peak['xcen'] > ix1) &
-                                        (cropped_peak['xcen'] < ix2 - 1) &
-                                        (cropped_peak['ycen'] > iy1) &
-                                        (cropped_peak['ycen'] < iy2 - 1)]
-            cropped_peak['xcen'] -= ix1
-            cropped_peak['ycen'] -= iy1
-            log.info('{0} before and after cropping: {1} -> {2}'.format(
-                key, len(scaled_peaks[key]), len(cropped_peak)))
-        else:
-            cropped_peak = []
+        for mask in self.texture_masks.itervalues():
+            mask = mask[slc]
 
-        return cropped_peak
+        for table in self.stellar_tables.itervalues():
+            idx = ((table['x_center'] > slc[1].start) &
+                   (table['x_center'] < slc[1].stop) &
+                   (table['y_center'] < slc[0].start) &
+                   (table['y_center'] > slc[0].stop))
+            table = table[idx]
+            table['x_center'] -= slc[1].start
+            table['y_center'] -= slc[0].start
+
+        if resize:
+            x_size = self.data_resized.shape[1]
+            self.data = image_utils.resize_image(self.data, x_size=x_size)
+            for mask in self.texture_masks.itervalues():
+                mask = image_utils.resize_image(mask, x_size=x_size)
+            self._scale_stellar_table_positions(self.stellar_tables)
 
     def make(self):
         """Make the model."""
 
         self.data = deepcopy(self.data_resized)     # always start fresh
         self._prepare_masks()
-        self._prepare_stellar_tables()
+        self._scale_stellar_table_positions(self.stellar_tables_original)
         self._remove_stars()
         self._spiralgalaxy_compress_bulge(percentile=30., factor=0.04)
         self._suppress_background(percentile=90., factor=0.2)
+        self._crop_data(threshold=0., resize=True)
 
 
-
-        self._median_filter(size=10)
-
-
-
+    def make_orig(self):
         image = None
         scaled_masks, disk, spiralarms, scaled_peaks = self.resize_masks()
         image = self.remove_stars(image, scaled_masks)
