@@ -143,13 +143,13 @@ def crop_below_threshold(data, threshold=0):
     >>> data[40:50, 40:50] = 100
     >>> slc = crop_below_threshold(data, 10)
     >>> slc
-    (slice(40, 49, None), slice(40, 49, None))
+    (slice(40, 50, None), slice(40, 50, None))
     >>> data_cropped = data[slc]
     """
 
     idx = np.where(data > threshold)
-    y0, y1 = min(idx[0]), max(idx[0])
-    x0, x1 = min(idx[1]), max(idx[1])
+    y0, y1 = min(idx[0]), max(idx[0]) + 1
+    x0, x1 = min(idx[1]), max(idx[1]) + 1
     return (slice(y0, y1), slice(x0, x1))
 
 
