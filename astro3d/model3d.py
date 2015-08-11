@@ -551,7 +551,6 @@ class Model3D(object):
                 compress_mask = self.data > base_level
                 new_values = (base_level + (self.data[compress_mask] -
                                             base_level) * factor)
-                self.data_tmp = deepcopy(self.data)   # TODO: remove me
                 self.data[compress_mask] = new_values
             else:
                 warnings.warn('A "bulge" mask must be input.')
@@ -597,17 +596,39 @@ class Model3D(object):
         bkgrd_mask = self.data < background_level
         self.data[bkgrd_mask] = self.data[bkgrd_mask] * factor
         floor = np.percentile(self.data, floor_percentile)
-        self.data_tmp = deepcopy(self.data)    # TODO: remove me
         self.data[self.data < floor] = 0.
         return background_level
 
-    def _smooth_data(self, size=11):
-        log.info('Smoothing image (first pass)')
-        self.data_tmp = deepcopy(self.data)    # TODO: remove me
-        self.data_tmp = deep
+    def _smooth_image(self, size=11):
+        """
+        Smooth the image using a 2D median filter.
+
+        Parameters
+        ----------
+        size : float or tuple, optional
+            The shape of filter window.  If ``size`` is an `int`, then
+            then ``size`` will be used for both dimensions.
+        """
+
+        log.info('Smoothing the image.')
         self.data = ndimage.filters.median_filter(self.data, size=size)
-        #self.data = np.ma.masked_equal(self.data, 0.0)
-        self.data = np.ma.masked_equal(self.data, 0.0)
+
+    def _normalize_image(self, max_value=1.0):
+        """
+        Normalize the image.
+
+        Parameters
+        ----------
+        max_value : float, optional
+            The maximum value of the normalized array.
+        """
+
+        log.info('Normalizing the image.')
+        self.data = image_utils.normalize_data(self.data, max_value=max_value)
+
+    def _minvalue_to_zero(self, min_value=0.02):
+        """Set values below a certain value to zero."""
+        self.data[self.data < min_value] = 0.0
 
     def _crop_data(self, threshold=0.0, resize=True):
         """
@@ -630,6 +651,8 @@ class Model3D(object):
         log.info('Cropping the data values equal to or below a threshold of '
                  '"{0}"'.format(threshold))
         slc = image_utils.crop_below_threshold(self.data, threshold=threshold)
+        print(slc)
+        self.data_tmp = deepcopy(self.data)   # TODO: remove me
         self.data = self.data[slc]
 
         for mask_type, mask in self.texture_masks.iteritems():
@@ -654,6 +677,9 @@ class Model3D(object):
                     mask, x_size=x_size)
             self._scale_stellar_table_positions(self.stellar_tables)
 
+    def _apply_textures(self):
+        pass
+
     def make(self):
         """Make the model."""
 
@@ -662,11 +688,18 @@ class Model3D(object):
         self._scale_stellar_table_positions(self.stellar_tables_original)
         self._remove_stars()
         self._spiralgalaxy_compress_bulge(percentile=0., factor=0.05)
-        self._smooth_data(size=11)
         self._suppress_background(percentile=90., factor=0.2)
-        self.data_tmp = np.ma.masked_equal(self.data, 0.0)
+        self._smooth_image(size=11)
+        self._normalize_image(max_value=1.0)
+        self._minvalue_to_zero(min_value=0.02)
 
-        #self._crop_data(threshold=0., resize=True)
+        # TODO: remove isolated "islands" using segmentation?
+        # self._crop_data(threshold=0., resize=True)
+        # self._normalize_image(max_value=1.0)    # normalize to final height
+        # self._apply_textures()
+        # make base
+
+
 
 
     def make_orig(self):

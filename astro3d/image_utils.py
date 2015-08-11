@@ -95,7 +95,7 @@ def resize_image(data, x_size=1000, y_size=None):
     return data
 
 
-def normalize_data(data, max_value=100.):
+def normalize_data(data, max_value=1.):
     """
     Normalize an array such that its values range from 0 to
     ``max_value``.
