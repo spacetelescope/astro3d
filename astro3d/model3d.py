@@ -79,9 +79,9 @@ class Model3D(object):
             The size of the x axis of the resized image.
         """
 
-        self.data_input = np.asanyarray(data)
-        self.data_resized = image_utils.resize_image(
-            image_utils.remove_nonfinite(self.data_input),
+        self.data_original = np.asanyarray(data)
+        self.data_original_resized = image_utils.resize_image(
+            image_utils.remove_nonfinite(self.data_original),
             x_size=resize_xsize)
 
         self._model_complete = False
@@ -253,12 +253,16 @@ class Model3D(object):
         """
 
         region_mask = RegionMask.from_fits(
-            filename, required_shape=self.data_input.shape)
+            filename, required_shape=self.data_original.shape)
         mask_type = region_mask.mask_type
         if mask_type not in self.allowed_mask_types:
             warnings.warn('"{0}" is not a valid mask '
                           'type'.format(mask_type), AstropyUserWarning)
             return
+
+        # TODO: fix disk mask name; temporary translation:
+        if mask_type == 'disk':
+            mask_type = 'bulge'
 
         if mask_type in self.region_mask_types:
             self.region_masks_original[mask_type].append(region_mask)
@@ -267,9 +271,9 @@ class Model3D(object):
             self.texture_masks_original[mask_type].append(region_mask)
             region_type = 'Texture'
 
-        log.info('{0} type "{1}" loaded from {2}'.format(region_type,
-                                                         mask_type,
-                                                         filename))
+        log.info('{0} type "{1}" loaded from "{2}"'.format(region_type,
+                                                           mask_type,
+                                                           filename))
 
     def read_all_masks(self, pathname):
         """
@@ -320,7 +324,7 @@ class Model3D(object):
                 else:
                     filename = '{0}_{1}.fits'.format(filename_prefix,
                                                      mask_type)
-                mask.write(filename, shape=self.data_input.shape)
+                mask.write(filename, shape=self.data_original.shape)
 
     def read_stellar_table(self, filename, stellar_type):
         """
@@ -343,6 +347,7 @@ class Model3D(object):
         # TODO: rename input columns, e.g. xcen/x_cen/xcenter -> x_center
         table.keep_columns(['x_center', 'y_center', 'flux'])
         self.stellar_tables_original[stellar_type] = table
+        log.info('Read "{0}" table from "{1}"'.format(stellar_type, filename))
 
     def read_star_clusters(self, filename):
         """Read star clusters table from an ASCII file."""
@@ -370,9 +375,10 @@ class Model3D(object):
         table = self.stellar_tables_original[stellar_type]
         if table is not None:
             table.write(filename, format='ascii')
-            log.info('Saved {0} table to {1}'.format(stellar_type, filename))
+            log.info('Saved "{0}" table to "{1}"'.format(stellar_type,
+                                                         filename))
         else:
-            log.info('{0} table was empty and not '
+            log.info('"{0}" table was empty and not '
                      'saved.'.format(stellar_type))
 
     def write_all_stellar_tables(self, filename_prefix):
@@ -439,7 +445,7 @@ class Model3D(object):
 
         self.texture_masks = {}
         self.region_masks = {}
-        x_size = self.data_resized.shape[1]
+        x_size = self.data_original_resized.shape[1]
 
         # combine and resize texture_masks
         for mask_type, masks in self.texture_masks_original.iteritems():
@@ -464,8 +470,8 @@ class Model3D(object):
         """
 
         self.stellar_tables = deepcopy(stellar_tables)
-        resize_scale = float(self.data_resized.shape[0] /
-                             self.data_input.shape[0])
+        resize_scale = float(self.data_original_resized.shape[0] /
+                             self.data_original.shape[0])
 
         for table in self.stellar_tables.itervalues():
             if table is not None:
@@ -509,7 +515,7 @@ class Model3D(object):
             # self.data[mask] = nearest_regions[np.argmax(regions_median)]
             self.data[mask] = np.array(nearest_regions).mean(axis=0)
 
-    def _spiralgalaxy_compress_bulge(self, percentile=30., factor=0.04):
+    def _spiralgalaxy_compress_bulge(self, percentile=0., factor=0.05):
         """
         Compress the image values in the bulge region of a spiral
         galaxy.
@@ -530,9 +536,14 @@ class Model3D(object):
         factor : float, optional
             The scale factor to apply to the region above the base
             level.
+
+        Returns
+        -------
+        result : float
+            The base level above which values are compressed.
         """
 
-        if self.spiralgal:
+        if self.spiral_galaxy:
             bulge_mask = self.texture_masks['bulge']
             if bulge_mask is not None:
                 base_level = np.percentile(self.data[bulge_mask],
@@ -540,11 +551,14 @@ class Model3D(object):
                 compress_mask = self.data > base_level
                 new_values = (base_level + (self.data[compress_mask] -
                                             base_level) * factor)
+                self.data_tmp = deepcopy(self.data)   # TODO: remove me
                 self.data[compress_mask] = new_values
             else:
                 warnings.warn('A "bulge" mask must be input.')
+        return base_level
 
-    def _suppress_background(self, percentile=90., factor=0.2, floor=10.):
+    def _suppress_background(self, percentile=90., factor=0.2,
+                             floor_percentile=10.):
         """
         Suppress image values in regions that are not within any texture
         mask.
@@ -559,34 +573,49 @@ class Model3D(object):
         Parameters
         ----------
         percentile: float in range of [0, 100], optional
-            The percentile of pixel values within the bulge mask to use
-            as the base level.
+            The percentile of pixel values outside of the masked regions
+            to use as the background level.
 
         factor : float, optional
-            The scale factor to apply to the region above the base
-            level.
+            The scale factor to apply to the region below the
+            beackground level.
 
         floor_percentile : float, optional
             The percentile of image values equal to and below which to
             set to zero after the initial background suppression.
+
+        Returns
+        -------
+        result : float
+            The background level below which values are suppressed.
         """
 
         log.info('Suppressing the background.')
         texture_masks = [self.texture_masks[i] for i in self.texture_masks]
         mask = combine_masks(texture_masks)
-        level = np.percentile(self.data[~mask], percentile)
-        bkgrd_mask = self.data < level
+        background_level = np.percentile(self.data[~mask], percentile)
+        bkgrd_mask = self.data < background_level
         self.data[bkgrd_mask] = self.data[bkgrd_mask] * factor
         floor = np.percentile(self.data, floor_percentile)
+        self.data_tmp = deepcopy(self.data)    # TODO: remove me
         self.data[self.data < floor] = 0.
+        return background_level
+
+    def _smooth_data(self, size=11):
+        log.info('Smoothing image (first pass)')
+        self.data_tmp = deepcopy(self.data)    # TODO: remove me
+        self.data_tmp = deep
+        self.data = ndimage.filters.median_filter(self.data, size=size)
+        #self.data = np.ma.masked_equal(self.data, 0.0)
+        self.data = np.ma.masked_equal(self.data, 0.0)
 
     def _crop_data(self, threshold=0.0, resize=True):
         """
         Crop the image, masks, and stellar tables.
 
         They are then resized to have the same size of
-        ``self.data_resized`` to ensure a consistent 3D scaling of the
-        model in MakerBot.
+        ``self.data_original_resized`` to ensure a consistent 3D scaling
+        of the model in MakerBot.
 
         Parameters
         ----------
@@ -603,35 +632,41 @@ class Model3D(object):
         slc = image_utils.crop_below_threshold(self.data, threshold=threshold)
         self.data = self.data[slc]
 
-        for mask in self.texture_masks.itervalues():
-            mask = mask[slc]
+        for mask_type, mask in self.texture_masks.iteritems():
+            log.info('Cropping masks')
+            self.texture_masks[mask_type] = mask[slc]
 
-        for table in self.stellar_tables.itervalues():
-            idx = ((table['x_center'] > slc[1].start) &
-                   (table['x_center'] < slc[1].stop) &
-                   (table['y_center'] < slc[0].start) &
-                   (table['y_center'] > slc[0].stop))
-            table = table[idx]
-            table['x_center'] -= slc[1].start
-            table['y_center'] -= slc[0].start
+        #for table in self.stellar_tables.itervalues():
+        #    idx = ((table['x_center'] > slc[1].start) &
+        #           (table['x_center'] < slc[1].stop) &
+        #           (table['y_center'] > slc[0].start) &
+        #           (table['y_center'] < slc[0].stop))
+        #    table = table[idx]
+        #    table['x_center'] -= slc[1].start
+        #    table['y_center'] -= slc[0].start
 
         if resize:
-            x_size = self.data_resized.shape[1]
+            x_size = self.data_original_resized.shape[1]
             self.data = image_utils.resize_image(self.data, x_size=x_size)
-            for mask in self.texture_masks.itervalues():
-                mask = image_utils.resize_image(mask, x_size=x_size)
+            for mask_type, mask in self.texture_masks.iteritems():
+                log.info('Resizing masks')
+                self.texture_masks[mask_type] = image_utils.resize_image(
+                    mask, x_size=x_size)
             self._scale_stellar_table_positions(self.stellar_tables)
 
     def make(self):
         """Make the model."""
 
-        self.data = deepcopy(self.data_resized)     # always start fresh
+        self.data = deepcopy(self.data_original_resized)    # start fresh
         self._prepare_masks()
         self._scale_stellar_table_positions(self.stellar_tables_original)
         self._remove_stars()
-        self._spiralgalaxy_compress_bulge(percentile=30., factor=0.04)
+        self._spiralgalaxy_compress_bulge(percentile=0., factor=0.05)
+        self._smooth_data(size=11)
         self._suppress_background(percentile=90., factor=0.2)
-        self._crop_data(threshold=0., resize=True)
+        self.data_tmp = np.ma.masked_equal(self.data, 0.0)
+
+        #self._crop_data(threshold=0., resize=True)
 
 
     def make_orig(self):
