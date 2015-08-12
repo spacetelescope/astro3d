@@ -179,7 +179,7 @@ def write_mesh(image, filename_prefix, depth=1, double_sided=False,
 
     double_sided : bool
         Set to `True` for a double-sided model, which will be a simple
-        reflection..
+        reflection.
 
     stl_format : {'binary', 'ascii'}
         Format for the output STL file.  The default is 'binary'.  The

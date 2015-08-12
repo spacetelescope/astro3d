@@ -7,13 +7,14 @@ from collections import defaultdict
 from copy import deepcopy
 import warnings
 
+from scipy import ndimage
 import numpy as np
+from PIL import Image
+
 from astropy import log
 from astropy.io import fits
 from astropy.table import Table
 from astropy.utils.exceptions import AstropyUserWarning
-from PIL import Image
-from scipy import ndimage
 import photutils
 
 from . import image_utils
@@ -83,12 +84,17 @@ class Model3D(object):
         self.data_original_resized = image_utils.resize_image(
             image_utils.remove_nonfinite(self.data_original),
             x_size=resize_xsize)
+        self.shape = self.data_original_resized.shape
+        self.original_resize_scale = float(self.shape[0] /
+                                           self.data_original.shape[0])
 
         self._model_complete = False
         self._has_textures = True
         self._has_intensity = True
         self._double_sided = False
         self._spiral_galaxy = False
+        self.height = 150.0           # total model height
+        self.base_thickness = 20
 
         self.texture_mask_types = ['gas', 'dots_small', 'spiral', 'dots',
                                    'disk', 'bulge', 'lines']
@@ -100,8 +106,6 @@ class Model3D(object):
         self.texture_masks_original = defaultdict(list)
         self.region_masks_original = defaultdict(list)
         self.stellar_tables_original = {}
-        for key in self.allowed_stellar_types:
-            self.stellar_tables_original[key] = None
 
         #self._layer_order = [self.lines_key, self.dots_key,
         #                     self.small_dots_key]
@@ -112,8 +116,6 @@ class Model3D(object):
         spiral_translation['spiral'] = 'dots'
         spiral_translation['disk'] = 'lines'
 
-        self.height = 150.0
-        self.base_thickness = 20
 
         self.clus_r_fac_add = 10
         self.clus_r_fac_mul = 5
@@ -445,34 +447,38 @@ class Model3D(object):
 
         self.texture_masks = {}
         self.region_masks = {}
-        x_size = self.data_original_resized.shape[1]
 
         # combine and resize texture_masks
         for mask_type, masks in self.texture_masks_original.iteritems():
             prepared_mask = image_utils.resize_image(
-                combine_region_masks(masks), x_size=x_size)
+                combine_region_masks(masks), x_size=self.shape[1])
             self.texture_masks[mask_type] = prepared_mask   # ndarray
 
         # resize but do not combine region_masks
         for mask_type, masks in self.region_masks_original.iteritems():
             resized_masks = [image_utils.resize_image(mask.mask,
-                                                      x_size=x_size)
+                                                      x_size=self.shape[1])
                              for mask in masks]
             self.region_masks[mask_type] = resized_masks   # list of ndarrays
 
 
-    def _scale_stellar_table_positions(self, stellar_tables):
+    def _scale_stellar_table_positions(self, stellar_tables, resize_scale):
         """
         Scale the ``(x, y)`` positions in the stellar tables.
 
         The image resize factor is applied to the ``x_center`` and
         ``y_center`` columns.
+
+        Parameters
+        ----------
+        stellar_tables : dict
+            Dictionary of stellar tables.
+
+        resize_scale : float
+            The desired scaling factor to apply to the position columns.
         """
 
         self.stellar_tables = deepcopy(stellar_tables)
-        resize_scale = float(self.data_original_resized.shape[0] /
-                             self.data_original.shape[0])
-
         for table in self.stellar_tables.itervalues():
             if table is not None:
                 table['x_center'] *= resize_scale
@@ -577,7 +583,7 @@ class Model3D(object):
 
         factor : float, optional
             The scale factor to apply to the region below the
-            beackground level.
+            background level.
 
         floor_percentile : float, optional
             The percentile of image values equal to and below which to
@@ -634,9 +640,9 @@ class Model3D(object):
         """
         Crop the image, masks, and stellar tables.
 
-        They are then resized to have the same size of
-        ``self.data_original_resized`` to ensure a consistent 3D scaling
-        of the model in MakerBot.
+        If ``resize=True`, they are then resized to have the same size
+        as ``self.data_original_resized`` to ensure a consistent 3D
+        scaling of the model in MakerBot.
 
         Parameters
         ----------
@@ -645,13 +651,12 @@ class Model3D(object):
 
         resize : bool, optional
             Set to `True` to resize the data, masks, and stellar tables
-            back to the original size of ``self.data._resized``.
+            back to the original size of ``self.data_original_resized``.
         """
 
         log.info('Cropping the data values equal to or below a threshold of '
                  '"{0}"'.format(threshold))
         slc = image_utils.crop_below_threshold(self.data, threshold=threshold)
-        print(slc)
         self.data_tmp = deepcopy(self.data)   # TODO: remove me
         self.data = self.data[slc]
 
@@ -659,23 +664,34 @@ class Model3D(object):
             log.info('Cropping masks')
             self.texture_masks[mask_type] = mask[slc]
 
-        #for table in self.stellar_tables.itervalues():
-        #    idx = ((table['x_center'] > slc[1].start) &
-        #           (table['x_center'] < slc[1].stop) &
-        #           (table['y_center'] > slc[0].start) &
-        #           (table['y_center'] < slc[0].stop))
-        #    table = table[idx]
-        #    table['x_center'] -= slc[1].start
-        #    table['y_center'] -= slc[0].start
+        for stellar_type, table in self.stellar_tables.iteritems():
+            idx = ((table['x_center'] > slc[1].start) &
+                   (table['x_center'] < slc[1].stop) &
+                   (table['y_center'] > slc[0].start) &
+                   (table['y_center'] < slc[0].stop))
+            table = table[idx]
+            table['x_center'] -= slc[1].start
+            table['y_center'] -= slc[0].start
+            self.stellar_tables[stellar_type] = table
 
         if resize:
-            x_size = self.data_original_resized.shape[1]
-            self.data = image_utils.resize_image(self.data, x_size=x_size)
+            resize_scale = float(self.shape[1] / self.data.shape[1])
+            self.data = image_utils.resize_image(self.data,
+                                                 x_size=self.shape[1])
             for mask_type, mask in self.texture_masks.iteritems():
                 log.info('Resizing masks')
                 self.texture_masks[mask_type] = image_utils.resize_image(
-                    mask, x_size=x_size)
-            self._scale_stellar_table_positions(self.stellar_tables)
+                    mask, x_size=self.shape[1])
+            self._scale_stellar_table_positions(self.stellar_tables,
+                                                resize_scale)
+        return slc
+
+    def _make_model_height():
+        if self.double_sided:
+            height = self.height / 2.
+        else:
+            height = self.height
+        self._normalize_image(max_value=height)
 
     def _apply_textures(self):
         pass
@@ -685,20 +701,22 @@ class Model3D(object):
 
         self.data = deepcopy(self.data_original_resized)    # start fresh
         self._prepare_masks()
-        self._scale_stellar_table_positions(self.stellar_tables_original)
+        self._scale_stellar_table_positions(
+            self.stellar_tables_original, self.original_resize_scale)
         self._remove_stars()
         self._spiralgalaxy_compress_bulge(percentile=0., factor=0.05)
         self._suppress_background(percentile=90., factor=0.2)
         self._smooth_image(size=11)
         self._normalize_image(max_value=1.0)
         self._minvalue_to_zero(min_value=0.02)
-
-        # TODO: remove isolated "islands" using segmentation?
-        # self._crop_data(threshold=0., resize=True)
-        # self._normalize_image(max_value=1.0)    # normalize to final height
+        # TODO: add a step here to remove "islands" using segmentation?
+        self._crop_data(threshold=0., resize=True)
+        self._make_model_height()
         # self._apply_textures()
-        # make base
+        # self._make_structure()
+        log.info('Make complete!')
 
+        return slc
 
 
 
