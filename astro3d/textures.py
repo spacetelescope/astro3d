@@ -567,12 +567,12 @@ def starlike_model_base_height(image, model_type, x, y, radius, depth,
         returned if the model does not overlap with the input image.
     """
 
-    if model_type == 'star':
+    if model_type == 'stars':
         Texture = StarTexture
-    elif model_type == 'star_cluster':
+    elif model_type == 'star_clusters':
         Texture = StarClusterTexture
     else:
-        raise ValueError('model_type must be "star" or "star_cluster"')
+        raise ValueError('model_type must be "stars" or "star_clusters"')
 
     if image_indices is None:
         yy, xx = np.indices(image.shape)
@@ -654,7 +654,8 @@ def make_starlike_models(image, model_type, sources, radius_a=10, radius_b=5,
     if len(sources) == 0:
         return []
 
-    columns = ['xcen', 'ycen', 'flux']
+    #columns = ['xcen', 'ycen', 'flux']
+    columns = ['x_center', 'y_center', 'flux']
     for column in columns:
         if column not in sources.colnames:
             raise ValueError('sources must contain a {0} '
@@ -670,8 +671,9 @@ def make_starlike_models(image, model_type, sources, radius_a=10, radius_b=5,
     for source in sources:
         radius = radius_a + (radius_b * source['flux'] / max_flux)
         model = starlike_model_base_height(
-            image, model_type, source['xcen'], source['ycen'], radius, depth,
-            base_percentile=base_percentile, image_indices=(yy, xx))
+            image, model_type, source['x_center'], source['y_center'],
+            radius, depth, base_percentile=base_percentile,
+            image_indices=(yy, xx))
         if model is not None:
             models.append(model)
     return models
@@ -694,7 +696,7 @@ def sort_starlike_models(models):
         A list of `StarTexture` and/or `StarClusterTexture` models
         sorted by the ``base_height`` parameter in increasing order.
     """
-
+    print(models)
     return sorted(models, key=attrgetter('base_height'))
 
 
@@ -732,7 +734,7 @@ def starlike_texture_map(shape, models):
     return data
 
 
-def make_starlike_textures(image, star_sources, cluster_sources, radius_a=10,
+def make_starlike_textures(image, stellar_tables, radius_a=10,
                            radius_b=5, depth=5, base_percentile=75):
     """
     Make an image containing star-like textures (stars and star clusters).
@@ -742,13 +744,11 @@ def make_starlike_textures(image, star_sources, cluster_sources, radius_a=10,
     image : `~numpy.ndarray`
         The image where the textures will be applied.
 
-    star_sources : `~astropy.table.Table`
-        A table defining the stars.  The table must contain ``'xcen'``,
-        ``'ycen'``, and ``'flux'`` columns.
-
-    cluster_sources : `~astropy.table.Table`
-        A table defining the star clusters.  The table must contain
-        ``'xcen'``, ``'ycen'``, and ``'flux'`` columns.
+    stellar_tables : dict of `~astropy.table.Table`
+        A dictionary of tables defining the star-like textures.  The
+        dictionary can define either 'stars' or 'star_clusters'.  The
+        table must contain ``'x_center'``, ``'y_center'``, and
+        ``'flux'`` columns.
 
     radius_a : float
         The intercept term in calculating the star radius (see above).
@@ -771,15 +771,14 @@ def make_starlike_textures(image, star_sources, cluster_sources, radius_a=10,
         The image containing the star and star cluster textures.
     """
 
-    star_models = make_starlike_models(image, 'star', star_sources,
-                                       radius_a=radius_a, radius_b=radius_b,
-                                       depth=depth,
-                                       base_percentile=base_percentile)
-    cluster_models = make_starlike_models(image, 'star_cluster',
-                                          cluster_sources, radius_a=radius_a,
-                                          radius_b=radius_b, depth=depth,
-                                          base_percentile=base_percentile)
-    starlike_models = star_models + cluster_models
+    starlike_models = []
+    for stellar_type, table in stellar_tables.iteritems():
+        starlike_models.extend(
+            make_starlike_models(image, stellar_type, table,
+                                 radius_a=radius_a, radius_b=radius_b,
+                                 depth=depth,
+                                 base_percentile=base_percentile))
+
     starlike_textures = starlike_texture_map(image.shape, starlike_models)
 
     return starlike_textures

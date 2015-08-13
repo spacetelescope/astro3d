@@ -568,7 +568,6 @@ class Model3D(object):
         if self.spiral_galaxy:
             log.info('Compressing the bulge.')
             texture_type = self._translate_mask_type('bulge')
-            print(texture_type)
             bulge_mask = self.texture_masks[texture_type]
             if bulge_mask is not None:
                 base_level = np.percentile(self.data[bulge_mask],
@@ -579,7 +578,6 @@ class Model3D(object):
                 self.data[compress_mask] = new_values
             else:
                 warnings.warn('A "bulge" mask must be input.')
-        print(base_level)
         return base_level
 
     def _suppress_background(self, percentile=90., factor=0.2,
@@ -737,24 +735,22 @@ class Model3D(object):
     def _apply_stellar_textures(self, radius_a=10., radius_b=5.):
         # apply stars and star clusters
         if self.has_intensity:
-            base_percentile = 75
-            depth = 5
+            base_percentile = 75.
+            depth = 5.
         else:
             base_percentile = None
-            depth = 10
+            depth = 10.
 
-        starlike_textures = textures.make_starlike_textures(
-            self.data, markstars, clusters, radius_a=radius_a,
-            radius_b=radius_b, depth=depth,
-            base_percentile=base_percentile)
+        self._stellar_texture_layer = textures.make_starlike_textures(
+            self.data, self.stellar_tables, radius_a=radius_a,
+            radius_b=radius_b, depth=depth, base_percentile=base_percentile)
 
         # if h_percentile is not None:
         #     filt = ndimage.filters.maximum_filter(array, fil_size)
         #     mask = (filt > 0) & (image > filt) & (array == 0)
         #     array[mask] = filt[mask]
-        image = textures.apply_textures(image, starlike_textures)
-
-
+        self.data = textures.apply_textures(self.data,
+                                            self._stellar_texture_layer)
 
 
     def _apply_textures(self):
