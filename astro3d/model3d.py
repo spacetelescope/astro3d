@@ -6,6 +6,7 @@ from __future__ import (absolute_import, division, print_function,
 from collections import defaultdict
 from copy import deepcopy
 import warnings
+from functools import partial
 
 from scipy import ndimage
 import numpy as np
@@ -17,11 +18,10 @@ from astropy.table import Table
 from astropy.utils.exceptions import AstropyUserWarning
 import photutils
 
+from . import textures
 from . import image_utils
 from .meshes import write_mesh
 from .region_mask import RegionMask
-from .textures import (apply_textures, make_starlike_textures,
-                       make_cusp_texture, DOTS, SMALL_DOTS, LINES)
 
 
 __all__ = ['Model3D']
@@ -94,27 +94,34 @@ class Model3D(object):
         self._double_sided = False
         self._spiral_galaxy = False
         self.height = 150.0           # total model height
-        self.base_thickness = 20
+        #self.base_thickness = 20
 
-        self.texture_mask_types = ['gas', 'dots_small', 'spiral', 'dots',
-                                   'disk', 'bulge', 'lines']
+        self.texture_order = ['small_dots', 'dots', 'lines']
         self.region_mask_types = ['smooth', 'remove_star']
-        self.allowed_mask_types = (self.texture_mask_types +
-                                   self.region_mask_types)
         self.allowed_stellar_types = ['stars', 'star_clusters']
+
+        self.translate_texture = {}
+        self.translate_texture['small_dots'] = ['gas']
+        self.translate_texture['dots'] = ['spiral']
+        self.translate_texture['lines'] = ['bulge', 'disk']
+        self.translate_texture['smooth'] = []
+        self.translate_texture['remove_star'] = []
 
         self.texture_masks_original = defaultdict(list)
         self.region_masks_original = defaultdict(list)
         self.stellar_tables_original = {}
 
-        #self._layer_order = [self.lines_key, self.dots_key,
-        #                     self.small_dots_key]
+        self.textures = {}
+        self.textures['small_dots'] = partial(
+            textures.dots_texture_map, profile='spherical', diameter=9.0,
+            height=4.0, grid_func=textures.hexagonal_grid, grid_spacing=5.0)
+        self.textures['dots'] = partial(
+            textures.dots_texture_map, profile='spherical', diameter=9.0,
+            height=8.0, grid_func=textures.hexagonal_grid, grid_spacing=9.0)
+        self.textures['lines'] = partial(
+            textures.lines_texture_map, profile='linear', thickness=13,
+            height=7.8, spacing=20, orientation=0)
 
-        spiral_translation = {}
-        spiral_translation['remove_star'] = 'smooth'
-        spiral_translation['gas'] = 'dots_small'
-        spiral_translation['spiral'] = 'dots'
-        spiral_translation['disk'] = 'lines'
 
 
         self.clus_r_fac_add = 10
@@ -122,18 +129,6 @@ class Model3D(object):
         self.star_r_fac_add = 10
         self.star_r_fac_mul = 5
 
-
-
-        # Results
-        self._preview_intensity = None
-        self._out_image = None
-        self._texture_layer = None
-        self._preview_masks = None
-        self._final_peaks = {}
-
-        # Image is now ready for the rest of processing when user
-        # provides the rest of the info
-        #self._preproc_img = self.resize(data)
 
     @property
     def has_textures(self):
@@ -236,6 +231,38 @@ class Model3D(object):
                         dtype=np.float32)[::-1]
         return cls(data)
 
+    def _translate_mask_type(self, mask_type):
+        """
+        Translate mask type into the texture or region type.
+
+        The valid texture types are defined in ``.texture_order``.  The
+        valid region types are defined in ``.region_mask_types``.
+
+        Parameters
+        ----------
+        mask_type : str
+            The mask type
+
+        Returns
+        -------
+        texture_type: str
+            The mask type translated to the texture type (e.g.
+            'small_dots', 'dots', or 'lines') or region type (e.g.
+            'smooth').
+        """
+
+        if mask_type in self.translate_texture:
+            return mask_type
+        else:
+            texture_type = None
+            for texture_type, mask_types in self.translate_texture.iteritems():
+                if mask_type in mask_types:
+                    return texture_type
+            if texture_type is None:
+                warnings.warn('"{0}" is not a valid mask '
+                              'type.'.format(mask_type), AstropyUserWarning)
+            return
+
     def read_mask(self, filename):
         """
         Read a region mask from a FITS file.
@@ -257,25 +284,14 @@ class Model3D(object):
         region_mask = RegionMask.from_fits(
             filename, required_shape=self.data_original.shape)
         mask_type = region_mask.mask_type
-        if mask_type not in self.allowed_mask_types:
-            warnings.warn('"{0}" is not a valid mask '
-                          'type'.format(mask_type), AstropyUserWarning)
-            return
-
-        # TODO: fix disk mask name; temporary translation:
-        if mask_type == 'disk':
-            mask_type = 'bulge'
-
-        if mask_type in self.region_mask_types:
-            self.region_masks_original[mask_type].append(region_mask)
-            region_type = 'Region'
+        mtype = self._translate_mask_type(mask_type)
+        if mtype in self.region_mask_types:
+            self.region_masks_original[mtype].append(region_mask)
         else:
-            self.texture_masks_original[mask_type].append(region_mask)
-            region_type = 'Texture'
+            self.texture_masks_original[mtype].append(region_mask)
 
-        log.info('{0} type "{1}" loaded from "{2}"'.format(region_type,
-                                                           mask_type,
-                                                           filename))
+        log.info('Mask type "{0}" loaded from "{1}"'.format(mask_type,
+                                                            filename))
 
     def read_all_masks(self, pathname):
         """
@@ -550,7 +566,10 @@ class Model3D(object):
         """
 
         if self.spiral_galaxy:
-            bulge_mask = self.texture_masks['bulge']
+            log.info('Compressing the bulge.')
+            texture_type = self._translate_mask_type('bulge')
+            print(texture_type)
+            bulge_mask = self.texture_masks[texture_type]
             if bulge_mask is not None:
                 base_level = np.percentile(self.data[bulge_mask],
                                            percentile)
@@ -560,6 +579,7 @@ class Model3D(object):
                 self.data[compress_mask] = new_values
             else:
                 warnings.warn('A "bulge" mask must be input.')
+        print(base_level)
         return base_level
 
     def _suppress_background(self, percentile=90., factor=0.2,
@@ -657,7 +677,6 @@ class Model3D(object):
         log.info('Cropping the data values equal to or below a threshold of '
                  '"{0}"'.format(threshold))
         slc = image_utils.crop_below_threshold(self.data, threshold=threshold)
-        self.data_tmp = deepcopy(self.data)   # TODO: remove me
         self.data = self.data[slc]
 
         for mask_type, mask in self.texture_masks.iteritems():
@@ -686,15 +705,102 @@ class Model3D(object):
                                                 resize_scale)
         return slc
 
-    def _make_model_height():
+    def _make_model_height(self):
+        """Scale the image to the final model height."""
+
         if self.double_sided:
             height = self.height / 2.
         else:
             height = self.height
         self._normalize_image(max_value=height)
 
+    def _add_masked_textures(self):
+        """
+        Add masked textures (e.g. small dots, dots, lines) to the
+        image.
+
+        The masked textures are added in order determined by
+        ``.texture_order``.  Masked areas in subsequent textures will
+        override earlier textures for pixels masked in more than one
+        texture (i.e. a given pixel has only one texture applied).
+        """
+
+        self._texture_layer = np.zeros_like(self.data)
+        for texture_type in self.texture_order:
+            log.info('Adding "{0}" textures.'.format(texture_type))
+            mask = self.texture_masks[texture_type]
+            texture_data = self.textures[texture_type](mask)
+            self._texture_layer[mask] = texture_data[mask]
+        self.data_tmp = deepcopy(self.data)   # TODO: remove me
+        self.data += self._texture_layer
+
+    def _apply_stellar_textures(self, radius_a=10., radius_b=5.):
+        # apply stars and star clusters
+        if self.has_intensity:
+            base_percentile = 75
+            depth = 5
+        else:
+            base_percentile = None
+            depth = 10
+
+        starlike_textures = textures.make_starlike_textures(
+            self.data, markstars, clusters, radius_a=radius_a,
+            radius_b=radius_b, depth=depth,
+            base_percentile=base_percentile)
+
+        # if h_percentile is not None:
+        #     filt = ndimage.filters.maximum_filter(array, fil_size)
+        #     mask = (filt > 0) & (image > filt) & (array == 0)
+        #     array[mask] = filt[mask]
+        image = textures.apply_textures(image, starlike_textures)
+
+
+
+
     def _apply_textures(self):
-        pass
+        """Apply the textures to the model."""
+
+        if not self.has_intensity:
+            self.data = 0.
+
+        if self.has_textures:
+            self._add_masked_textures()
+            self._apply_stellar_textures()
+
+
+    def _azzzz():
+            # apply stars and star clusters
+            if self.has_intensity:
+                base_percentile = 75
+                depth = 5
+            else:
+                base_percentile = None
+                depth = 10
+            starlike_textures = textures.make_starlike_textures(
+                image, markstars, clusters, radius_a=self.clus_r_fac_add,
+                radius_b=self.clus_r_fac_mul, depth=depth,
+                base_percentile=base_percentile)
+            # if h_percentile is not None:
+            #     filt = ndimage.filters.maximum_filter(array, fil_size)
+            #     mask = (filt > 0) & (image > filt) & (array == 0)
+            #     array[mask] = filt[mask]
+            image = textures.apply_textures(image, starlike_textures)
+
+            # add central cusp for spiral galaxies (do this last,
+            # particular after adding the lines texture for the disk
+            # bulge)
+            if self.is_spiralgal:
+                if self.has_intensity:
+                    cusp_depth = 20
+                    cusp_percentile = 0.
+                else:
+                    cusp_depth = 20
+                    cusp_percentile = None
+                bulge_mask = disk
+                image = self.spiralgalaxy_central_cusp(
+                    image, bulge_mask, radius=25, depth=cusp_depth,
+                    base_percentile=cusp_percentile)
+
 
     def make(self):
         """Make the model."""
@@ -712,11 +818,11 @@ class Model3D(object):
         # TODO: add a step here to remove "islands" using segmentation?
         self._crop_data(threshold=0., resize=True)
         self._make_model_height()
-        # self._apply_textures()
+        self._apply_textures()
         # self._make_structure()
         log.info('Make complete!')
 
-        return slc
+        return None
 
 
 
@@ -754,7 +860,7 @@ class Model3D(object):
             else:
                 base_percentile = None
                 depth = 10
-            starlike_textures = make_starlike_textures(
+            starlike_textures = textures.make_starlike_textures(
                 image, markstars, clusters, radius_a=self.clus_r_fac_add,
                 radius_b=self.clus_r_fac_mul, depth=depth,
                 base_percentile=base_percentile)
@@ -762,7 +868,7 @@ class Model3D(object):
             #     filt = ndimage.filters.maximum_filter(array, fil_size)
             #     mask = (filt > 0) & (image > filt) & (array == 0)
             #     array[mask] = filt[mask]
-            image = apply_textures(image, starlike_textures)
+            image = textures.apply_textures(image, starlike_textures)
 
             # add central cusp for spiral galaxies (do this last,
             # particular after adding the lines texture for the disk
@@ -825,11 +931,11 @@ class Model3D(object):
         """
 
         x, y = find_galaxy_center(image, bulge_mask)
-        cusp_texture = make_cusp_texture(image, x, y, radius=radius,
+        cusp_texture = textures.make_cusp_texture(image, x, y, radius=radius,
                                          depth=depth,
                                          base_percentile=base_percentile)
         log.info('Placed cusp texture at the galaxy center.')
-        return apply_textures(image, cusp_texture)
+        return textures.apply_textures(image, cusp_texture)
 
     def emphasize_regs(self, image, scaled_masks):
         log.info('Emphasizing regions')
