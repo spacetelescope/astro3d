@@ -777,7 +777,7 @@ class Model3D(object):
         # use np.where instead of np.argmax in case of multiple
         # occurrences of the maximum value
         if mask is None:
-            y, x = np.where(self.data == image.max())
+            y, x = np.where(self.data == self.data.max())
         else:
             data = np.ma.array(self.data, mask=~mask)
             y, x = np.where(data == data.max())
@@ -796,16 +796,16 @@ class Model3D(object):
 
         if self.spiral_galaxy:
             if self.has_intensity:
-                cusp_percentile = 0.
+                base_percentile = 0.
             else:
-                cusp_percentile = None
+                base_percentile = None
 
             texture_type = self._translate_mask_type('bulge')
             bulge_mask = self.texture_masks[texture_type]
             if bulge_mask is not None:
                 x, y = self._find_galaxy_center(bulge_mask)
                 cusp_texture = textures.make_cusp_texture(
-                    self.data, x, y, radius=radius, depth=depth,
+                    self.data, x, y, radius=radius, depth=cusp_depth,
                     base_percentile=base_percentile)
                 self.data = textures.apply_textures(self.data, cusp_texture)
                 log.info('Placed cusp texture at the galaxy center.')
@@ -821,7 +821,20 @@ class Model3D(object):
             self._apply_stellar_textures()
             self._add_spiral_central_cusp()
 
-    def _make_model_base(self, filter_size=100):
+    def _make_model_base(self, filter_size=75):
+        """
+        Make a structural base for the model.
+
+        For two-sided models, this is used to create a stronger base,
+        which prevents the model from shaking back and forth due to
+        printer vibrations.
+
+        Parameters
+        ----------
+        filter_size : int, optional
+            The size of the binary dilation filter.
+        """
+
         log.info('Making model base.')
 
         if not self.has_intensity:
@@ -830,11 +843,10 @@ class Model3D(object):
             if not self.double_sided:
                 self._base_layer = self.base_height
             else:
-                img = ndimage.filters.maximum_filter(self.data, filter_size)
-                img[img < 1] = -5.
-                img[img > 1] = 0.
-                img[img < 0] = self.base_height / 2.
-                self._base_layer = img
+                selem = np.ones((filter_size, filter_size))
+                img = ndimage.binary_dilation(self.data, structure=selem)
+                self._base_layer = np.where(
+                    img == 0, self.base_height / 2., 0)
         self.data += self._base_layer
 
     def make(self):
@@ -854,7 +866,7 @@ class Model3D(object):
         self._crop_data(threshold=0., resize=True)
         self._make_model_height()
         self._apply_textures()
-        self._make_model_base()
+        self._make_model_base(filter_size=75)
         self._model_complete = True
         log.info('Make complete!')
 
