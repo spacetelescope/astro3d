@@ -94,7 +94,7 @@ class Model3D(object):
         self._double_sided = False
         self._spiral_galaxy = False
         self.height = 150.0           # total model height
-        self.base_thickness = 20
+        self.base_height = 10
 
         self.texture_order = ['small_dots', 'dots', 'lines']
         self.region_mask_types = ['smooth', 'remove_star']
@@ -821,6 +821,22 @@ class Model3D(object):
             self._apply_stellar_textures()
             self._add_spiral_central_cusp()
 
+    def _make_model_base(self, filter_size=100):
+        log.info('Making model base.')
+
+        if not self.has_intensity:
+            self._base_layer = self.base_height
+        else:
+            if not self.double_sided:
+                self._base_layer = self.base_height
+            else:
+                img = ndimage.filters.maximum_filter(self.data, filter_size)
+                img[img < 1] = -5.
+                img[img > 1] = 0.
+                img[img < 0] = self.base_height / 2.
+                self._base_layer = img
+        self.data += self._base_layer
+
     def make(self):
         """Make the model."""
 
@@ -838,29 +854,53 @@ class Model3D(object):
         self._crop_data(threshold=0., resize=True)
         self._make_model_height()
         self._apply_textures()
-        # self._make_structure()
+        self._make_model_base()
         self._model_complete = True
         log.info('Make complete!')
 
         return None
 
 
-    def make_model_base(self, image):
-        log.info('Making base')
-        if self.double_sided:
-            base_dist = 100  # Magic? Was 60. Widened for nibbler.
-            base_height = self.base_thickness / 2  # Doubles in mesh creator
-            base = make_base(image, dist=base_dist, height=base_height,
-                             snapoff=True)
-        else:
-            base = make_base(image, height=self.base_thickness, snapoff=False)
 
-        if self.has_intensity:
-            self._out_image = image + base
-        else:
-            self._out_image = self._texture_layer + base
-        return
+def old_make_base(image, dist=60, height=10, snapoff=True):
+    """Used to create a stronger base for printing.
+    Prevents model from shaking back and forth due to printer vibration.
 
+    .. note::
+
+        Raft can be added using Makerware during printing process.
+
+    Parameters
+    ----------
+    image : ndarray
+
+    dist : int
+        Filter size for :func:`~scipy.ndimage.filters.maximum_filter`.
+        Only used if ``snapoff=True``.
+
+    height : int
+        Height of the base.
+
+    snapoff : bool
+        If `True`, base is thin around object border so it
+        can be snapped off. Set this to `False` for flat
+        texture map or one sided prints.
+
+    Returns
+    -------
+    max_filt : ndarray
+        Array containing base values.
+
+    """
+    if snapoff:
+        max_filt = ndimage.filters.maximum_filter(image, dist)
+        max_filt[max_filt < 1] = -5  # Magic?
+        max_filt[max_filt > 1] = 0
+        max_filt[max_filt < 0] = height
+    else:
+        max_filt = np.zeros(image.shape) + height
+
+    return max_filt
 
     def _rad_from_center(self, shape, xcen, ycen):
         """Calculate radius of center of galaxy for image pixels."""
@@ -958,46 +998,6 @@ class Model3D(object):
         log.info('auto find min dthres sdthres max: {0} {1} {2} {3}'.format(
             image.min(), sdmask_thres, dmask_thres, image.max()))
 
-
-def make_base(image, dist=60, height=10, snapoff=True):
-    """Used to create a stronger base for printing.
-    Prevents model from shaking back and forth due to printer vibration.
-
-    .. note::
-
-        Raft can be added using Makerware during printing process.
-
-    Parameters
-    ----------
-    image : ndarray
-
-    dist : int
-        Filter size for :func:`~scipy.ndimage.filters.maximum_filter`.
-        Only used if ``snapoff=True``.
-
-    height : int
-        Height of the base.
-
-    snapoff : bool
-        If `True`, base is thin around object border so it
-        can be snapped off. Set this to `False` for flat
-        texture map or one sided prints.
-
-    Returns
-    -------
-    max_filt : ndarray
-        Array containing base values.
-
-    """
-    if snapoff:
-        max_filt = ndimage.filters.maximum_filter(image, dist)
-        max_filt[max_filt < 1] = -5  # Magic?
-        max_filt[max_filt > 1] = 0
-        max_filt[max_filt < 0] = height
-    else:
-        max_filt = np.zeros(image.shape) + height
-
-    return max_filt
 
 
 def combine_region_masks(region_masks):
