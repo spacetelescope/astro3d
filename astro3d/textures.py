@@ -696,7 +696,7 @@ def sort_starlike_models(models):
         A list of `StarTexture` and/or `StarClusterTexture` models
         sorted by the ``base_height`` parameter in increasing order.
     """
-    print(models)
+
     return sorted(models, key=attrgetter('base_height'))
 
 
@@ -818,7 +818,7 @@ def make_cusp_texture(image, x, y, radius=25, depth=40, base_percentile=None):
     """
 
     yy, xx = np.indices(image.shape)
-    return starlike_model_base_height(image, 'star', x, y, radius, depth,
+    return starlike_model_base_height(image, 'stars', x, y, radius, depth,
                                       base_percentile=base_percentile)(xx, yy)
 
 

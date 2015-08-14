@@ -94,7 +94,7 @@ class Model3D(object):
         self._double_sided = False
         self._spiral_galaxy = False
         self.height = 150.0           # total model height
-        #self.base_thickness = 20
+        self.base_thickness = 20
 
         self.texture_order = ['small_dots', 'dots', 'lines']
         self.region_mask_types = ['smooth', 'remove_star']
@@ -121,14 +121,6 @@ class Model3D(object):
         self.textures['lines'] = partial(
             textures.lines_texture_map, profile='linear', thickness=13,
             height=7.8, spacing=20, orientation=0)
-
-
-
-        self.clus_r_fac_add = 10
-        self.clus_r_fac_mul = 5
-        self.star_r_fac_add = 10
-        self.star_r_fac_mul = 5
-
 
     @property
     def has_textures(self):
@@ -452,7 +444,6 @@ class Model3D(object):
             write_mesh(self.data, filename_prefix,
                        double_sided=self.double_sided, stl_format=stl_format)
 
-
     def _prepare_masks(self):
         """
         Prepare texture and region masks.
@@ -476,7 +467,6 @@ class Model3D(object):
                                                       x_size=self.shape[1])
                              for mask in masks]
             self.region_masks[mask_type] = resized_masks   # list of ndarrays
-
 
     def _scale_stellar_table_positions(self, stellar_tables, resize_scale):
         """
@@ -717,7 +707,7 @@ class Model3D(object):
         Add masked textures (e.g. small dots, dots, lines) to the
         image.
 
-        The masked textures are added in order determined by
+        The masked textures are added in order, specified by
         ``.texture_order``.  Masked areas in subsequent textures will
         override earlier textures for pixels masked in more than one
         texture (i.e. a given pixel has only one texture applied).
@@ -729,11 +719,30 @@ class Model3D(object):
             mask = self.texture_masks[texture_type]
             texture_data = self.textures[texture_type](mask)
             self._texture_layer[mask] = texture_data[mask]
-        self.data_tmp = deepcopy(self.data)   # TODO: remove me
         self.data += self._texture_layer
 
     def _apply_stellar_textures(self, radius_a=10., radius_b=5.):
-        # apply stars and star clusters
+        """
+        Apply stellar textures (stars and star clusters) to the image.
+
+        The radius of the star (used in both `StarTexture` and
+        `StarCluster` textures) for each source is linearly scaled by
+        the source flux as:
+
+            .. math:: radius = radius_a + (radius_b * flux / max_flux)
+
+        where ``max_flux`` is the maximum ``flux`` value of all the
+        input ``sources``.
+
+        Parameters
+        ----------
+        radius_a : float
+            The intercept term in calculating the star radius (see above).
+
+        radius_b : float
+            The slope term in calculating the star radius (see above).
+        """
+
         if self.has_intensity:
             base_percentile = 75.
             depth = 5.
@@ -744,17 +753,65 @@ class Model3D(object):
         self._stellar_texture_layer = textures.make_starlike_textures(
             self.data, self.stellar_tables, radius_a=radius_a,
             radius_b=radius_b, depth=depth, base_percentile=base_percentile)
-
-        # if h_percentile is not None:
-        #     filt = ndimage.filters.maximum_filter(array, fil_size)
-        #     mask = (filt > 0) & (image > filt) & (array == 0)
-        #     array[mask] = filt[mask]
         self.data = textures.apply_textures(self.data,
                                             self._stellar_texture_layer)
 
+    def _find_galaxy_center(self, mask=None):
+        """
+        Find the position of a galaxy center simply as the location of
+        the maximum value in the image.
+
+        If there are multiple pixels with the maximum value, then the
+        center will be calculated as the average of those pixel
+        positions.
+
+        If a ``mask`` is input, then only those regions will be
+        considered.
+
+        Parameters
+        ----------
+        mask : bool `~numpy.ndarray`, optional
+            Boolean mask where to search for the maximum value.
+        """
+
+        # use np.where instead of np.argmax in case of multiple
+        # occurrences of the maximum value
+        if mask is None:
+            y, x = np.where(self.data == image.max())
+        else:
+            data = np.ma.array(self.data, mask=~mask)
+            y, x = np.where(data == data.max())
+        y_center = y.mean()
+        x_center = x.mean()
+        log.info('Center of galaxy at x={0}, y={1}'.format(x_center, y_center))
+        return x_center, y_center
+
+    def _add_spiral_central_cusp(self, radius=25., cusp_depth=8.):
+        """
+        Add central cusp for spiral galaxies.
+
+        Add this texture last, especially after adding the "lines"
+        texture for the central bulge.
+        """
+
+        if self.spiral_galaxy:
+            if self.has_intensity:
+                cusp_percentile = 0.
+            else:
+                cusp_percentile = None
+
+            texture_type = self._translate_mask_type('bulge')
+            bulge_mask = self.texture_masks[texture_type]
+            if bulge_mask is not None:
+                x, y = self._find_galaxy_center(bulge_mask)
+                cusp_texture = textures.make_cusp_texture(
+                    self.data, x, y, radius=radius, depth=depth,
+                    base_percentile=base_percentile)
+                self.data = textures.apply_textures(self.data, cusp_texture)
+                log.info('Placed cusp texture at the galaxy center.')
 
     def _apply_textures(self):
-        """Apply the textures to the model."""
+        """Apply all textures to the model."""
 
         if not self.has_intensity:
             self.data = 0.
@@ -762,41 +819,7 @@ class Model3D(object):
         if self.has_textures:
             self._add_masked_textures()
             self._apply_stellar_textures()
-
-
-    def _azzzz():
-            # apply stars and star clusters
-            if self.has_intensity:
-                base_percentile = 75
-                depth = 5
-            else:
-                base_percentile = None
-                depth = 10
-            starlike_textures = textures.make_starlike_textures(
-                image, markstars, clusters, radius_a=self.clus_r_fac_add,
-                radius_b=self.clus_r_fac_mul, depth=depth,
-                base_percentile=base_percentile)
-            # if h_percentile is not None:
-            #     filt = ndimage.filters.maximum_filter(array, fil_size)
-            #     mask = (filt > 0) & (image > filt) & (array == 0)
-            #     array[mask] = filt[mask]
-            image = textures.apply_textures(image, starlike_textures)
-
-            # add central cusp for spiral galaxies (do this last,
-            # particular after adding the lines texture for the disk
-            # bulge)
-            if self.is_spiralgal:
-                if self.has_intensity:
-                    cusp_depth = 20
-                    cusp_percentile = 0.
-                else:
-                    cusp_depth = 20
-                    cusp_percentile = None
-                bulge_mask = disk
-                image = self.spiralgalaxy_central_cusp(
-                    image, bulge_mask, radius=25, depth=cusp_depth,
-                    base_percentile=cusp_percentile)
-
+            self._add_spiral_central_cusp()
 
     def make(self):
         """Make the model."""
@@ -816,6 +839,7 @@ class Model3D(object):
         self._make_model_height()
         self._apply_textures()
         # self._make_structure()
+        self._model_complete = True
         log.info('Make complete!')
 
         return None
