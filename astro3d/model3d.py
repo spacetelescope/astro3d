@@ -28,11 +28,7 @@ __all__ = ['Model3D']
 
 
 class Model3D(object):
-    """
-    Class to create a 3D model from an astronomical image.
-
-    Examples
-    --------
+    """Class to create a 3D model from an astronomical image.
     >>> model = Model3D.from_fits('myimage.fits')
 
     >>> # define the type of 3D model
@@ -45,20 +41,13 @@ class Model3D(object):
     >>> model.read_mask('mask_file.fits')      # can read one by one
     >>> model.read_all_masks('*.fits')         # or several at once
 
-    >>> # read the stars and/or star clusters
+    >>> # read the "stars" table
     >>> model.read_stellar_table('object_stars.txt', 'stars')
     >>> model.read_stars('object_stars.txt')     # same as above
+
+    >>> # read the "star clusters" table
     >>> model.read_stellar_table('object_star_clusters.txt', 'star_clusters')
     >>> model.read_star_clusters('object_star_clusters.txt')   # same as above
-
-
-    >>> model.make()
-    >>> preview_intensity = model.preview_intensity
-    >>> preview_dots_mask = model.get_preview_mask(model.dots_key)
-    >>> preview_clusters = model.get_final_clusters()
-    >>> preview_stars = model.get_final_stars()
-    >>> image_for_stl = model.out_image
-
 
     >>> filename_prefix = 'myobject'
     >>> model.write_stl(prefix, split_model=True)
@@ -66,8 +55,7 @@ class Model3D(object):
 
     >>> # write stellar tables separately or all at once
     >>> model.write_stellar_table(filename_prefix, stellar_type='stars')
-    >>> model.write_all_stellar_tables(filename_prefix)
-    """
+    >>> model.write_all_stellar_tables(filename_prefix)"""
 
     def __init__(self, data, resize_xsize=1000):
         """
@@ -871,229 +859,3 @@ class Model3D(object):
         log.info('Make complete!')
 
         return None
-
-
-
-def old_make_base(image, dist=60, height=10, snapoff=True):
-    """Used to create a stronger base for printing.
-    Prevents model from shaking back and forth due to printer vibration.
-
-    .. note::
-
-        Raft can be added using Makerware during printing process.
-
-    Parameters
-    ----------
-    image : ndarray
-
-    dist : int
-        Filter size for :func:`~scipy.ndimage.filters.maximum_filter`.
-        Only used if ``snapoff=True``.
-
-    height : int
-        Height of the base.
-
-    snapoff : bool
-        If `True`, base is thin around object border so it
-        can be snapped off. Set this to `False` for flat
-        texture map or one sided prints.
-
-    Returns
-    -------
-    max_filt : ndarray
-        Array containing base values.
-
-    """
-    if snapoff:
-        max_filt = ndimage.filters.maximum_filter(image, dist)
-        max_filt[max_filt < 1] = -5  # Magic?
-        max_filt[max_filt > 1] = 0
-        max_filt[max_filt < 0] = height
-    else:
-        max_filt = np.zeros(image.shape) + height
-
-    return max_filt
-
-    def _rad_from_center(self, shape, xcen, ycen):
-        """Calculate radius of center of galaxy for image pixels."""
-        ygrid, xgrid = np.mgrid[0:shape[0], 0:shape[1]]
-        dx = xgrid - xcen
-        dy = ygrid - ycen
-        r = np.sqrt(dx * dx + dy * dy)
-        return r
-
-    def _radial_map(self, r, alpha=0.8, r_min=100, r_max=450, dr=5,
-                    fillval=0.1):
-        """Generate radial map to enhance faint spiral arms in the outskirts.
-
-        **Notes from Perry Greenfield**
-
-        Simple improvement by adding a radial weighting function.
-        That is to say, take the median filtered image, and adjust all values
-        by a radially increasing function (linear is probably too strong,
-        we could compute a radial average so that becomes the adjustment
-        (divide by the azimuthally averaged values). This way the spiral
-        structure reaches out further. This weighting has to be truncated
-        at some point at a certain radius.
-
-        Parameters
-        ----------
-        r : ndarray
-            Output from :meth:`_rad_from_center`.
-
-        alpha : float
-            Weight is calculated as :math:`r^{\\alpha}`.
-
-        r_min, rmax : int
-            Min and max radii where the weights are flattened using mean
-            values from annuli around them.
-
-        dr : int
-            Half width of the annuli for ``r_min`` and ``r_max``.
-
-        fillval : float
-            Zero weights are replaced with this value.
-
-        """
-        r2 = r ** alpha  # some kind of scaling
-        r2[r > r_max] = np.mean(r2[(r > (r_max - dr)) & (r < (r_max + dr))])
-        r2[r < r_min] = np.mean(r2[(r > (r_min - dr)) & (r < (r_min + dr))])
-        r2 /= r2.max()  # normalized from 0 to 1
-        r2[r2 == 0] = fillval
-        return r2
-
-    def auto_spiralarms(self, shape=None, percentile_hi=75, percentile_lo=55):
-        """Automatically generate texture masks for spiral arms
-        and gas in a spiral galaxy, and store them in ``self.region_masks``.
-
-        """
-        # Don't want to change input
-        image = deepcopy(self._preproc_img)
-
-        # Scale and combine masks
-        scaled_masks, disk, spiralarms = self._process_masks()
-        if disk is None:
-            raise ValueError('You must define the disk first')
-
-        log.info('Smoothing {0} region(s)'.format(
-                len(scaled_masks[self.smooth_key])))
-        image = remove_stars(image, scaled_masks[self.smooth_key])
-
-        # Smooth image
-        image = ndimage.filters.median_filter(image, size=10)  # For 1k image
-
-        # Apply weighted radial map
-        xcen, ycen = self._find_galaxy_center(image, disk)
-        r = self._rad_from_center(image.shape, xcen, ycen)
-        r_weigh = self._radial_map(r)
-        image *= r_weigh
-
-        # Remove disk from consideration
-        image[disk] = 0
-
-        # Dots (spiral arms)
-        dmask_thres = np.percentile(image, percentile_hi)
-        dmask = image > dmask_thres
-
-        # Small dots (gas)
-        sdmask_thres = np.percentile(image, percentile_lo)
-        sdmask = (image > sdmask_thres) & (~dmask)
-
-        # Resize and save them as RegionMask
-        if shape is not None:
-            dmask = image_utils.resize_image(dmask, shape[0], width=shape[1])
-            sdmask = image_utils.resize_image(sdmask, shape[0], width=shape[1])
-        self.region_masks[self.dots_key] = [RegionMask(dmask, self.dots_key)]
-        self.region_masks[self.small_dots_key] = [
-            RegionMask(sdmask, self.small_dots_key)]
-
-        log.info('auto find min dthres sdthres max: {0} {1} {2} {3}'.format(
-            image.min(), sdmask_thres, dmask_thres, image.max()))
-
-
-
-def combine_region_masks(region_masks):
-    """
-    region_masks : list of `RegionMask`
-    """
-
-    nmasks = len(region_masks)
-    if nmasks == 0:
-        return region_masks
-    elif nmasks == 1:
-        return region_masks[0].mask
-    else:
-        return reduce(
-            lambda regm1, regm2: np.logical_or(regm1.mask, regm2.mask),
-            region_masks)
-
-
-def combine_masks(masks):
-    """
-    Combine boolean masks into a single mask.
-    """
-
-    if len(masks) == 0:
-        return None
-
-    return reduce(lambda mask1, mask2: np.logical_or(mask1, mask2), masks)
-
-
-def find_peaks(image, remove=0, num=None, threshold=8, npix=10, minpeaks=35):
-    """
-    Identifies the brightest point sources in an image.
-
-    NOTE:  also called by GUI.
-
-    Parameters
-    ----------
-    image : ndarray
-        Image to find.
-
-    remove : int
-        Number of brightest point sources to remove.
-
-    num : int
-        Number of unrejected brightest point sources to return.
-
-    threshold, npix : int
-        Parameters for ``photutils.detect_sources()``.
-
-    minpeaks : int
-        This is the minimum number of peaks that has to be found,
-        if possible.
-
-    Returns
-    -------
-    peaks : list
-        Point sources.
-
-    """
-    columns = ['id', 'xcentroid', 'ycentroid', 'segment_sum']
-
-    while threshold >= 4:
-        threshold = photutils.detect_threshold(
-            image, snr=threshold, mask_val=0.0)
-        segm_img = photutils.detect_sources(image, threshold, npixels=npix)
-        segm_props = photutils.segment_properties(image, segm_img)
-        isophot = photutils.properties_table(segm_props, columns=columns)
-        isophot.rename_column('xcentroid', 'xcen')
-        isophot.rename_column('ycentroid', 'ycen')
-        isophot.rename_column('segment_sum', 'flux')
-        if len(isophot['xcen']) >= minpeaks:
-            break
-        else:
-            threshold -= 1
-
-    isophot.sort('flux')
-    isophot.reverse()
-
-    if remove > 0:
-        isophot.remove_rows(range(remove))
-
-    if num is not None:
-        peaks = isophot[:num]
-    else:
-        peaks = isophot
-
-    return peaks
