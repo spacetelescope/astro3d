@@ -87,7 +87,7 @@ def resize_image(data, x_size=1000, y_size=None):
 
     data = np.array(Image.fromarray(data.astype(float)).resize(
         (x_size, y_size)), dtype=data.dtype)
-    #data = imresize(data, (y_size, x_size)).astype(data.dtype)
+    # data = imresize(data, (y_size, x_size)).astype(data.dtype)
 
     log.info('The array was resized from {0}x{1} to {2}x{3} '
              '(ny * nx)'.format(ny, nx, y_size, x_size))
@@ -151,6 +151,56 @@ def crop_below_threshold(data, threshold=0):
     y0, y1 = min(idx[0]), max(idx[0]) + 1
     x0, x1 = min(idx[1]), max(idx[1]) + 1
     return (slice(y0, y1), slice(x0, x1))
+
+
+def combine_masks(masks):
+    """
+    Combine boolean masks into a single mask.
+
+    Parameters
+    ----------
+    masks : list of boolean masks
+        A list of boolean `~numpy.ndarray` masks.
+
+    Returns
+    -------
+    mask : bool `~numpy.ndarray`
+        The combined mask.
+    """
+
+    nmasks = len(masks)
+    if nmasks == 0:
+        return None
+    elif nmasks == 1:
+        return masks[0]
+    else:
+        return reduce(lambda mask1, mask2: np.logical_or(mask1, mask2), masks)
+
+
+def combine_region_masks(region_masks):
+    """
+    Combine region masks into a single mask.
+
+    Parameters
+    ----------
+    region_masks : list of `~astro3d.region_mask.RegionMask`
+        A list of boolean `~numpy.ndarray` masks.
+
+    Returns
+    -------
+    mask : bool `~numpy.ndarray`
+        The combined mask.
+    """
+
+    nmasks = len(region_masks)
+    if nmasks == 0:
+        return region_masks
+    elif nmasks == 1:
+        return region_masks[0].mask
+    else:
+        return reduce(
+            lambda regm1, regm2: np.logical_or(regm1.mask, regm2.mask),
+            region_masks)
 
 
 def makeqimage(nparray, transformation, size):
