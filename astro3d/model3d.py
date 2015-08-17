@@ -28,8 +28,14 @@ __all__ = ['Model3D']
 
 
 class Model3D(object):
-    """Class to create a 3D model from an astronomical image.
-    >>> model = Model3D.from_fits('myimage.fits')
+    """
+    Class to create a 3D model from an astronomical image.
+
+    Examples
+    --------
+    >>> # initialize the model
+    >>> model = Model3D(data)
+    >>> model = Model3D.from_fits('myimage.fits')    # or from FITS file
 
     >>> # define the type of 3D model
     >>> model.has_textures = True
@@ -49,13 +55,22 @@ class Model3D(object):
     >>> model.read_stellar_table('object_star_clusters.txt', 'star_clusters')
     >>> model.read_star_clusters('object_star_clusters.txt')   # same as above
 
+    >>> # make the model
+    >>> model.make()
+
+    >>> # write the model to a STL file
     >>> filename_prefix = 'myobject'
     >>> model.write_stl(prefix, split_model=True)
+
+    >>> # write the texture and region masks to FITS files
     >>> model.write_all_masks(filename_prefix)
 
-    >>> # write stellar tables separately or all at once
+    >>> # write stellar tables (separately or all at once)
     >>> model.write_stellar_table(filename_prefix, stellar_type='stars')
-    >>> model.write_all_stellar_tables(filename_prefix)"""
+    >>> model.write_stellar_table(filename_prefix,
+    ...                           stellar_type='star_clusters')
+    >>> model.write_all_stellar_tables(filename_prefix)    # all at once
+    """
 
     def __init__(self, data, resize_xsize=1000):
         """
@@ -446,7 +461,7 @@ class Model3D(object):
         # combine and resize texture_masks
         for mask_type, masks in self.texture_masks_original.iteritems():
             prepared_mask = image_utils.resize_image(
-                combine_region_masks(masks), x_size=self.shape[1])
+                image_utils.combine_region_masks(masks), x_size=self.shape[1])
             self.texture_masks[mask_type] = prepared_mask   # ndarray
 
         # resize but do not combine region_masks
@@ -593,7 +608,7 @@ class Model3D(object):
 
         log.info('Suppressing the background.')
         texture_masks = [self.texture_masks[i] for i in self.texture_masks]
-        mask = combine_masks(texture_masks)
+        mask = image_utils.combine_masks(texture_masks)
         background_level = np.percentile(self.data[~mask], percentile)
         bkgrd_mask = self.data < background_level
         self.data[bkgrd_mask] = self.data[bkgrd_mask] * factor
@@ -837,24 +852,36 @@ class Model3D(object):
                     img == 0, self.base_height / 2., 0)
         self.data += self._base_layer
 
-    def make(self):
-        """Make the model."""
+    def make(self, compress_bulge_percentile=0., compress_bulge_factor=0.05,
+             suppress_background_percentile=90.,
+             suppress_background_factor=0.2, smooth_size=11,
+             minvalue_to_zero=0.02, crop_data_threshold=0.,
+             model_base_filter_size=75):
+        """
+        Make the model.
+
+        A series of steps are performed to prepare the intensity image
+        and/or add textures to the model.
+        """
 
         self.data = deepcopy(self.data_original_resized)    # start fresh
         self._prepare_masks()
         self._scale_stellar_table_positions(
             self.stellar_tables_original, self.original_resize_scale)
         self._remove_stars()
-        self._spiralgalaxy_compress_bulge(percentile=0., factor=0.05)
-        self._suppress_background(percentile=90., factor=0.2)
-        self._smooth_image(size=11)
-        self._normalize_image(max_value=1.0)
-        self._minvalue_to_zero(min_value=0.02)
+        self._spiralgalaxy_compress_bulge(
+            percentile=compress_bulge_percentile,
+            factor=compress_bulge_factor)
+        self._suppress_background(percentile=suppress_background_percentile,
+                                  factor=suppress_background_factor)
+        self._smooth_image(size=smooth_size)
+        self._normalize_image()
+        self._minvalue_to_zero(min_value=minvalue_to_zero)
         # TODO: add a step here to remove "islands" using segmentation?
         self._crop_data(threshold=0., resize=True)
         self._make_model_height()
         self._apply_textures()
-        self._make_model_base(filter_size=75)
+        self._make_model_base(filter_size=model_base_filter_size)
         self._model_complete = True
         log.info('Make complete!')
 
