@@ -81,6 +81,15 @@ class Model3D(object):
 
         resize_xsize : int, optional
             The size of the x axis of the resized image.
+
+        Notes
+        -----
+        A ``height`` of 250 corresponds to a physical height of 68.6 mm
+        on the MakerBot 2 printer.  This assumes 0.14 mm per pixel and a
+        uniform maximum scaling factor of 1.96 (which assumes
+        ``resize_xsize = 1000``).
+
+        A ``base_height`` of 10 corresponds to 2.74 mm.
         """
 
         self.data_original = np.asanyarray(data)
@@ -96,8 +105,8 @@ class Model3D(object):
         self._has_intensity = True
         self._double_sided = False
         self._spiral_galaxy = False
-        self.height = 150.0           # total model height
-        self.base_height = 10
+        self.height = 250.      # total model height
+        self.base_height = 10.
 
         self.texture_order = ['small_dots', 'dots', 'lines']
         self.region_mask_types = ['smooth', 'remove_star']
@@ -820,6 +829,15 @@ class Model3D(object):
             self.data = 0.
 
         if self.has_textures:
+            # TODO: fix scaling issues with cusp
+            # First add the central cusp and renormalize to
+            # the final height of the image.
+            #self._add_spiral_central_cusp()
+            self._make_model_height()
+
+            # Then add the textures.
+            # To give consistent texture height (and "feel"), no scaling
+            # of the image should happen after this step!
             self._add_masked_textures()
             self._apply_stellar_textures()
             self._add_spiral_central_cusp()
@@ -879,7 +897,8 @@ class Model3D(object):
         self._minvalue_to_zero(min_value=minvalue_to_zero)
         # TODO: add a step here to remove "islands" using segmentation?
         self._crop_data(threshold=0., resize=True)
-        self._make_model_height()
+        #self._make_model_height()
+        #self.data_tmp = self.data
         self._apply_textures()
         self._make_model_base(filter_size=model_base_filter_size)
         self._model_complete = True
