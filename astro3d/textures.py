@@ -654,8 +654,7 @@ def make_starlike_models(image, model_type, sources, radius_a=10, radius_b=5,
     if len(sources) == 0:
         return []
 
-    #columns = ['xcen', 'ycen', 'flux']
-    columns = ['x_center', 'y_center', 'flux']
+    columns = ['xcentroid', 'ycentroid', 'flux']
     for column in columns:
         if column not in sources.colnames:
             raise ValueError('sources must contain a {0} '
@@ -671,7 +670,7 @@ def make_starlike_models(image, model_type, sources, radius_a=10, radius_b=5,
     for source in sources:
         radius = radius_a + (radius_b * source['flux'] / max_flux)
         model = starlike_model_base_height(
-            image, model_type, source['x_center'], source['y_center'],
+            image, model_type, source['xcentroid'], source['ycentroid'],
             radius, depth, base_percentile=base_percentile,
             image_indices=(yy, xx))
         if model is not None:
@@ -747,7 +746,7 @@ def make_starlike_textures(image, stellar_tables, radius_a=10,
     stellar_tables : dict of `~astropy.table.Table`
         A dictionary of tables defining the star-like textures.  The
         dictionary can define either 'stars' or 'star_clusters'.  The
-        table must contain ``'x_center'``, ``'y_center'``, and
+        table must contain ``'xcentroid'``, ``'ycentroid'``, and
         ``'flux'`` columns.
 
     radius_a : float

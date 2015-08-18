@@ -352,7 +352,7 @@ class Model3D(object):
         """
         Read a table of stars or star clusters from a file.
 
-        The table must have ``'x_center'``, ``'y_center'``, and
+        The table must have ``'xcentroid``, ``'ycentroid'``, and
         ``'flux'`` columns.
 
         Parameters
@@ -366,8 +366,8 @@ class Model3D(object):
 
         table = Table.read(filename, format='ascii')
         # TODO: check for required columns
-        # TODO: rename input columns, e.g. xcen/x_cen/xcenter -> x_center
-        table.keep_columns(['x_center', 'y_center', 'flux'])
+        # TODO: rename input columns, e.g. xcen/x_cen/xcenter -> xcentroid
+        table.keep_columns(['xcentroid', 'ycentroid', 'flux'])
         self.stellar_tables_original[stellar_type] = table
         log.info('Read "{0}" table from "{1}"'.format(stellar_type, filename))
 
@@ -484,8 +484,8 @@ class Model3D(object):
         """
         Scale the ``(x, y)`` positions in the stellar tables.
 
-        The image resize factor is applied to the ``x_center`` and
-        ``y_center`` columns.
+        The image resize factor is applied to the ``xcentroid`` and
+        ``ycentroid`` columns.
 
         Parameters
         ----------
@@ -499,8 +499,8 @@ class Model3D(object):
         self.stellar_tables = deepcopy(stellar_tables)
         for table in self.stellar_tables.itervalues():
             if table is not None:
-                table['x_center'] *= resize_scale
-                table['y_center'] *= resize_scale
+                table['xcentroid'] *= resize_scale
+                table['ycentroid'] *= resize_scale
 
     def _remove_stars(self):
         """
@@ -684,13 +684,13 @@ class Model3D(object):
             self.texture_masks[mask_type] = mask[slc]
 
         for stellar_type, table in self.stellar_tables.iteritems():
-            idx = ((table['x_center'] > slc[1].start) &
-                   (table['x_center'] < slc[1].stop) &
-                   (table['y_center'] > slc[0].start) &
-                   (table['y_center'] < slc[0].stop))
+            idx = ((table['xcentroid'] > slc[1].start) &
+                   (table['xcentroid'] < slc[1].stop) &
+                   (table['ycentroid'] > slc[0].start) &
+                   (table['ycentroid'] < slc[0].stop))
             table = table[idx]
-            table['x_center'] -= slc[1].start
-            table['y_center'] -= slc[0].start
+            table['xcentroid'] -= slc[1].start
+            table['ycentroid'] -= slc[0].start
             self.stellar_tables[stellar_type] = table
 
         if resize:
@@ -905,3 +905,83 @@ class Model3D(object):
         log.info('Make complete!')
 
         return None
+
+
+def find_peaks(data, snr=10, snr_min=5, npixels=10, min_count=25,
+               max_count=50, sigclip_iters=10):
+    """
+    Find the brightest "sources" above a threshold in an image.
+
+    Parameters
+    ----------
+    data : `~numpy.ndarray`
+        Image in which to find sources.
+
+    snr : float, optional
+        The signal-to-noise ratio per pixel above the "background" for
+        which to consider a pixel as possibly being part of a source.
+
+    snr_min : float, optional
+        The minimum signal-to-noise ratio per above to consider.  See
+        ``min_count``.
+
+    npixels : int, optional
+        The number of connected pixels, each greater than the threshold
+        values (calculated from ``snr``), that an object must have to be
+        detected.  ``npixels`` must be a positive integer.
+
+    min_count : int, optional
+        The minimum number of "sources" to try to find.  If at least
+        ``min_count`` sources are not found at the input ``snr``, then
+        ``snr`` is incrementally lowered.  The ``snr`` will not go below
+        ``snr_min``, so the returned number of sources may be less than
+        ``min_count``.
+
+    max_count : int, optional
+        The maximum number of "sources" to find.  The brightest
+        ``max_count`` sources are returned.
+
+    sigclip_iters : float, optional
+       The number of iterations to perform sigma clipping, or `None` to
+       clip until convergence is achieved (i.e., continue until the last
+       iteration clips nothing) when calculating the image background
+       statistics.
+
+    Returns
+    -------
+    result : `~astropy.table.Table`
+        A table of the found "sources".
+
+    Notes
+    -----
+    The background and background noise estimated by this routine is
+    based simple sigma-clipped statistics.  For complex images, such as
+    an image of a bright galaxy, the "background" will not be accurate
+    and manual editting of the final source list will likely be
+    necessary.
+    """
+
+    if min_count > max_count:
+        raise ValueError('min_count must be <= max_count')
+
+    columns = ['id', 'xcentroid', 'ycentroid', 'segment_sum']
+
+    while snr >= snr_min:
+        threshold = photutils.detect_threshold(data, snr=snr, mask_value=0.0,
+                                               sigclip_iters=sigclip_iters)
+        segm_img = photutils.detect_sources(data, threshold, npixels=npixels)
+        segm_props = photutils.segment_properties(data, segm_img)
+        tbl = photutils.properties_table(segm_props, columns=columns)
+
+        if len(tbl) >= min_count:
+            break
+        else:
+            snr -= 1.
+
+    tbl.sort('segment_sum')
+    tbl.reverse()
+    if len(tbl) > max_count:
+        tbl = tbl[:max_count]
+
+    tbl.rename_column('segment_sum', 'flux')
+    return tbl
