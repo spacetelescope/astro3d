@@ -203,6 +203,76 @@ def combine_region_masks(region_masks):
             region_masks)
 
 
+def radial_distance(shape, position):
+    """
+    Return an array where each value is the Euclidean distance from a
+    given position.
+
+    Parameters
+    ----------
+    shape : tuple
+        The ``(ny, nx)`` shape of the output array.
+
+    position : tuple
+        The ``(y, x)`` position corresponding to zero distance.
+
+    Returns
+    -------
+    result : `~numpy.ndarray`
+        A 2D array of given ``shape`` representing the radial distance
+        map.
+    """
+
+    x = np.arange(shape[1]) - position[1]
+    y = np.arange(shape[0]) - position[0]
+    xx, yy = np.meshgrid(x, y)
+    return np.sqrt(xx**2 + yy**2)
+
+
+def radial_weight_map(shape, position, alpha=0.8, r_min=100, r_max=450,
+                      fill_value=0.1):
+    """
+    Return a radial weight map used to enhance the faint spiral arms in
+    the outskirts of a galaxy image.
+
+    Parameters
+    ----------
+    shape : tuple
+        The ``(ny, nx)`` shape of the output array.
+
+    position : tuple
+        The ``(y, x)`` position corresponding to zero distance.
+
+    alpha : float, optional
+        The power scaling factor applied to the radial distance.
+
+    r_min : int, optional
+        Minimum pixel radius below which the weights are truncated.
+
+    r_max : int, optional
+        Maximum pixel radius above which the weights are truncated.
+
+    fill_value : float, optional
+       Value to replace weights that were calculated to be zero.
+
+    Returns
+    -------
+    result : `~numpy.ndarray`
+        A 2D array of given ``shape`` representing the radial weight
+        map.
+    """
+
+    r = radial_distance(shape, position)
+    r2 = r ** alpha
+    min_mask = (r < r_min)
+    max_mask = (r > r_max)
+    r2[min_mask] = r2[min_mask].min()
+    r2[max_mask] = r2[max_mask].max()
+    r2 /= r2.max()
+    r2[r2 == 0] = fill_value
+    return r2
+
+
 def makeqimage(nparray, transformation, size):
     """Performs various transformations (linear, log, sqrt, etc.)
     on the image. Clips and scales pixel values between 0 and 255.
