@@ -480,12 +480,40 @@ class Model3D(object):
                              for mask in masks]
             self.region_masks[mask_type] = resized_masks   # list of ndarrays
 
+    @staticmethod
+    def _scale_table_positions(table, resize_scale):
+        """
+        Scale the ``(x, y)`` positions in a stellar table.
+
+        The image resize scale factor is applied to the ``xcentroid``
+        and ``ycentroid`` columns.
+
+        Parameters
+        ----------
+        table : `~astropy.table.Table`
+            A table of stellar-like sources.
+
+        resize_scale : float
+            The desired scaling factor to apply to the position columns.
+
+        Returns
+        -------
+        result : `~astropy.table.Table`
+            The table with scaled positions.
+        """
+
+        result = deepcopy(table)
+        result['xcentroid'] *= resize_scale
+        result['ycentroid'] *= resize_scale
+        return result
+
     def _scale_stellar_table_positions(self, stellar_tables, resize_scale):
         """
         Scale the ``(x, y)`` positions in the stellar tables.
 
         The image resize factor is applied to the ``xcentroid`` and
-        ``ycentroid`` columns.
+        ``ycentroid`` columns.  The output dictionary of tables is
+        stored in ``self.stellar_tables``.
 
         Parameters
         ----------
@@ -497,16 +525,19 @@ class Model3D(object):
         """
 
         self.stellar_tables = deepcopy(stellar_tables)
-        for table in self.stellar_tables.itervalues():
+        for stellar_type, table in self.stellar_tables.iteritems():
             if table is not None:
-                table['xcentroid'] *= resize_scale
-                table['ycentroid'] *= resize_scale
+                tbl = self._scale_table_positions(table, resize_scale)
+                self.stellar_tables[stellar_type] = tbl
 
     def _remove_stars(self):
         """
         Remove stars by patching the regions defined by ``remove_stars``
         region masks.
         """
+
+        if 'remove_star' not in self.region_masks:
+            return
 
         for mask in self.region_masks['remove_star']:
             y, x = mask.nonzero()
@@ -567,19 +598,21 @@ class Model3D(object):
             The base level above which values are compressed.
         """
 
-        if self.spiral_galaxy:
-            log.info('Compressing the bulge.')
-            texture_type = self._translate_mask_type('bulge')
-            bulge_mask = self.texture_masks[texture_type]
-            if bulge_mask is not None:
-                base_level = np.percentile(self.data[bulge_mask],
-                                           percentile)
-                compress_mask = self.data > base_level
-                new_values = (base_level + (self.data[compress_mask] -
-                                            base_level) * factor)
-                self.data[compress_mask] = new_values
-            else:
-                warnings.warn('A "bulge" mask must be input.')
+        if not self.spiral_galaxy:
+            return None
+
+        log.info('Compressing the bulge.')
+        texture_type = self._translate_mask_type('bulge')
+        bulge_mask = self.texture_masks[texture_type]
+        if bulge_mask is not None:
+            base_level = np.percentile(self.data[bulge_mask],
+                                       percentile)
+            compress_mask = self.data > base_level
+            new_values = (base_level + (self.data[compress_mask] -
+                                        base_level) * factor)
+            self.data[compress_mask] = new_values
+        else:
+            warnings.warn('A "bulge" mask must be input.')
         return base_level
 
     def _suppress_background(self, percentile=90., factor=0.2,
@@ -614,6 +647,9 @@ class Model3D(object):
         result : float
             The background level below which values are suppressed.
         """
+
+        if not self.texture_masks:
+            return None
 
         log.info('Suppressing the background.')
         texture_masks = [self.texture_masks[i] for i in self.texture_masks]
@@ -676,7 +712,9 @@ class Model3D(object):
 
         log.info('Cropping the data values equal to or below a threshold of '
                  '"{0}"'.format(threshold))
+        self.data_tmp = self.data
         slc = image_utils.crop_below_threshold(self.data, threshold=threshold)
+        print(slc)
         self.data = self.data[slc]
 
         for mask_type, mask in self.texture_masks.iteritems():
@@ -727,6 +765,9 @@ class Model3D(object):
 
         self._texture_layer = np.zeros_like(self.data)
         for texture_type in self.texture_order:
+            if texture_type not in self.texture_masks:
+                continue
+
             log.info('Adding "{0}" textures.'.format(texture_type))
             mask = self.texture_masks[texture_type]
             texture_data = self.textures[texture_type](mask)
@@ -762,6 +803,10 @@ class Model3D(object):
             base_percentile = None
             depth = 10.
 
+        if not self.stellar_tables:
+            return
+
+        log.info('Adding stellar-like textures.')
         self._stellar_texture_layer = textures.make_starlike_textures(
             self.data, self.stellar_tables, radius_a=radius_a,
             radius_b=radius_b, depth=depth, base_percentile=base_percentile)
@@ -906,82 +951,102 @@ class Model3D(object):
 
         return None
 
+    def find_peaks(self, snr=10, snr_min=5, npixels=10, min_count=25,
+                   max_count=50, sigclip_iters=10,
+                   stellar_type='star_clusters'):
+        """
+        Find the brightest "sources" above a threshold in an image.
 
-def find_peaks(data, snr=10, snr_min=5, npixels=10, min_count=25,
-               max_count=50, sigclip_iters=10):
-    """
-    Find the brightest "sources" above a threshold in an image.
+        For complex images, such as an image of a bright galaxy, manual
+        editting of the final source list will likely be necessary.
 
-    Parameters
-    ----------
-    data : `~numpy.ndarray`
-        Image in which to find sources.
+        Parameters
+        ----------
+        data : `~numpy.ndarray`
+            Image in which to find sources.
 
-    snr : float, optional
-        The signal-to-noise ratio per pixel above the "background" for
-        which to consider a pixel as possibly being part of a source.
+        snr : float, optional
+            The signal-to-noise ratio per pixel above the "background"
+            for which to consider a pixel as possibly being part of a
+            source.
 
-    snr_min : float, optional
-        The minimum signal-to-noise ratio per above to consider.  See
-        ``min_count``.
+        snr_min : float, optional
+            The minimum signal-to-noise ratio per above to consider.
+            See ``min_count``.
 
-    npixels : int, optional
-        The number of connected pixels, each greater than the threshold
-        values (calculated from ``snr``), that an object must have to be
-        detected.  ``npixels`` must be a positive integer.
+        npixels : int, optional
+            The number of connected pixels, each greater than the
+            threshold values (calculated from ``snr``), that an object
+            must have to be detected.  ``npixels`` must be a positive
+            integer.
 
-    min_count : int, optional
-        The minimum number of "sources" to try to find.  If at least
-        ``min_count`` sources are not found at the input ``snr``, then
-        ``snr`` is incrementally lowered.  The ``snr`` will not go below
-        ``snr_min``, so the returned number of sources may be less than
-        ``min_count``.
+        min_count : int, optional
+            The minimum number of "sources" to try to find.  If at least
+            ``min_count`` sources are not found at the input ``snr``,
+            then ``snr`` is incrementally lowered.  The ``snr`` will not
+            go below ``snr_min``, so the returned number of sources may
+            be less than ``min_count``.
 
-    max_count : int, optional
-        The maximum number of "sources" to find.  The brightest
-        ``max_count`` sources are returned.
+        max_count : int, optional
+            The maximum number of "sources" to find.  The brightest
+            ``max_count`` sources are returned.
 
-    sigclip_iters : float, optional
-       The number of iterations to perform sigma clipping, or `None` to
-       clip until convergence is achieved (i.e., continue until the last
-       iteration clips nothing) when calculating the image background
-       statistics.
+        sigclip_iters : float, optional
+           The number of iterations to perform sigma clipping, or `None`
+           to clip until convergence is achieved (i.e., continue until
+           the last iteration clips nothing) when calculating the image
+           background statistics.
 
-    Returns
-    -------
-    result : `~astropy.table.Table`
-        A table of the found "sources".
+        stellar_type : int, optional
+            The type of sources.  The source table is stored in
+            ``self.stellar_tables[stellar_type]`` and the version
+            resized to the original image size is stored in
+            ``self.stellar_tables_original[stellar_type]``.
 
-    Notes
-    -----
-    The background and background noise estimated by this routine is
-    based simple sigma-clipped statistics.  For complex images, such as
-    an image of a bright galaxy, the "background" will not be accurate
-    and manual editting of the final source list will likely be
-    necessary.
-    """
+        Returns
+        -------
+        result : `~astropy.table.Table`
+            A table of the found "sources".
 
-    if min_count > max_count:
-        raise ValueError('min_count must be <= max_count')
+        Notes
+        -----
+        The background and background noise estimated by this routine
+        are based simple sigma-clipped statistics.  For complex images,
+        such as an image of a bright galaxy, the "background" will not
+        be accurate.
+        """
 
-    columns = ['id', 'xcentroid', 'ycentroid', 'segment_sum']
+        if min_count > max_count:
+            raise ValueError('min_count must be <= max_count')
 
-    while snr >= snr_min:
-        threshold = photutils.detect_threshold(data, snr=snr, mask_value=0.0,
-                                               sigclip_iters=sigclip_iters)
-        segm_img = photutils.detect_sources(data, threshold, npixels=npixels)
-        segm_props = photutils.segment_properties(data, segm_img)
-        tbl = photutils.properties_table(segm_props, columns=columns)
+        self.data = deepcopy(self.data_original_resized)
 
-        if len(tbl) >= min_count:
-            break
-        else:
-            snr -= 1.
+        columns = ['id', 'xcentroid', 'ycentroid', 'segment_sum']
+        while snr >= snr_min:
+            threshold = photutils.detect_threshold(
+                self.data, snr=snr, mask_value=0.0,
+                sigclip_iters=sigclip_iters)
+            segm_img = photutils.detect_sources(self.data, threshold,
+                                                npixels=npixels)
+            segm_props = photutils.segment_properties(self.data, segm_img)
+            tbl = photutils.properties_table(segm_props, columns=columns)
 
-    tbl.sort('segment_sum')
-    tbl.reverse()
-    if len(tbl) > max_count:
-        tbl = tbl[:max_count]
+            if len(tbl) >= min_count:
+                break
+            else:
+                snr -= 1.
 
-    tbl.rename_column('segment_sum', 'flux')
-    return tbl
+        tbl.sort('segment_sum')
+        tbl.reverse()
+        if len(tbl) > max_count:
+            tbl = tbl[:max_count]
+        tbl.rename_column('segment_sum', 'flux')
+
+        scaled_tbl = self._scale_table_positions(
+            tbl, 1. / self.original_resize_scale)
+        self.stellar_tables_original[stellar_type] = scaled_tbl
+
+        self.stellar_tables = deepcopy(self.stellar_tables_original)
+        self.stellar_tables[stellar_type] = tbl
+
+        return self.stellar_tables_original
