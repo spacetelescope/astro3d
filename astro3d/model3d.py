@@ -93,12 +93,11 @@ class Model3D(object):
         """
 
         self.data_original = np.asanyarray(data)
+        self.resize_scale_factor = float(resize_xsize /
+                                         self.data_original.shape[1])
         self.data_original_resized = image_utils.resize_image(
             image_utils.remove_nonfinite(self.data_original),
-            x_size=resize_xsize)
-        self.shape = self.data_original_resized.shape
-        self.original_resize_scale = float(self.shape[0] /
-                                           self.data_original.shape[0])
+            self.resize_scale_factor)
 
         self._model_complete = False
         self._has_textures = True
@@ -258,11 +257,11 @@ class Model3D(object):
         if mask_type in self.translate_texture:
             return mask_type
         else:
-            texture_type = None
-            for texture_type, mask_types in self.translate_texture.iteritems():
+            tx_type = None
+            for tx_type, mask_types in self.translate_texture.iteritems():
                 if mask_type in mask_types:
-                    return texture_type
-            if texture_type is None:
+                    return tx_type
+            if tx_type is None:
                 warnings.warn('"{0}" is not a valid mask '
                               'type.'.format(mask_type), AstropyUserWarning)
             return
@@ -470,14 +469,14 @@ class Model3D(object):
         # combine and resize texture_masks
         for mask_type, masks in self.texture_masks_original.iteritems():
             prepared_mask = image_utils.resize_image(
-                image_utils.combine_region_masks(masks), x_size=self.shape[1])
+                image_utils.combine_region_masks(masks),
+                self.resize_scale_factor)
             self.texture_masks[mask_type] = prepared_mask   # ndarray
 
         # resize but do not combine region_masks
         for mask_type, masks in self.region_masks_original.iteritems():
-            resized_masks = [image_utils.resize_image(mask.mask,
-                                                      x_size=self.shape[1])
-                             for mask in masks]
+            resized_masks = [image_utils.resize_image(
+                mask.mask, self.resize_scale_factor) for mask in masks]
             self.region_masks[mask_type] = resized_masks   # list of ndarrays
 
     @staticmethod
@@ -714,7 +713,6 @@ class Model3D(object):
                  '"{0}"'.format(threshold))
         self.data_tmp = self.data
         slc = image_utils.crop_below_threshold(self.data, threshold=threshold)
-        print(slc)
         self.data = self.data[slc]
 
         for mask_type, mask in self.texture_masks.iteritems():
@@ -732,15 +730,16 @@ class Model3D(object):
             self.stellar_tables[stellar_type] = table
 
         if resize:
-            resize_scale = float(self.shape[1] / self.data.shape[1])
-            self.data = image_utils.resize_image(self.data,
-                                                 x_size=self.shape[1])
+            scale_factor = float(self.data_original_resized.shape[1] /
+                                 self.data.shape[1])
+            self.data = image_utils.resize_image(
+                self.data, scale_factor)
             for mask_type, mask in self.texture_masks.iteritems():
                 log.info('Resizing masks')
                 self.texture_masks[mask_type] = image_utils.resize_image(
-                    mask, x_size=self.shape[1])
+                    mask, scale_factor)
             self._scale_stellar_table_positions(self.stellar_tables,
-                                                resize_scale)
+                                                scale_factor)
         return slc
 
     def _make_model_height(self):
@@ -877,7 +876,7 @@ class Model3D(object):
             # TODO: fix scaling issues with cusp
             # First add the central cusp and renormalize to
             # the final height of the image.
-            #self._add_spiral_central_cusp()
+            # self._add_spiral_central_cusp()
             self._make_model_height()
 
             # Then add the textures.
@@ -930,7 +929,7 @@ class Model3D(object):
         self.data = deepcopy(self.data_original_resized)    # start fresh
         self._prepare_masks()
         self._scale_stellar_table_positions(
-            self.stellar_tables_original, self.original_resize_scale)
+            self.stellar_tables_original, self.resize_scale_factor)
         self._remove_stars()
         self._spiralgalaxy_compress_bulge(
             percentile=compress_bulge_percentile,
@@ -942,8 +941,8 @@ class Model3D(object):
         self._minvalue_to_zero(min_value=minvalue_to_zero)
         # TODO: add a step here to remove "islands" using segmentation?
         self._crop_data(threshold=0., resize=True)
-        #self._make_model_height()
-        #self.data_tmp = self.data
+        # self._make_model_height()
+        # self.data_tmp = self.data
         self._apply_textures()
         self._make_model_base(filter_size=model_base_filter_size)
         self._model_complete = True
@@ -1043,10 +1042,77 @@ class Model3D(object):
         tbl.rename_column('segment_sum', 'flux')
 
         scaled_tbl = self._scale_table_positions(
-            tbl, 1. / self.original_resize_scale)
+            tbl, 1. / self.resize_scale_factor)
         self.stellar_tables_original[stellar_type] = scaled_tbl
 
         self.stellar_tables = deepcopy(self.stellar_tables_original)
         self.stellar_tables[stellar_type] = tbl
 
         return self.stellar_tables_original
+
+    def make_spiral_galaxy_masks(self, smooth_size=11, gas_percentile=55.,
+                                 spiral_percentile=75.):
+        """
+        For a spiral galaxy image, automatically generate texture masks
+        for spiral arms and gas.
+
+        Parameters
+        ----------
+        smooth_size : float or tuple, optional
+            The shape of smoothing filter window.  If ``size`` is an
+            `int`, then then ``size`` will be used for both dimensions.
+
+        gas_percentile : float, optional
+            The percentile of pixel values in the weighted data above
+            which (and below ``spiral_percentile``) to assign to the
+            "gas" mask.  ``gas_percentile`` must be lower than
+            ``spiral_percentile``.
+
+        spiral_percentile : float, optional
+            The percentile of pixel values in the weighted data above
+            which to assign to the "spiral arms" mask.
+        """
+
+        if gas_percentile >= spiral_percentile:
+            raise ValueError('gas_percentile must be less than '
+                             'spiral_percentile.')
+
+        texture_type = self._translate_mask_type('bulge')
+        if texture_type not in self.texture_masks_original:
+            warnings.warn('You must first define the bulge mask.',
+                          AstropyUserWarning)
+            return
+
+        self.data = deepcopy(self.data_original_resized)
+        self._prepare_masks()
+        self._remove_stars()
+        self._smooth_image(size=smooth_size)
+
+        bulge_mask = self.texture_masks[texture_type]
+        x, y = self._find_galaxy_center(bulge_mask)
+        data = self.data * image_utils.radial_weight_map(self.data.shape,
+                                                         (y, x))
+        data[bulge_mask] = 0.    # exclude the bulge mask region
+
+        # define the "spiral arms" mask
+        spiral_threshold = np.percentile(data, spiral_percentile)
+        spiral_mask = (data > spiral_threshold)
+
+        # define the "gas" mask
+        gas_threshold = np.percentile(data, gas_percentile)
+        gas_mask = np.logical_and(data > gas_threshold, ~spiral_mask)
+
+        for mask_type, mask in zip(['spiral', 'gas'],
+                                   [spiral_mask, gas_mask]):
+            texture_type = self._translate_mask_type(mask_type)
+            if texture_type in self.texture_masks_original:
+                warnings.warn('Overwriting existing "{0}" texture mask',
+                              AstropyUserWarning)
+
+            mask = image_utils.resize_image(mask,
+                                            1. / self.resize_scale_factor)
+            region_mask = RegionMask(mask, mask_type)
+            self.texture_masks_original[texture_type] = [region_mask]
+
+        log.info('Automatically generated "spiral" and "gas" masks for '
+                 'spiral galaxy.')

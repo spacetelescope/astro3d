@@ -77,7 +77,8 @@ def resize_image(data, scale_factor):
                       'printing, it should be rotated such that the longest '
                       'axis is in the x direction.', AstropyUserWarning)
 
-    y_size, x_size = round(ny * scale_factor), round(nx * scale_factor)
+    y_size = int(round(ny * scale_factor))
+    x_size = int(round(nx * scale_factor))
     data = np.array(Image.fromarray(data.astype(float)).resize(
         (x_size, y_size)), dtype=data.dtype)
     # data = imresize(data, (y_size, x_size)).astype(data.dtype)
