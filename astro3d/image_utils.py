@@ -45,13 +45,12 @@ def remove_nonfinite(data):
     return data_out
 
 
-def resize_image(data, x_size=1000, y_size=None):
+def resize_image(data, scale_factor):
     """
-    Resize a 2D array.
+    Resize a 2D array by the given scale factor.
 
-    If ``y_size`` is `None` (the default), then the array is
-    proportionally resized such that its new ``x`` axis size is
-    ``x_size``.
+    The array is resized by the same factor in each dimension,
+    preserving the original aspect ratio.
 
     Given that 3D printing cannot handle fine resolution, any loss of
     resolution is ultimately unimportant.
@@ -61,11 +60,8 @@ def resize_image(data, x_size=1000, y_size=None):
     data : array-like
         The 2D array to be resized.
 
-    x_size : int, optional
-        The size of the x axis of the output image.
-
-    y_size: int, optional
-        The size of the y axis of the output image.
+    scale_factor : float
+        The scale factor to apply to the image.
 
     Returns
     -------
@@ -77,14 +73,11 @@ def resize_image(data, x_size=1000, y_size=None):
     ny, nx = data.shape
     if (float(ny) / nx) >= 1.5:
         # TODO:  raise exception instead?
-        warnings.warn('The image is >= 1.5x taller than wide.  It should '
-                      'be rotated such that the longest axis is in the '
-                      'x direction.', AstropyUserWarning)
+        warnings.warn('The image is >= 1.5x taller than wide.  For 3D '
+                      'printing, it should be rotated such that the longest '
+                      'axis is in the x direction.', AstropyUserWarning)
 
-    x_size = int(x_size)
-    if y_size is None:
-        y_size = int(np.round(float(x_size) * ny / nx))
-
+    y_size, x_size = round(ny * scale_factor), round(nx * scale_factor)
     data = np.array(Image.fromarray(data.astype(float)).resize(
         (x_size, y_size)), dtype=data.dtype)
     # data = imresize(data, (y_size, x_size)).astype(data.dtype)
