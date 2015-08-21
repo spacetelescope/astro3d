@@ -1,19 +1,15 @@
 """
-This module provides tools for defining textures and applying them to an
+This module provides tools to define textures and apply them to an
 image.
 """
 
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 from operator import attrgetter
-from functools import partial
 import warnings
 import numpy as np
-from astropy import log
-from astropy.io import fits
 from astropy.modeling import Parameter, Fittable2DModel
 from astropy.utils.exceptions import AstropyUserWarning
-from .image_utils import resize_image
 
 
 def combine_textures_max(texture1, texture2):
@@ -852,52 +848,3 @@ def apply_textures(image, texture_image):
     idx = (texture_image != 0)
     data[idx] = texture_image[idx]
     return data
-
-
-def textures_to_jpeg():
-    """Generate some textures and save them to JPEG images."""
-    from .image_utils import im2file as save
-
-    shape = (200, 200)
-    size = [15, 10, 6, 3]        # line thickness or dot diameter
-    spacing = [25, 15, 10, 5]    # line spacing or dot grid spacing
-
-    for sz, sp in zip(size, spacing):
-        log.info('{0} {1}'.format(sz, sp))
-        for profile in ['spherical', 'linear']:
-            log.info('\t{0}'.format(profile))
-
-            lim = lines_texture(shape, profile, sz, 1., sp, orientation=0.)
-            fn = ('lines_{0}_thickness{1}_spacing{2}'
-                  '.jpg'.format(profile, sz, sp))
-            save(lim, fn)
-
-            rlim = lim.transpose()
-            lim[rlim > lim] = rlim[rlim > lim]
-            fn = ('hatch_{0}_thickness{1}_spacing{2}'
-                  '.jpg'.format(profile, sz, sp))
-            save(lim, fn)
-
-            sdim = dots_texture(shape, profile, sz, 1.,
-                                square_grid(shape, sp))
-            fn = ('dots_squaregrid_{0}_diameter{1}_spacing{2}'
-                  '.jpg'.format(profile, sz, sp))
-            save(sdim, fn)
-
-            hdim = dots_texture(shape, profile, sz, 1,
-                                hexagonal_grid(shape, sp))
-            fn = ('dots_hexagonalgrid_{0}_diameter{1}_spacing{2}'
-                  '.jpg'.format(profile, sz, sp))
-            save(hdim, fn)
-
-
-DOTS = partial(
-    dots_texture_map, profile='spherical', diameter=9.0, height=8.0,
-    grid_func=hexagonal_grid, grid_spacing=9.0)
-
-SMALL_DOTS = partial(
-    dots_texture_map, profile='spherical', diameter=9.0, height=4.0,
-    grid_func=hexagonal_grid, grid_spacing=5.0)
-
-LINES = partial(lines_texture_map, profile='linear', thickness=13,
-                height=7.8, spacing=20, orientation=0)
