@@ -708,7 +708,6 @@ class Model3D(object):
 
         log.info('Cropping the data values equal to or below a threshold of '
                  '"{0}"'.format(threshold))
-        self.data_tmp = self.data
         slc = image_utils.crop_below_threshold(self.data, threshold=threshold)
         self.data = self.data[slc]
 
@@ -839,12 +838,32 @@ class Model3D(object):
         log.info('Center of galaxy at x={0}, y={1}'.format(x_center, y_center))
         return x_center, y_center
 
-    def _add_spiral_central_cusp(self, radius=25., cusp_depth=8.):
+    def _add_spiral_central_cusp(self, radius=25., depth=8., base_only=False):
         """
-        Add central cusp for spiral galaxies.
+        Add a central cusp for spiral galaxies.
+
+        If ``base_only=True`` then simply return the base height of the
+        texture model instead of adding the central cusp.
 
         Add this texture last, especially after adding the "lines"
         texture for the central bulge.
+
+        Parameters
+        ----------
+        radius : float, optional
+            The circular radius of the star texture.
+
+        depth : float, optional
+            The maximum depth of the crater-like bowl of the star texture.
+
+        base_only : bool, optional
+            If `True`, then simply return the base height of the texture
+            model, i.e. do not actually add the central cusp.
+
+        Returns
+        -------
+        result : float
+            The base height of the texture model.
         """
 
         if self.spiral_galaxy:
@@ -857,11 +876,23 @@ class Model3D(object):
             bulge_mask = self.texture_masks[texture_type]
             if bulge_mask is not None:
                 x, y = self._find_galaxy_center(bulge_mask)
-                cusp_texture = textures.make_cusp_texture(
-                    self.data, x, y, radius=radius, depth=cusp_depth,
-                    base_percentile=base_percentile)
-                self.data = textures.apply_textures(self.data, cusp_texture)
-                log.info('Placed cusp texture at the galaxy center.')
+
+                if base_only:
+                    base_height = textures.starlike_model_base_height(
+                        self.data, 'stars', x, y, radius, depth,
+                        base_percentile=base_percentile)
+                else:
+                    cusp_model = textures.make_cusp_model(
+                        self.data, x, y, radius=radius, depth=depth,
+                        base_percentile=base_percentile)
+                    base_height = cusp_model.base_height
+
+                    yy, xx = np.indices(self.data.shape)
+                    self.data = textures.apply_textures(
+                        self.data, cusp_model(xx, yy))
+                    log.info('Placed cusp texture at the galaxy center.')
+
+                return base_height
 
     def _apply_textures(self):
         """Apply all textures to the model."""
@@ -873,8 +904,8 @@ class Model3D(object):
             # TODO: fix scaling issues with cusp
             # First add the central cusp and renormalize to
             # the final height of the image.
-            # self._add_spiral_central_cusp()
             self._make_model_height()
+            # self._add_spiral_central_cusp()
 
             # Then add the textures.
             # To give consistent texture height (and "feel"), no scaling
@@ -941,9 +972,11 @@ class Model3D(object):
         self._minvalue_to_zero(min_value=minvalue_to_zero)
         # TODO: add a step here to remove "islands" using segmentation?
         self._crop_data(threshold=0., resize=True)
+
+        self.data_tmp = self.data    # TMP
         # self._make_model_height()
-        # self.data_tmp = self.data
         self._apply_textures()
+
         self._make_model_base(filter_size=model_base_filter_size,
                               min_value=1.)
         self._model_complete = True

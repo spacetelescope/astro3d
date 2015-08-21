@@ -518,11 +518,13 @@ class StarClusterTexture(Fittable2DModel):
 
 
 def starlike_model_base_height(image, model_type, x, y, radius, depth,
-                               base_percentile=75, image_indices=None):
+                               base_percentile=25, image_indices=None):
     """
-    Create a star-like (star or star cluster) texture model where the
-    model base height has been calculated from the image values where
-    the texture is non-zero.
+    Calculate the model base height for a star-like (star or star
+    cluster) texture model.
+
+    The model base height is calculated from the image values where the
+    texture is non-zero.
 
     Parameters
     ----------
@@ -594,7 +596,7 @@ def starlike_model_base_height(image, model_type, x, y, radius, depth,
     else:
         base_height = np.percentile(image[mask], base_percentile)
 
-    return Texture(x, y, radius, depth, base_height)
+    return base_height
 
 
 def make_starlike_models(image, model_type, sources, radius_a=10, radius_b=5,
@@ -646,6 +648,13 @@ def make_starlike_models(image, model_type, sources, radius_a=10, radius_b=5,
         A list of `StarTexture` or `StarClusterTexture` model objects.
     """
 
+    if model_type == 'stars':
+        Texture = StarTexture
+    elif model_type == 'star_clusters':
+        Texture = StarClusterTexture
+    else:
+        raise ValueError('model_type must be "stars" or "star_clusters"')
+
     if len(sources) == 0:
         return []
 
@@ -655,19 +664,21 @@ def make_starlike_models(image, model_type, sources, radius_a=10, radius_b=5,
             raise ValueError('sources must contain a {0} '
                              'column'.format(column))
 
-    # NOTE:  probably should exclude any bad sources (e.g. bad position)
-    #        before finding the maximum flux - but expensive, so skip
-    #        for now
+    # TODO: probably should exclude any bad sources (e.g. bad position)
+    # before finding the maximum flux - but expensive, so skip for now
     max_flux = float(np.max(sources['flux']))
 
     yy, xx = np.indices(image.shape)
     models = []
     for source in sources:
+        xcen = source['xcentroid']
+        ycen = source['ycentroid']
         radius = radius_a + (radius_b * source['flux'] / max_flux)
-        model = starlike_model_base_height(
-            image, model_type, source['xcentroid'], source['ycentroid'],
-            radius, depth, base_percentile=base_percentile,
-            image_indices=(yy, xx))
+        base_height = starlike_model_base_height(
+            image, model_type, xcen, ycen, radius, depth,
+            base_percentile=base_percentile, image_indices=(yy, xx))
+        model = Texture(xcen, ycen, radius, depth, base_height)
+
         if model is not None:
             models.append(model)
     return models
@@ -692,40 +703,6 @@ def sort_starlike_models(models):
     """
 
     return sorted(models, key=attrgetter('base_height'))
-
-
-def starlike_texture_map(shape, models):
-    """
-    Create a star and/or star cluster texture map by combining all the
-    individual star-like texture models.
-
-    Parameters
-    ----------
-    shape : tuple
-        The shape of the output image.
-
-    texture_models : list of `StarTexture` and/or `StarClusterTexture`
-        A list of star-like texture models including stars
-        (`StarTexture`) and/or star clusters (`StarClusterTexture`).
-
-    Returns
-    -------
-    data : `~numpy.ndarray`
-        An image with the specified ``shape`` containing the star and/or
-        star cluster texture map.
-
-    Notes
-    -----
-    The texture models will be sorted by their ``base_height``s in
-    increasing order and then added to the output texture map starting
-    with the smallest ``base_height``.
-    """
-
-    data = np.zeros(shape)
-    yy, xx = np.indices(shape)
-    for model in sort_starlike_models(models):
-        data = combine_textures_max(data, model(xx, yy))
-    return data
 
 
 def make_starlike_textures(image, stellar_tables, radius_a=10,
@@ -763,6 +740,12 @@ def make_starlike_textures(image, stellar_tables, radius_a=10,
     -------
     data : `~numpy.ndarray`
         The image containing the star and star cluster textures.
+
+    Notes
+    -----
+    The texture models will be sorted by their ``base_height``s in
+    increasing order and then added to the output texture map starting
+    with the smallest ``base_height``.
     """
 
     starlike_models = []
@@ -773,12 +756,15 @@ def make_starlike_textures(image, stellar_tables, radius_a=10,
                                  depth=depth,
                                  base_percentile=base_percentile))
 
-    starlike_textures = starlike_texture_map(image.shape, starlike_models)
+    # create a texture map from the list of models
+    data = np.zeros(image.shape)
+    yy, xx = np.indices(image.shape)
+    for model in sort_starlike_models(starlike_models):
+        data = combine_textures_max(data, model(xx, yy))
+    return data
 
-    return starlike_textures
 
-
-def make_cusp_texture(image, x, y, radius=25, depth=40, base_percentile=None):
+def make_cusp_model(image, x, y, radius=25, depth=40, base_percentile=None):
     """
     Make an image containing a star-like cusp texture.
 
@@ -811,9 +797,9 @@ def make_cusp_texture(image, x, y, radius=25, depth=40, base_percentile=None):
         The image containing the cusp texture.
     """
 
-    yy, xx = np.indices(image.shape)
-    return starlike_model_base_height(image, 'stars', x, y, radius, depth,
-                                      base_percentile=base_percentile)(xx, yy)
+    base_height = starlike_model_base_height(
+        image, 'stars', x, y, radius, depth, base_percentile=base_percentile)
+    return StarTexture(x, y, radius, depth, base_height)
 
 
 def apply_textures(image, texture_image):
