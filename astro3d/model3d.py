@@ -104,8 +104,8 @@ class Model3D(object):
         self._has_intensity = True
         self._double_sided = False
         self._spiral_galaxy = False
-        self.height = 250.      # total model height
-        self.base_height = 10.
+        self.height = 250.         # total model height
+        self.base_height = 10.     # total base height
 
         self.texture_order = ['small_dots', 'dots', 'lines']
         self.region_mask_types = ['smooth', 'remove_star']
@@ -364,8 +364,6 @@ class Model3D(object):
         """
 
         table = Table.read(filename, format='ascii')
-        # TODO: check for required columns
-        # TODO: rename input columns, e.g. xcen/x_cen/xcenter -> xcentroid
         table.keep_columns(['xcentroid', 'ycentroid', 'flux'])
         self.stellar_tables_original[stellar_type] = table
         log.info('Read "{0}" table from "{1}"'.format(stellar_type, filename))
@@ -445,8 +443,7 @@ class Model3D(object):
             return
 
         if split_model:
-            model1, model2 = image_utils.split_image(self.data,
-                                                     axis='horizontal')
+            model1, model2 = image_utils.split_image(self.data, axis=0)
             write_mesh(model1, filename_prefix + '_1',
                        double_sided=self.double_sided, stl_format=stl_format)
             write_mesh(model2, filename_prefix + '_2',
@@ -886,13 +883,15 @@ class Model3D(object):
             self._apply_stellar_textures()
             self._add_spiral_central_cusp()
 
-    def _make_model_base(self, filter_size=75):
+    def _make_model_base(self, filter_size=75, min_value=1.):
         """
-        Make a structural base for the model.
+        Make a structural base for the model and replace zeros with
+        ``min_value``.
 
         For two-sided models, this is used to create a stronger base,
         which prevents the model from shaking back and forth due to
-        printer vibrations.
+        printer vibrations.  These structures will have a *total* width
+        of ``self.base_height``.
 
         Parameters
         ----------
@@ -913,6 +912,7 @@ class Model3D(object):
                 self._base_layer = np.where(
                     img == 0, self.base_height / 2., 0)
         self.data += self._base_layer
+        self.data[self.data == 0.] = min_value
 
     def make(self, compress_bulge_percentile=0., compress_bulge_factor=0.05,
              suppress_background_percentile=90.,
@@ -944,7 +944,8 @@ class Model3D(object):
         # self._make_model_height()
         # self.data_tmp = self.data
         self._apply_textures()
-        self._make_model_base(filter_size=model_base_filter_size)
+        self._make_model_base(filter_size=model_base_filter_size,
+                              min_value=1.)
         self._model_complete = True
         log.info('Make complete!')
 
