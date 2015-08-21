@@ -89,6 +89,9 @@ class Model3D(object):
         uniform maximum scaling factor of 1.96 (which assumes
         ``resize_xsize = 1000``).
 
+        The ``height`` is the height of the intensity map *before* the
+        textures, including the spiral galaxy central cusp, are applied.
+
         A ``base_height`` of 10 corresponds to 2.74 mm.
         """
 
@@ -104,7 +107,7 @@ class Model3D(object):
         self._has_intensity = True
         self._double_sided = False
         self._spiral_galaxy = False
-        self.height = 250.         # total model height
+        self.height = 250.         # total model height of *intensity* model
         self.base_height = 10.     # total base height
 
         self.texture_order = ['small_dots', 'dots', 'lines']
@@ -739,7 +742,20 @@ class Model3D(object):
         return slc
 
     def _make_model_height(self):
-        """Scale the image to the final model height."""
+        """
+        Scale the image to the final model height prior to adding the
+        textures.
+
+        To give consistent texture height (and "feel"), no scaling of
+        the image should happen after this step!
+        """
+
+        # clip the image at the cusp base_height
+        if self.spiral_galaxy:
+            base_height = self._apply_spiral_central_cusp(
+                base_height_only=True)
+            # NOTE: this will also clip values outside of the bulge
+            self.data[self.data > base_height] = base_height
 
         if self.double_sided:
             height = self.height / 2.
@@ -838,7 +854,8 @@ class Model3D(object):
         log.info('Center of galaxy at x={0}, y={1}'.format(x_center, y_center))
         return x_center, y_center
 
-    def _add_spiral_central_cusp(self, radius=25., depth=8., base_only=False):
+    def _apply_spiral_central_cusp(self, radius=25., depth=8.,
+                                   base_height_only=False):
         """
         Add a central cusp for spiral galaxies.
 
@@ -856,7 +873,7 @@ class Model3D(object):
         depth : float, optional
             The maximum depth of the crater-like bowl of the star texture.
 
-        base_only : bool, optional
+        base_height_only : bool, optional
             If `True`, then simply return the base height of the texture
             model, i.e. do not actually add the central cusp.
 
@@ -877,7 +894,7 @@ class Model3D(object):
             if bulge_mask is not None:
                 x, y = self._find_galaxy_center(bulge_mask)
 
-                if base_only:
+                if base_height_only:
                     base_height = textures.starlike_model_base_height(
                         self.data, 'stars', x, y, radius, depth,
                         base_percentile=base_percentile)
@@ -901,18 +918,9 @@ class Model3D(object):
             self.data = 0.
 
         if self.has_textures:
-            # TODO: fix scaling issues with cusp
-            # First add the central cusp and renormalize to
-            # the final height of the image.
-            self._make_model_height()
-            # self._add_spiral_central_cusp()
-
-            # Then add the textures.
-            # To give consistent texture height (and "feel"), no scaling
-            # of the image should happen after this step!
             self._add_masked_textures()
             self._apply_stellar_textures()
-            self._add_spiral_central_cusp()
+            self._apply_spiral_central_cusp()
 
     def _make_model_base(self, filter_size=75, min_value=1.):
         """
@@ -972,17 +980,13 @@ class Model3D(object):
         self._minvalue_to_zero(min_value=minvalue_to_zero)
         # TODO: add a step here to remove "islands" using segmentation?
         self._crop_data(threshold=0., resize=True)
-
-        self.data_tmp = self.data    # TMP
-        # self._make_model_height()
+        self._make_model_height()
+        self.data_intensity = deepcopy(self.data)
         self._apply_textures()
-
         self._make_model_base(filter_size=model_base_filter_size,
                               min_value=1.)
         self._model_complete = True
         log.info('Make complete!')
-
-        return None
 
     def find_peaks(self, snr=10, snr_min=5, npixels=10, min_count=25,
                    max_count=50, sigclip_iters=10,
