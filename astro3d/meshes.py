@@ -3,6 +3,7 @@ This module provides functions to convert an image array to STL files.
 """
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
+import os
 from copy import deepcopy
 from struct import unpack
 import numpy as np
@@ -157,7 +158,7 @@ def get_cross(triset):
 
 
 def write_mesh(image, filename_prefix, depth=1, double_sided=False,
-               stl_format='binary'):
+               stl_format='binary', clobber=False):
     """
     Write an image to a STL file by splitting each pixel into two
     triangles.
@@ -185,6 +186,9 @@ def write_mesh(image, filename_prefix, depth=1, double_sided=False,
         Format for the output STL file.  The default is 'binary'.  The
         binary STL file is harder to debug, but takes up less storage
         space.
+
+    clobber : bool, optional
+        Set to `True` to overwrite any existing file.
     """
 
     if isinstance(image, np.ma.core.MaskedArray):
@@ -208,8 +212,13 @@ def write_mesh(image, filename_prefix, depth=1, double_sided=False,
         raise ValueError('stl_format must be "binary" or "ascii"')
 
     filename = filename_prefix + '.stl'
-    write_func(triset, filename)
-    log.info('Saved "{0}"'.format(filename))
+    if os.path.exists(filename):
+        if clobber:
+            write_func(triset, filename)
+            log.info('Saved "{0}"'.format(filename))
+        else:
+            raise IOError('File "{0}" already exists. Use clobber=True to '
+                          'overwrite'.format(filename))
 
 
 def write_binary(triset, filename):

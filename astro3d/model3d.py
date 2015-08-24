@@ -418,7 +418,7 @@ class Model3D(object):
             self.write_stellar_table(filename_prefix, stellar_type)
 
     def write_stl(self, filename_prefix, split_model=True,
-                  stl_format='binary'):
+                  stl_format='binary', clobber=False):
         """
         Write the 3D model to a STL file(s).
 
@@ -437,6 +437,9 @@ class Model3D(object):
             Format for the output STL file.  The default is 'binary'.
             The binary STL file is harder to debug, but takes up less
             storage space.
+
+        clobber : bool, optional
+            Set to `True` to overwrite any existing file(s).
         """
 
         if not self._model_complete:
@@ -448,12 +451,15 @@ class Model3D(object):
         if split_model:
             model1, model2 = image_utils.split_image(self.data, axis=0)
             write_mesh(model1, filename_prefix + '_1',
-                       double_sided=self.double_sided, stl_format=stl_format)
+                       double_sided=self.double_sided, stl_format=stl_format,
+                       clobber=clobber)
             write_mesh(model2, filename_prefix + '_2',
-                       double_sided=self.double_sided, stl_format=stl_format)
+                       double_sided=self.double_sided, stl_format=stl_format,
+                       clobber=clobber)
         else:
             write_mesh(self.data, filename_prefix,
-                       double_sided=self.double_sided, stl_format=stl_format)
+                       double_sided=self.double_sided, stl_format=stl_format,
+                       clobber=clobber)
 
     def _prepare_masks(self):
         """
