@@ -8,6 +8,7 @@ from operator import attrgetter
 import warnings
 import numpy as np
 from astropy.modeling import Parameter, Fittable2DModel
+from astropy.modeling.models import Disk2D
 from astropy.utils.exceptions import AstropyUserWarning
 
 
@@ -514,11 +515,17 @@ class StarClusterTexture(Fittable2DModel):
         star1 = StarTexture(x1, y1, radius, depth, base_height)(x, y)
         star2 = StarTexture(x2, y2, radius, depth, base_height)(x, y)
         star3 = StarTexture(x3, y3, radius, depth, base_height)(x, y)
-        return np.maximum(np.maximum(star1, star2), star3)
+        # Disk2D is used to fill the central "hole", which needs to be
+        # nonzero to prevent a possible central spike when applied to the
+        # image.  ``min_height`` is added to keep the texture values > 0
+        # even if base_height is zero.
+        min_height = 0.0001
+        disk = Disk2D(base_height + min_height, x_0, y_0, radius)(x, y)
+        return np.maximum(np.maximum(np.maximum(star1, star2), star3), disk)
 
 
 def starlike_model_base_height(image, model_type, x, y, radius, depth,
-                               base_percentile=25, image_indices=None):
+                               base_percentile=75, image_indices=None):
     """
     Calculate the model base height for a star-like (star or star
     cluster) texture model.
