@@ -921,7 +921,7 @@ class Model3D(object):
         """Apply all textures to the model."""
 
         if not self.has_intensity:
-            self.data = 0.
+            self.data *= 0.
 
         if self.has_textures:
             self._add_masked_textures()
@@ -946,16 +946,13 @@ class Model3D(object):
 
         log.info('Making model base.')
 
-        if not self.has_intensity:
-            self._base_layer = self.base_height
+        if self.double_sided and self.has_intensity:
+            selem = np.ones((filter_size, filter_size))
+            img = ndimage.binary_dilation(self.data, structure=selem)
+            self._base_layer = np.where(
+                img == 0, self.base_height / 2., 0)
         else:
-            if not self.double_sided:
-                self._base_layer = self.base_height
-            else:
-                selem = np.ones((filter_size, filter_size))
-                img = ndimage.binary_dilation(self.data, structure=selem)
-                self._base_layer = np.where(
-                    img == 0, self.base_height / 2., 0)
+            self._base_layer = self.base_height
         self.data += self._base_layer
         self.data[self.data == 0.] = min_value
 
