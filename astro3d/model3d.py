@@ -427,7 +427,7 @@ class Model3D(object):
         filename_prefix : str
             The prefix for the output filenames.  The output filename
             will be '<filename_prefix>.stl'.  If ``split_image=True``,
-            then the filename will be '<filename_prefix>_[1|2].stl'.
+            then the filename will be '<filename_prefix>_part[1|2].stl'.
 
         split_model : bool, optional
             If `True`, then split the model into two halves, a bottom
@@ -450,10 +450,10 @@ class Model3D(object):
 
         if split_model:
             model1, model2 = image_utils.split_image(self.data, axis=0)
-            write_mesh(model1, filename_prefix + '_1',
+            write_mesh(model1, filename_prefix + '_part1',
                        double_sided=self.double_sided, stl_format=stl_format,
                        clobber=clobber)
-            write_mesh(model2, filename_prefix + '_2',
+            write_mesh(model2, filename_prefix + '_part2',
                        double_sided=self.double_sided, stl_format=stl_format,
                        clobber=clobber)
         else:

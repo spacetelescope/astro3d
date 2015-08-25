@@ -212,13 +212,12 @@ def write_mesh(image, filename_prefix, depth=1, double_sided=False,
         raise ValueError('stl_format must be "binary" or "ascii"')
 
     filename = filename_prefix + '.stl'
-    if os.path.exists(filename):
-        if clobber:
-            write_func(triset, filename)
-            log.info('Saved "{0}"'.format(filename))
-        else:
-            raise IOError('File "{0}" already exists. Use clobber=True to '
-                          'overwrite'.format(filename))
+    if os.path.exists(filename) and not clobber:
+        raise IOError('File "{0}" already exists. Use clobber=True to '
+                      'overwrite'.format(filename))
+    else:
+        write_func(triset, filename)
+        log.info('Saved "{0}"'.format(filename))
 
 
 def write_binary(triset, filename):
