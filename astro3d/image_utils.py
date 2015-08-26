@@ -70,7 +70,7 @@ def resize_image(data, scale_factor):
     # data = imresize(data, (y_size, x_size)).astype(data.dtype)
 
     log.info('The array was resized from {0}x{1} to {2}x{3} '
-             '(ny * nx)'.format(ny, nx, y_size, x_size))
+             '(ny * nx).'.format(ny, nx, y_size, x_size))
 
     return data
 

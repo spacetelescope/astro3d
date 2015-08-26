@@ -469,6 +469,8 @@ class Model3D(object):
         resized, but not combined.
         """
 
+        log.info('Preparing masks (combining and resizing).')
+
         self.texture_masks = {}
         self.region_masks = {}
 
@@ -529,6 +531,8 @@ class Model3D(object):
             The desired scaling factor to apply to the position columns.
         """
 
+        log.info('Scaling stellar table positions.')
+
         self.stellar_tables = deepcopy(stellar_tables)
         for stellar_type, table in self.stellar_tables.iteritems():
             if table is not None:
@@ -544,6 +548,7 @@ class Model3D(object):
         if 'remove_star' not in self.region_masks:
             return
 
+        log.info('Removing bright stars identified in "remove_star" mask(s).')
         for mask in self.region_masks['remove_star']:
             y, x = mask.nonzero()
             xsize, ysize = x.ptp(), y.ptp()
@@ -690,11 +695,14 @@ class Model3D(object):
             The maximum value of the normalized array.
         """
 
-        log.info('Normalizing the image.')
+        log.info('Normalizing the image values to '
+                 '[0, {0}].'.format(max_value))
         self.data = image_utils.normalize_data(self.data, max_value=max_value)
 
     def _minvalue_to_zero(self, min_value=0.02):
         """Set values below a certain value to zero."""
+
+        log.info('Setting image values below {0} to zero.'.format(min_value))
         self.data[self.data < min_value] = 0.0
 
     def _crop_data(self, threshold=0.0, resize=True):
@@ -715,13 +723,13 @@ class Model3D(object):
             back to the original size of ``self.data_original_resized``.
         """
 
-        log.info('Cropping the data values equal to or below a threshold of '
-                 '"{0}"'.format(threshold))
+        log.info('Cropping the image values equal to or below a threshold of '
+                 '{0}.'.format(threshold))
         slc = image_utils.crop_below_threshold(self.data, threshold=threshold)
         self.data = self.data[slc]
 
         for mask_type, mask in self.texture_masks.iteritems():
-            log.info('Cropping masks')
+            log.info('Cropping "{0}" mask.'.format(mask_type))
             self.texture_masks[mask_type] = mask[slc]
 
         for stellar_type, table in self.stellar_tables.iteritems():
@@ -740,7 +748,7 @@ class Model3D(object):
             self.data = image_utils.resize_image(
                 self.data, scale_factor)
             for mask_type, mask in self.texture_masks.iteritems():
-                log.info('Resizing masks')
+                log.info('Resizing "{0}" mask.'.format(mask_type))
                 self.texture_masks[mask_type] = image_utils.resize_image(
                     mask, scale_factor)
             self._scale_stellar_table_positions(self.stellar_tables,
@@ -758,10 +766,13 @@ class Model3D(object):
 
         # clip the image at the cusp base_height
         if self.spiral_galaxy:
-            base_height = self._apply_spiral_central_cusp(
-                base_height_only=True)
-            # NOTE: this will also clip values outside of the bulge
-            self.data[self.data > base_height] = base_height
+            if self._has_intensity:
+                base_height = self._apply_spiral_central_cusp(
+                    base_height_only=True)
+                # NOTE: this will also clip values outside of the bulge
+                log.info('Clipping image values at {0} (for central '
+                         'cusp).'.format(base_height))
+                self.data[self.data > base_height] = base_height
 
         if self.double_sided:
             height = self.height / 2.
@@ -816,19 +827,25 @@ class Model3D(object):
         if self.has_intensity:
             base_percentile = 75.
             depth = 5.
+            data = self.data
         else:
             base_percentile = None
             depth = 10.
+            data = np.zeros_like(self.data)
 
         if not self.stellar_tables:
             return
 
         log.info('Adding stellar-like textures.')
         self._stellar_texture_layer = textures.make_starlike_textures(
-            self.data, self.stellar_tables, radius_a=radius_a,
-            radius_b=radius_b, depth=depth, base_percentile=base_percentile)
-        self.data = textures.apply_textures(self.data,
-                                            self._stellar_texture_layer)
+            data, self.stellar_tables, radius_a=radius_a, radius_b=radius_b,
+            depth=depth, base_percentile=base_percentile)
+        if self.has_intensity:
+            self.data = textures.apply_textures(self.data,
+                                                self._stellar_texture_layer)
+        else:
+            self.data = textures.apply_textures(self._texture_layer,
+                                                self._stellar_texture_layer)
 
     def _find_galaxy_center(self, mask=None):
         """
@@ -857,7 +874,8 @@ class Model3D(object):
             y, x = np.where(data == data.max())
         y_center = y.mean()
         x_center = x.mean()
-        log.info('Center of galaxy at x={0}, y={1}'.format(x_center, y_center))
+        log.info('Found center of galaxy at x={0}, '
+                 'y={1}.'.format(x_center, y_center))
         return x_center, y_center
 
     def _apply_spiral_central_cusp(self, radius=25., depth=8.,
@@ -919,9 +937,6 @@ class Model3D(object):
 
     def _apply_textures(self):
         """Apply all textures to the model."""
-
-        if not self.has_intensity:
-            self.data *= 0.
 
         if self.has_textures:
             self._add_masked_textures()
