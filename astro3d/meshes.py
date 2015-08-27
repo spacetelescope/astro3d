@@ -157,6 +157,35 @@ def get_cross(triset):
     return triset
 
 
+def reflect_mesh(triset):
+    """
+    Reflect mesh around the z axis.
+
+    Parameters
+    ----------
+    triset : `~numpy.ndarray` (Nx4x3)
+        A array of triangles (normals and vertices).
+
+    Returns
+    -------
+    result : `~numpy.ndarray` (Nx4x3)
+        The refected meshes.
+
+    Notes
+    -----
+    The triangle vertices are reflected about the z axis and then
+    reordered such that the triangle normal is consistent with the
+    right-hand rule.  The triangle normal is also reflected about the z
+    axis.  All of these steps are required to properly reflect the mesh.
+    """
+
+    triset2 = triset.copy()
+    triset2[:, 0, 2] = -triset2[:, 0, 2]         # reflect normal about z axis
+    triset2[:, 1:, 2] = -triset2[:, 1:, 2]       # reflect z vertices
+    triset2[:, 1:,] = triset2[:, 1:,][:, ::-1]   # reorder vertices
+    return triset2
+
+
 def write_mesh(image, filename_prefix, depth=1, double_sided=False,
                stl_format='binary', clobber=False):
     """
@@ -199,10 +228,7 @@ def write_mesh(image, filename_prefix, depth=1, double_sided=False,
     triset = get_triangles(npimage, depth)
 
     if double_sided:
-        triset2 = triset.copy()
-        triset2[:, 0] = -triset2[:, 0]
-        triset2[:, 1:, 2] = -triset2[:, 1:, 2]
-        triset = np.concatenate((triset, triset2))
+        triset = np.concatenate((triset, reflect_mesh(triset)))
 
     if stl_format == 'binary':
         write_func = write_binary
