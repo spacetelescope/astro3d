@@ -943,7 +943,7 @@ class Model3D(object):
             self._apply_stellar_textures()
             self._apply_spiral_central_cusp()
 
-    def _make_model_base(self, filter_size=75, min_value=1.):
+    def _make_model_base(self, filter_size=75, min_value=0.5):
         """
         Make a structural base for the model and replace zeros with
         ``min_value``.
@@ -1002,7 +1002,7 @@ class Model3D(object):
         self.data_intensity = deepcopy(self.data)
         self._apply_textures()
         self._make_model_base(filter_size=model_base_filter_size,
-                              min_value=1.)
+                              min_value=0.5)
         self._model_complete = True
         log.info('Make complete!')
 
