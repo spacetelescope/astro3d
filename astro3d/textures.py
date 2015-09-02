@@ -12,6 +12,9 @@ from astropy.modeling.models import Disk2D
 from astropy.utils.exceptions import AstropyUserWarning
 
 
+__doctest_skip__ = ['dots_texture', 'lines_texture_map', 'dots_texture_map']
+
+
 def combine_textures_max(texture1, texture2):
     """
     Combine two texture images.

@@ -9,6 +9,9 @@ from astropy import log
 from . import textures
 
 
+__doctest_skip__ = ['textures_to_jpeg']
+
+
 def save_image(data, filename):
     """
     Save an image to a bitmap (e.g. TIFF, JPEG, PNG) or a FITS file.
@@ -42,8 +45,8 @@ def textures_to_jpeg():
 
     Examples
     --------
-    >>> from astro3d import texture_samples
-    >>> texture_samples.textures_to_jpeg()
+    >>> from astro3d import texture_examples
+    >>> texture_examples.textures_to_jpeg()
     """
 
     shape = (200, 200)

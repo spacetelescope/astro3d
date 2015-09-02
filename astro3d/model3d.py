@@ -25,6 +25,7 @@ from .region_mask import RegionMask
 
 
 __all__ = ['Model3D']
+__doctest_skip__ = ['Model3D', 'Model3D.read_all_masks']
 
 
 class Model3D(object):
@@ -34,7 +35,7 @@ class Model3D(object):
     Examples
     --------
     >>> # initialize the model
-    >>> model = Model3D(data)
+    >>> model = Model3D(data)     # from an array
     >>> model = Model3D.from_fits('myimage.fits')    # or from FITS file
 
     >>> # define the type of 3D model
@@ -312,7 +313,7 @@ class Model3D(object):
 
         Examples
         --------
-        >>> model3d = Model3D()
+        >>> model3d = Model3D(data)
         >>> model3d.read_all_masks('*.fits')
         >>> model3d.read_all_masks('masks/*.fits')
         """
