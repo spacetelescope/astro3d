@@ -1,5 +1,5 @@
 # Compiled files
-*.py[cod]
+*.py[co]
 *.a
 *.o
 *.so
@@ -11,14 +11,22 @@ __pycache__
 
 # Other generated files
 */version.py
-benchmarks/_results
 */cython_version.py
 htmlcov
 .coverage
+MANIFEST
 
 # Sphinx
-_build
 docs/api
+docs/_build
+
+# Eclipse editor project files
+.project
+.pydevproject
+.settings
+
+# Pycharm editor project files
+.idea
 
 # Packages/installer info
 *.egg
@@ -35,14 +43,8 @@ develop-eggs
 distribute-*.tar.gz
 
 # Other
-.cache
-.tox
 .*.swp
 *~
-.project
-.pydevproject
-.settings
-.idea
 
 # Mac OSX
 .DS_Store
