@@ -117,4 +117,3 @@ setup(name=PACKAGENAME,
       use_2to3=False,
       entry_points=entry_points,
       **package_info
-)
