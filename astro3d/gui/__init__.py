@@ -1,2 +1,3 @@
-from .example1_qt import FitsViewer as MainWindow
+from .model import *
+from .viewer import *
 from .controller import *
