@@ -2,7 +2,6 @@
 """
 from ..external.qt import (QtGui, QtCore)
 from ..external.qt.QtGui import QMainWindow as GTK_MainWindow
-from ..util import Signal
 from qt4 import ViewImage
 
 __all__ = ['MainWindow']

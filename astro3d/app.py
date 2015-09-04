@@ -25,7 +25,7 @@ class Application(Controller):
 
         # Log it.
         logger = logging.getLogger('astro3d')
-        logger.setLevel(logging.INFO)
+        logger.setLevel(logging.DEBUG)
         fmt = logging.Formatter(STD_FORMAT)
         stderrHdlr = logging.StreamHandler()
         stderrHdlr.setFormatter(fmt)
@@ -34,18 +34,18 @@ class Application(Controller):
 
         # Setup the connections.
         self.signals = Signals()
-        self.signals.open_file = Signal(logger)
-        self.signals.open_file.connect(self.open_file)
-        self.signals.quit = Signal(logger)
-        self.signals.quit.connect(self.quit)
+        self.signals.open_file = Signal(logger, self.open_file)
+        self.signals.quit = Signal(logger, self.quit)
         self.signals.new_image = Signal(logger)
-        self.signals.new_image.connect(self.process)
+        self.signals.model_update = Signal(logger, self.process)
+        self.signals.process_start = Signal(logger)
+        self.signals.process_finish = Signal(logger, self.process_finish)
 
         if self.__class__.ui_app is None:
             self.__class__.ui_app = start_ui_app(argv)
 
         self.viewer = MainWindow(self.signals, self.logger)
-        self.model = Model(self.signals)
+        self.model = Model(self.signals, self.logger)
 
         # Ok, let's start.
         self.viewer.show()
@@ -61,6 +61,10 @@ class Application(Controller):
     def process(self, *args, **kwargs):
         """Do the processing."""
         self.logger.info('Starting processing...')
+        self.signals.process_start()
+
+    def process_finish(self):
+        self.logger.info('3D generation completed.')
 
 
 
