@@ -11,12 +11,13 @@ License: MIT
 
 """
 from __future__ import print_function
-import six
 import inspect
 import warnings
 from weakref import WeakSet, WeakKeyDictionary
 
-from debug import msg_debug
+__all__ = ['Signal',
+           'Signals',
+           'SignalsNotAClass']
 
 class Signal(object):
     def __init__(self):
@@ -40,7 +41,6 @@ class Signal(object):
         to_be_removed = []
         emitters = self._methods.copy()
         for obj, funcs in emitters.items():
-            msg_debug('obj is type "{}"'.format(type(obj)))
             for func in funcs.copy():
                 try:
                     func(obj, *args, **kargs)
@@ -90,6 +90,7 @@ class SignalsNotAClass(SignalsErrorBase):
     '''Must add a Signal Class'''
     default_message = 'Signal must be a class.'
 
+
 class Signals(dict):
     '''Manage the signals.'''
 
@@ -130,7 +131,9 @@ if __name__ == '__main__':
             self.model = model
             model.changed.connect(self.model_changed)
 
-        def model_changed(self):
+        def model_changed(self, *args, **kwargs):
+            print('    args: "{}"'.format(args))
+            print('    kwargs: "{}"'.format(kwargs))
             print("   New value:", self.model.get_value())
 
     print("Beginning Tests:")
@@ -145,6 +148,10 @@ if __name__ == '__main__':
     print("Deleting a view, and setting value to 30...")
     del view1
     model.set_value(30)
+
+    print('Calling changed with arguments:')
+    model.changed('an arg')
+    model.changed('nother arg', help='me')
 
     print("Clearing all listeners, and setting value to 40...")
     model.changed.clear()

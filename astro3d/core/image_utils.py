@@ -5,6 +5,7 @@ from copy import deepcopy
 import warnings
 from PIL import Image
 import numpy as np
+from astropy.convolution import convolve
 from astropy import log
 from astropy.utils.exceptions import AstropyUserWarning
 
@@ -24,11 +25,25 @@ def remove_nonfinite(data):
         The array with non-finite values removed.
     """
 
-    # TODO: interpolate over non-finite values -
-    # simply setting to zero is not optimal!
-    data_out = deepcopy(np.asanyarray(data))
-    data_out[~np.isfinite(data_out)] = 0.
-    return data_out
+    mask = ~np.isfinite(data)
+
+    if np.any(mask):
+        # use astropy's convolve as a 5x5 mean filter that ignores nans
+        # (in regions that are smaller than 5x5)
+        data_out = deepcopy(np.asanyarray(data))
+        data_out[mask] = np.nan
+        filt = np.ones((5, 5))
+        data_conv = convolve(data_out, filt) / filt.sum()
+        data_out[mask] = data_conv[mask]
+
+        # if there any non-finite values left (e.g. contiguous non-finite
+        # regions larger than the filter size), then simply set them to zero.
+        # For example, RGB FITS files appear to assign nan to large regions
+        # of zero weight (as a coverage mask).
+        data_out[~np.isfinite(data_out)] = 0.
+        return data_out
+    else:
+        return data
 
 
 def resize_image(data, scale_factor):
@@ -139,7 +154,7 @@ def combine_masks(masks):
 
     Parameters
     ----------
-    masks : list of boolean masks
+    masks : list of boolean `~numpy.ndarray`
         A list of boolean `~numpy.ndarray` masks.
 
     Returns
@@ -164,7 +179,7 @@ def combine_region_masks(region_masks):
     Parameters
     ----------
     region_masks : list of `~astro3d.region_mask.RegionMask`
-        A list of boolean `~numpy.ndarray` masks.
+        A list of boolean `~astro3d.region_mask.RegionMask` masks.
 
     Returns
     -------
@@ -185,8 +200,8 @@ def combine_region_masks(region_masks):
 
 def radial_distance(shape, position):
     """
-    Return an array where each value is the Euclidean distance from a
-    given position.
+    Return an array where the pixel values are the Euclidean distance of
+    the pixel from a given position.
 
     Parameters
     ----------
@@ -257,6 +272,9 @@ def split_image(data, axis=0):
     """
     Split an image into two (nearly-equal) halves.
 
+    If the split axis has an even number of elements, then the image
+    will be split into two equal halves.
+
     Parameters
     ----------
     data : array-like
@@ -268,8 +286,9 @@ def split_image(data, axis=0):
     Returns
     -------
     result1, result2 : `~numpy.ndarray`
-        The split arrays.  For ``axis=0`` the order is ``(bottom,
-        top)``.  For ``axis=1`` the order is ``(left, right)``.
+        The split arrays.  For ``axis=0`` the returned order is
+        ``(bottom, top)``.  For ``axis=1`` the returned order is
+        ``(left, right)``.
     """
 
     ny, nx = data.shape

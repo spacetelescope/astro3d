@@ -10,10 +10,18 @@ __all__ = ['MainWindow']
 class MainWindow(GTK_MainWindow):
     """Main Viewer
     """
-    def __init__(self, logger, parent=None):
+    def __init__(self, signals, logger, parent=None):
         super(MainWindow, self).__init__(parent)
         self.logger = logger
+        self.signals = signals
         self._build_gui()
+
+        # Setup signals
+        self.image_viewer.set_callback('drag-drop', self.drop_file)
+        self.wopen.clicked.connect(self.open_file)
+        self.wquit.clicked.connect(self.signals.quit)
+
+        # Start.
         self.show()
 
     def _build_gui(self):
@@ -51,23 +59,16 @@ class MainWindow(GTK_MainWindow):
         self.setCentralWidget(vw)
         vw.setLayout(vbox)
 
-    def set_callback(self, name, func):
-        """Set callbacks"""
-
-        if name == 'drag-drop':
-            self.image_viewer.set_callback('drag-drop', func)
-        elif name == 'open-file':
-            self.wopen.clicked.connect(func)
-        elif name == 'quit':
-            self.wquit.clicked.connect(func)
-        else:
-            self.logger.warn('No such callback: {}'.format(name))
-
-    def get_filename(self):
+    def open_file(self):
         res = QtGui.QFileDialog.getOpenFileName(self, "Open FITS file",
                                                 ".", "FITS files (*.fits)")
         if isinstance(res, tuple):
             filename = res[0]
         else:
             filename = str(res)
-        return filename
+        if len(filename) != 0:
+            self.signals.open_file(filename)
+
+    def drop_file(self, viewer, paths):
+        filename = paths[0]
+        self.signals.open_file(filename)
