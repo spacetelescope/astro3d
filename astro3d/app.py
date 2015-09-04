@@ -9,6 +9,8 @@ from .util.signal_slot import Signal
 from .gui import (Controller, MainWindow, Model)
 from .gui.start_ui_app import start_ui_app
 
+STD_FORMAT = '%(asctime)s | %(levelname)1.1s | %(filename)s:%(lineno)d (%(funcName)s) | %(message)s'
+
 
 class Signals(object):
     """Container for signals"""
@@ -21,7 +23,14 @@ class Application(Controller):
 
     def __init__(self, argv=None):
 
-        self.logger = logging.getLogger('astro3d')
+        # Log it.
+        logger = logging.getLogger('astro3d')
+        logger.setLevel(logging.INFO)
+        fmt = logging.Formatter(STD_FORMAT)
+        stderrHdlr = logging.StreamHandler()
+        stderrHdlr.setFormatter(fmt)
+        logger.addHandler(stderrHdlr)
+        self.logger = logger
 
         # Setup the connections.
         self.signals = Signals()
@@ -45,7 +54,7 @@ class Application(Controller):
         self.signals.new_image(image)
 
     def quit(self, *args):
-        self.logger.info("Attempting to shut down the application...")
+        self.logger.debug("Attempting to shut down the application...")
 
 
 def main():
