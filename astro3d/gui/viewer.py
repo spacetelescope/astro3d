@@ -22,7 +22,6 @@ class MainWindow(GTK_MainWindow):
         self.wopen.clicked.connect(self.open_file)
         self.wquit.clicked.connect(self.signals.quit)
         self.signals.quit.connect(self.quit)
-        self.signals.new_image = Signal()
         self.signals.new_image.connect(self.image_update)
 
     def _build_gui(self):
@@ -83,7 +82,7 @@ class MainWindow(GTK_MainWindow):
             The image.
         """
         self.image_viewer.set_image(image)
-        self.setWindowTitle(image.name)
+        self.setWindowTitle(image.get('name'))
 
     def quit(self, *args, **kwargs):
         """Shutdown"""

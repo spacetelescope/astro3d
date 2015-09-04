@@ -34,10 +34,12 @@ class Application(Controller):
 
         # Setup the connections.
         self.signals = Signals()
-        self.signals.open_file = Signal()
+        self.signals.open_file = Signal(logger)
         self.signals.open_file.connect(self.open_file)
-        self.signals.quit = Signal()
+        self.signals.quit = Signal(logger)
         self.signals.quit.connect(self.quit)
+        self.signals.new_image = Signal(logger)
+        self.signals.new_image.connect(self.process)
 
         if self.__class__.ui_app is None:
             self.__class__.ui_app = start_ui_app(argv)
@@ -55,6 +57,11 @@ class Application(Controller):
 
     def quit(self, *args):
         self.logger.debug("Attempting to shut down the application...")
+
+    def process(self, *args, **kwargs):
+        """Do the processing."""
+        self.logger.info('Starting processing...')
+
 
 
 def main():
