@@ -2,6 +2,7 @@
 """
 from ..external.qt import (QtGui, QtCore)
 from ..external.qt.QtGui import QMainWindow as GTK_MainWindow
+from ..util import Signal
 from qt4 import ViewImage
 
 __all__ = ['MainWindow']
@@ -20,9 +21,9 @@ class MainWindow(GTK_MainWindow):
         self.image_viewer.set_callback('drag-drop', self.drop_file)
         self.wopen.clicked.connect(self.open_file)
         self.wquit.clicked.connect(self.signals.quit)
-
-        # Start.
-        self.show()
+        self.signals.quit.connect(self.quit)
+        self.signals.new_image = Signal()
+        self.signals.new_image.connect(self.image_update)
 
     def _build_gui(self):
         """Construct the app's GUI"""
@@ -72,3 +73,18 @@ class MainWindow(GTK_MainWindow):
     def drop_file(self, viewer, paths):
         filename = paths[0]
         self.signals.open_file(filename)
+
+    def image_update(self, image):
+        """Image has updated.
+
+        Parameters
+        ----------
+        image: `ginga.Astroimage.AstroImage`
+            The image.
+        """
+        self.image_viewer.set_image(image)
+        self.setWindowTitle(image.name)
+
+    def quit(self, *args, **kwargs):
+        """Shutdown"""
+        self.deleteLater()

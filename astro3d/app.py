@@ -42,12 +42,10 @@ class Application(Controller):
     def open_file(self, filepath):
         image = AstroImage.AstroImage(logger=self.logger)
         image.load_file(filepath)
-        self.viewer.image_viewer.set_image(image)
-        self.viewer.setWindowTitle(filepath)
+        self.signals.new_image(image)
 
     def quit(self, *args):
         self.logger.info("Attempting to shut down the application...")
-        self.viewer.deleteLater()
 
 
 def main():
