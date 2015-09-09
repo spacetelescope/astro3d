@@ -1,6 +1,5 @@
 """Start the UI application
 """
-
 from .qt4.pyqt_nonblock import pyqtapplication
 
 

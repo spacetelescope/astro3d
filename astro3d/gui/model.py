@@ -1,6 +1,7 @@
 """Data Model"""
 
 from ..core.model3d import Model3D
+from ..core.meshes import get_triangles
 
 
 __all__ = ['Model']
@@ -45,9 +46,4 @@ class Model(object):
         m.double_sided = True
 
         m.make()
-
-        m.write_stl('/Users/eisenham/Downloads/ngc3344_intensity_texture',
-                    split_model=True, clobber=True)
-
-        # All done
-        self.signals.process_finish()
+        self.signals.process_finish(get_triangles(m.data))

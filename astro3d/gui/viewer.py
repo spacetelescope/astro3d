@@ -1,8 +1,10 @@
 """Main UI Viewer
 """
+
 from ..external.qt import (QtGui, QtCore)
 from ..external.qt.QtGui import QMainWindow as GTK_MainWindow
-from qt4 import ViewImage
+from qt4 import (ViewImage, ViewMesh)
+
 
 __all__ = ['MainWindow']
 
@@ -22,6 +24,7 @@ class MainWindow(GTK_MainWindow):
         self.wquit.clicked.connect(self.signals.quit)
         self.signals.quit.connect(self.quit)
         self.signals.new_image.connect(self.image_update)
+        self.signals.update_mesh.connect(self.mesh_viewer.update_mesh)
 
     def _build_gui(self):
         """Construct the app's GUI"""
@@ -32,11 +35,14 @@ class MainWindow(GTK_MainWindow):
         image_viewer_widget.resize(512, 512)
         self.image_viewer = image_viewer
 
-        # Window
-        vbox = QtGui.QVBoxLayout()
-        vbox.setContentsMargins(QtCore.QMargins(2, 2, 2, 2))
-        vbox.setSpacing(1)
-        vbox.addWidget(image_viewer_widget, stretch=1)
+        mesh_viewer = ViewMesh()
+        mesh_viewer.resize(512, 512)
+        self.mesh_viewer = mesh_viewer
+
+        # Viewers
+        viewer_hbox = QtGui.QHBoxLayout()
+        for w in (image_viewer_widget, mesh_viewer):
+            viewer_hbox.addWidget(w, stretch=1)
 
         # Main buttons
         wopen = QtGui.QPushButton("Open File")
@@ -44,15 +50,20 @@ class MainWindow(GTK_MainWindow):
         wquit = QtGui.QPushButton("Quit")
         self.wquit = wquit
 
-        hbox = QtGui.QHBoxLayout()
-        hbox.setContentsMargins(QtCore.QMargins(4, 2, 4, 2))
-        hbox.addStretch(1)
+        button_hbox = QtGui.QHBoxLayout()
+        button_hbox.setContentsMargins(QtCore.QMargins(4, 2, 4, 2))
+        button_hbox.addStretch(1)
         for w in (wopen, wquit):
-            hbox.addWidget(w, stretch=0)
+            button_hbox.addWidget(w, stretch=0)
 
-        hw = QtGui.QWidget()
-        hw.setLayout(hbox)
-        vbox.addWidget(hw, stretch=0)
+        # Window
+        vbox = QtGui.QVBoxLayout()
+        vbox.setContentsMargins(QtCore.QMargins(2, 2, 2, 2))
+        vbox.setSpacing(1)
+        for w in (viewer_hbox, button_hbox):
+            hw = QtGui.QWidget()
+            hw.setLayout(w)
+            vbox.addWidget(hw)
 
         vw = QtGui.QWidget()
         self.setCentralWidget(vw)

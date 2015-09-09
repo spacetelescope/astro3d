@@ -40,6 +40,7 @@ class Application(Controller):
         self.signals.model_update = Signal(logger, self.process)
         self.signals.process_start = Signal(logger)
         self.signals.process_finish = Signal(logger, self.process_finish)
+        self.signals.update_mesh = Signal(logger)
 
         if self.__class__.ui_app is None:
             self.__class__.ui_app = start_ui_app(argv)
@@ -63,8 +64,9 @@ class Application(Controller):
         self.logger.info('Starting processing...')
         self.signals.process_start()
 
-    def process_finish(self):
+    def process_finish(self, mesh):
         self.logger.info('3D generation completed.')
+        self.signals.update_mesh(mesh)
 
 
 
