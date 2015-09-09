@@ -1,7 +1,8 @@
 """Data Model"""
+from numpy import concatenate
 
 from ..core.model3d import Model3D
-from ..core.meshes import get_triangles
+from ..core.meshes import (get_triangles, reflect_mesh)
 
 
 __all__ = ['Model']
@@ -43,7 +44,11 @@ class Model(object):
         m.has_textures = True
         m.has_intensity = True
         m.spiral_galaxy = True
-        m.double_sided = True
+        m.double_sided = False
 
         m.make()
-        self.signals.process_finish(get_triangles(m.data))
+
+        triset = get_triangles(m.data)
+        if m.double_sided:
+            triset = concatenate((triset, reflect_mesh(triset)))
+        self.signals.process_finish(triset)
