@@ -182,7 +182,7 @@ def reflect_mesh(triset):
     triset2 = triset.copy()
     triset2[:, 0, 2] = -triset2[:, 0, 2]         # reflect normal about z axis
     triset2[:, 1:, 2] = -triset2[:, 1:, 2]       # reflect z vertices
-    triset2[:, 1:,] = triset2[:, 1:,][:, ::-1]   # reorder vertices
+    triset2[:, 1:, :] = triset2[:, 1:, :][:, ::-1]   # reorder vertices
     return triset2
 
 
