@@ -373,11 +373,27 @@ class Model3D(object):
         log.info('Read "{0}" table from "{1}"'.format(stellar_type, filename))
 
     def read_star_clusters(self, filename):
-        """Read star clusters table from an ASCII file."""
+        """
+        Read star clusters table from an ASCII file.
+
+        Parameters
+        ----------
+        filename : str
+            The filename containing an `~astropy.Table` in ASCII format.
+        """
+
         self.read_stellar_table(filename, 'star_clusters')
 
     def read_stars(self, filename):
-        """Read stars table from an ASCII file."""
+        """
+        Read stars table from an ASCII file.
+
+        Parameters
+        ----------
+        filename : str
+            The filename containing an `~astropy.Table` in ASCII format.
+        """
+
         self.read_stellar_table(filename, 'stars')
 
     def write_stellar_table(self, filename_prefix, stellar_type):
@@ -701,7 +717,14 @@ class Model3D(object):
         self.data = image_utils.normalize_data(self.data, max_value=max_value)
 
     def _minvalue_to_zero(self, min_value=0.02):
-        """Set values below a certain value to zero."""
+        """
+        Set values below a certain value to zero.
+
+        Parameters
+        ----------
+        min_value : float, optional
+            The image threshold value below which pixels are set to zero.
+        """
 
         log.info('Setting image values below {0} to zero.'.format(min_value))
         self.data[self.data < min_value] = 0.0
@@ -818,10 +841,10 @@ class Model3D(object):
 
         Parameters
         ----------
-        radius_a : float
+        radius_a : float, optional
             The intercept term in calculating the star radius (see above).
 
-        radius_b : float
+        radius_b : float, optional
             The slope term in calculating the star radius (see above).
         """
 
@@ -952,12 +975,17 @@ class Model3D(object):
         For two-sided models, this is used to create a stronger base,
         which prevents the model from shaking back and forth due to
         printer vibrations.  These structures will have a *total* width
-        of ``self.base_height``.
+        of ``self.base_height`` (i.e. it is not doubled for the
+        double-sided model).
 
         Parameters
         ----------
         filter_size : int, optional
             The size of the binary dilation filter.
+
+        min_value : float, optional
+            The minimum value that the final image can have, e.g.
+            prevents printing zeros.
         """
 
         log.info('Making model base.')
@@ -970,7 +998,7 @@ class Model3D(object):
         else:
             self._base_layer = self.base_height
         self.data += self._base_layer
-        self.data[self.data == 0.] = min_value
+        self.data[self.data < min_value] = min_value
 
     def make(self, compress_bulge_percentile=0., compress_bulge_factor=0.05,
              suppress_background_percentile=90.,
@@ -982,6 +1010,45 @@ class Model3D(object):
 
         A series of steps are performed to prepare the intensity image
         and/or add textures to the model.
+
+        Parameters
+        ----------
+        compress_bulge_percentile : float in range of [0, 100], optional
+            The percentile of pixel values within the bulge mask to use
+            as the base level when compressing the bulge.  See
+            `_spiralgalaxy_compress_bulge`.
+
+        compress_bulge_factor : float, optional
+            The scale factor to apply to the region above the base level
+            in the bulge compression step.  See
+            `_spiralgalaxy_compress_bulge`.
+
+        suppress_background_percentile : float in range of [0, 100], optional
+            The percentile of pixel values outside of the masked regions
+            to use as the background level in the suppress background
+            step.  See `_suppress_background`.
+
+        suppress_background_factor : float, optional
+            The scale factor to apply to the region below the background
+            level in the suppress background step.  See
+            `_suppress_background`.
+
+        smooth_size : float or tuple optional
+            The shape of filter window for the image smoothing step.  If
+            ``size`` is an `int`, then then ``size`` will be used for
+            both dimensions.  See `_smooth_image`.
+
+        minvalue_to_zero : float, optional
+            The image threshold value below which pixels are set to
+            zero.  See `_minvalue_to_zero`.
+
+        crop_data_threshold : float, optional
+            The values equal to and below which to crop from the data.
+            See `_crop_data`.
+
+        model_base_filter_size : int, optional
+            The size of the binary dilation filter used in making the
+            model base.  See `_make_model_base`.
         """
 
         self.data = deepcopy(self.data_original_resized)    # start fresh

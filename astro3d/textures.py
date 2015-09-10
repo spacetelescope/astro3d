@@ -311,22 +311,22 @@ def lines_texture_map(mask, profile='spherical', thickness=10,
         A 2D boolean mask.  The texture will be applied where the
         ``mask`` is `True`.
 
-    profile : {'spherical', 'linear'}
+    profile : {'spherical', 'linear'}, optional
         The line profile. ``'linear'`` produces a "^"-shaped line
         profile.  ``'spherical'`` produces a rounded cylindrical or
         elliptical profile (see ``height`` for details).
 
-    thickness : int
+    thickness : int, optional
         Thickness of the line over the entire profile.
 
-    height : float
+    height : float, optional
         The maximum height (data value) of the line.
 
         For a ``'spherical'`` profile, set ``height`` equal to half the
         ``thickness`` to produce a hemispherical line profile, otherwise
         the profile is elliptical.
 
-    spacing : int
+    spacing : int, optional
         Perpendicular spacing between adjacent line centers.
 
     orientation : float, optional
@@ -368,15 +368,15 @@ def dots_texture_map(mask, profile='spherical', diameter=5,
         A 2D boolean mask.  The texture will be applied where the
         ``mask`` is `True`.
 
-    profile : {'spherical', 'linear'}
+    profile : {'spherical', 'linear'}, optional
         The dot profile. ``'linear'`` produces a cone-shaped dot
         profile.  ``'spherical'`` produces a hemispherical or
         half-ellipsoid dot profile (see ``height`` for details).
 
-    diameter : int
+    diameter : int, optional
         The dot diameter.
 
-    height : float
+    height : float, optional
         The maximum height (data value) of the dot.
 
         For a ``'spherical'`` profile, set ``height`` equal to half the
@@ -384,11 +384,11 @@ def dots_texture_map(mask, profile='spherical', diameter=5,
         profile is a half ellipsoid (circular base with a stretched
         height).
 
-    grid_func : callable
+    grid_func : callable, optional
         The function used to generate the ``(x, y)`` positions of the
         dots.
 
-    grid_spacing : float
+    grid_spacing : float, optional
         The spacing in pixels between the grid points.
 
     Returns
@@ -553,13 +553,13 @@ def starlike_model_base_height(image, model_type, x, y, radius, depth,
     depth : float
         The maximum depth of the crater-like bowl of the star texture.
 
-    base_percentile : float in the range of [0, 100]
+    base_percentile : float in the range of [0, 100], optional
         The percentile of the image data values within the source
         texture (where the texture is non-zero) used to define the base
         height of the model texture.  If `None`, then the model
         base_height will be zero.
 
-    image_indices : tuple of 2D `~numpy.ndarray`s
+    image_indices : tuple of 2D `~numpy.ndarray`s, optional
         A ``(yy, xx)`` tuple where ``yy`` and ``xx`` are 2D images with
         the same shape of the input ``image`` and represent the ``y``
         and ``x`` image indices (i.e. the tuple returned from
@@ -637,16 +637,16 @@ def make_starlike_models(image, model_type, sources, radius_a=10, radius_b=5,
         A table defining the stars or star clusters.  The table must
         contain ``'xcen'``, ``'ycen'``, and ``'flux'`` columns.
 
-    radius_a : float
+    radius_a : float, optional
         The intercept term in calculating the star radius (see above).
 
-    radius_b : float
+    radius_b : float, optional
         The slope term in calculating the star radius (see above).
 
-    depth : float
+    depth : float, optional
         The maximum depth of the crater-like bowl of the star texture.
 
-    base_percentile : float in the range of [0, 100]
+    base_percentile : float in the range of [0, 100], optional
         The percentile of the image data values within the source
         texture (where the texture is non-zero) used to define the base
         height of the model texture.  If `None`, then the model
@@ -674,8 +674,7 @@ def make_starlike_models(image, model_type, sources, radius_a=10, radius_b=5,
             raise ValueError('sources must contain a {0} '
                              'column'.format(column))
 
-    # TODO: probably should exclude any bad sources (e.g. bad position)
-    # before finding the maximum flux - but expensive, so skip for now
+    # assumes that all sources in the source table are good
     max_flux = float(np.max(sources['flux']))
 
     yy, xx = np.indices(image.shape)
@@ -731,16 +730,16 @@ def make_starlike_textures(image, stellar_tables, radius_a=10,
         table must contain ``'xcentroid'``, ``'ycentroid'``, and
         ``'flux'`` columns.
 
-    radius_a : float
+    radius_a : float, optional
         The intercept term in calculating the star radius (see above).
 
-    radius_b : float
+    radius_b : float, optional
         The slope term in calculating the star radius (see above).
 
-    depth : float
+    depth : float, optional
         The maximum depth of the crater-like bowl of the star texture.
 
-    base_percentile : float in the range of [0, 100]
+    base_percentile : float in the range of [0, 100], optional
         The percentile of the image data values within the source
         texture (where the texture is non-zero) used to define the base
         height of the model texture.  If `None`, then the model
@@ -789,13 +788,13 @@ def make_cusp_model(image, x, y, radius=25, depth=40, base_percentile=None):
         The ``x`` and ``y`` image position of the cusp texture.  This
         should be the galaxy center.
 
-    radius : float
+    radius : float, optional
         The circular radius of the star texture.
 
-    depth : float
+    depth : float, optional
         The maximum depth of the crater-like bowl of the star texture.
 
-    base_percentile : float in the range of [0, 100]
+    base_percentile : float in the range of [0, 100], optional
         The percentile of the image data values within the source
         texture (where the texture is non-zero) used to define the base
         height of the model texture.  If `None`, then the model

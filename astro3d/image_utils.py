@@ -139,7 +139,7 @@ def combine_masks(masks):
 
     Parameters
     ----------
-    masks : list of boolean masks
+    masks : list of boolean `~numpy.ndarray`
         A list of boolean `~numpy.ndarray` masks.
 
     Returns
@@ -164,7 +164,7 @@ def combine_region_masks(region_masks):
     Parameters
     ----------
     region_masks : list of `~astro3d.region_mask.RegionMask`
-        A list of boolean `~numpy.ndarray` masks.
+        A list of boolean `~astro3d.region_mask.RegionMask` masks.
 
     Returns
     -------
@@ -185,8 +185,8 @@ def combine_region_masks(region_masks):
 
 def radial_distance(shape, position):
     """
-    Return an array where each value is the Euclidean distance from a
-    given position.
+    Return an array where the pixel values are the Euclidean distance of
+    the pixel from a given position.
 
     Parameters
     ----------
@@ -257,6 +257,9 @@ def split_image(data, axis=0):
     """
     Split an image into two (nearly-equal) halves.
 
+    If the split axis has an even number of elements, then the image
+    will be split into two equal halves.
+
     Parameters
     ----------
     data : array-like
@@ -268,8 +271,9 @@ def split_image(data, axis=0):
     Returns
     -------
     result1, result2 : `~numpy.ndarray`
-        The split arrays.  For ``axis=0`` the order is ``(bottom,
-        top)``.  For ``axis=1`` the order is ``(left, right)``.
+        The split arrays.  For ``axis=0`` the returned order is
+        ``(bottom, top)``.  For ``axis=1`` the returned order is
+        ``(left, right)``.
     """
 
     ny, nx = data.shape
