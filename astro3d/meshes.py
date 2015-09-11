@@ -9,7 +9,7 @@ import numpy as np
 from astropy import log
 
 
-def make_triangles(image):
+def make_triangles(image, center_model=True):
     """
     Create a 3D model of a 2D image using triangular tessellation.
 
@@ -19,6 +19,10 @@ def make_triangles(image):
     ----------
     image : 2D `~numpy.ndarray`
         The image from which to create the triangular mesh.
+
+    center_model : bool, optional
+        Set to `True` to center the model at ``(x, y) = (0, 0)``.  This
+        will center the model on the printer plate.
 
     Returns
     -------
@@ -47,6 +51,10 @@ def make_triangles(image):
     bottom = make_model_bottom((ny-1, nx-1))
     triangles = np.concatenate((ul_tri, lr_tri, sides, bottom))
     triangles[:, 0, :] = calculate_normals(triangles)
+
+    if center_model:
+        triangles[:, 1:, 0] -= (nx - 1) / 2.
+        triangles[:, 1:, 1] -= (ny - 1) / 2.
 
     return normalize_triangles(triangles)
 
