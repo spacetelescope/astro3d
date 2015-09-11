@@ -11,10 +11,9 @@ from astropy import log
 
 def make_triangles(image):
     """
-    Tessellate an image into a 3D model using triangles.
+    Create a 3D model of a 2D image using triangular tessellation.
 
     Each pixel is split into two triangles (upper left and lower right).
-    Invalid triangles (e.g. with one vertex off the edge) are excluded.
 
     Parameters
     ----------
@@ -28,86 +27,95 @@ def make_triangles(image):
     """
 
     ny, nx = image.shape
-    y, x = np.indices((ny, nx))
+    yy, xx = np.indices((ny, nx))
     npts = (ny - 1) * (nx - 1)
-    vertices = np.dstack((x, y, image))     # x, y, z vertices
+    vertices = np.dstack((xx, yy, image))     # x, y, z vertices
 
     # upper-left triangles
-    ul_tri = np.zeros(npts, 4, 3)
-    ul_tri[:, 1, :] = vertices[:-1, 1:].reshape(npts, 3)   # top-left vertices
+    ul_tri = np.zeros((npts, 4, 3))
+    ul_tri[:, 1, :] = vertices[1:, :-1].reshape(npts, 3)   # top-left vertices
     ul_tri[:, 2, :] = vertices[:-1, :-1].reshape(npts, 3)  # bottom-left
     ul_tri[:, 3, :] = vertices[1:, 1:].reshape(npts, 3)    # top-right
 
     # lower-right triangles
-    lr_tri = np.zeros(npts, 4, 3)
-    lr_tri[:, 1, :] = vertices[1:, 1:].reshape(npts, 3)    # top-right vert.
+    lr_tri = np.zeros((npts, 4, 3))
+    lr_tri[:, 1, :] = vertices[1:, 1:].reshape(npts, 3)    # top-right
     lr_tri[:, 2, :] = vertices[:-1, :-1].reshape(npts, 3)  # bottom-left
-    lr_tri[:, 3, :] = vertices[1:, :-1].reshape(npts, 3)   # bottom-right
+    lr_tri[:, 3, :] = vertices[:-1, 1:].reshape(npts, 3)   # bottom-right
 
-    #sides = make_sides(ults, lrts)
+    sides = make_sides(vertices)
     bottom = make_model_bottom((ny-1, nx-1))
-    #triangles = np.concatenate((ul_tri, lr_tri, sides, bottom))
-    triangles = np.concatenate((ul_tri, lr_tri, bottom))
+    triangles = np.concatenate((ul_tri, lr_tri, sides, bottom))
     triangles[:, 0, :] = calculate_normals(triangles)
 
     return normalize_triangles(triangles)
 
 
-def make_sides(ults, lrts):
+def make_side_triangles(side_vertices, flip_order=False):
+    """
+    Make the triangles for a single side.
+
+    Parameters
+    ----------
+    side_vertices : NxMx3 `~numpy.ndarray`
+        The (x, y, z) vertices along one side of the image.  ``N`` is
+        length of the y size of the image and ``M`` is the x size of the
+        image.
+
+    flip_order : bool, optional
+        Set to flip the ordering of the triangle vertices to keep the
+        normals pointed "outward".
+
+    Returns
+    -------
+    triangles : Nx4x3 `~numpy.ndarray`
+        The triangles for a single side.
+    """
+
+    npts = len(side_vertices) - 1
+    side_bottom = np.copy(side_vertices)
+    side_bottom[:, 2] = 0
+    ul_tri = np.zeros((npts, 4, 3))
+    lr_tri = np.zeros((npts, 4, 3))
+
+    if not flip_order:
+        ul_tri[:, 1, :] = side_vertices[1:]     # top-left
+        ul_tri[:, 2, :] = side_bottom[1:]       # bottom-left
+        ul_tri[:, 3, :] = side_vertices[:-1]    # top-right
+        lr_tri[:, 1, :] = side_vertices[:-1]    # top-right
+        lr_tri[:, 2, :] = side_bottom[1:]       # bottom-left
+        lr_tri[:, 3, :] = side_bottom[:-1]      # bottom-right
+    else:
+        ul_tri[:, 1, :] = side_vertices[:-1]    # top-left
+        ul_tri[:, 2, :] = side_bottom[:-1]      # bottom-left
+        ul_tri[:, 3, :] = side_vertices[1:]     # top-right
+        lr_tri[:, 1, :] = side_vertices[1:]     # top-right
+        lr_tri[:, 2, :] = side_bottom[:-1]      # bottom-left
+        lr_tri[:, 3, :] = side_bottom[1:]       # bottom-right
+    return np.concatenate((ul_tri, lr_tri))
+
+
+def make_sides(vertices):
     """
     Make the model sides.
 
     Parameters
     ----------
-    ults, lrts : NxMx3x4 `~numpy.ndarray`
-        The upper-left and lower-right triangles.
+    vertices : NxMx3 `~numpy.ndarray`
+        The (x, y, z) vertices of the entire mesh.  ``N`` is length of
+        the y size of the image and ``M`` is the x size of the image.
 
     Returns
     -------
-    result : Lx3x4 `~numpy.ndarray`
-        The triangles for the model sides.
+    triangles : Nx4x3 `~numpy.ndarray`
+        The triangles comprised the model sides.
     """
 
-    a = ults[0].copy()
-    a[:, :, 3] = a[:, :, 1]
-    a[:, 2, 3] = 0
-    b = ults[:, 0].copy()
-    b[:, :, 2] = b[:, :, 1]
-    b[:, :, 2][:, 2] = 0
-    c = ults[-1].copy()
-    c[:, 1, 1:3] = c[:, 1, 1:3] + 1
-    c[:, 2, 1:3] = 0
-    d = ults[:, -1].copy()
-    d[:, 0, 1] = d[:, 0, 1] + 1
-    d[:, 0, 3] = d[:, 0, 3] + 1
-    d[:, 2, 1] = 0
-    d[:, 2, 3] = 0
-
-    e = lrts[0].copy()
-    e[:, 1, 1:3] = e[:, 1, 1:3] - 1
-    e[:, 2, 1:3] = 0
-    f = lrts[:, 0].copy()
-    f[:, 0, 1] = f[:, 0, 1] - 1
-    f[:, 0, 3] = f[:, 0, 3] - 1
-    f[:, 2, 1] = 0
-    f[:, 2, 3] = 0
-    g = lrts[-1].copy()
-    g[:, 1, 3] = g[:, 1, 3] + 1
-    g[:, 2, 3] = 0
-    h = lrts[:, -1].copy()
-    h[:, 0, 2] = h[:, 0, 2] + 1
-    h[:, 2, 2] = 0
-
-    a[:, :, [1, 2]] = a[:, :, [2, 1]]
-    b[:, :, [1, 2]] = b[:, :, [2, 1]]
-    c[:, :, [1, 2]] = c[:, :, [2, 1]]
-    d[:, :, [1, 2]] = d[:, :, [2, 1]]
-    e[:, :, [1, 2]] = e[:, :, [2, 1]]
-    f[:, :, [1, 2]] = f[:, :, [2, 1]]
-    g[:, :, [1, 2]] = g[:, :, [2, 1]]
-    h[:, :, [1, 2]] = h[:, :, [2, 1]]
-
-    return np.concatenate((a, b, c, d, e, f, g, h))
+    side1 = make_side_triangles(vertices[:, 0])    # x=0
+    side2 = make_side_triangles(vertices[0, :], flip_order=True)    # y=0
+    side3 = make_side_triangles(vertices[:, -1], flip_order=True)   # x=-1
+    side4 = make_side_triangles(vertices[-1, :])   # y=-1
+    return np.concatenate((side1, side2, side3, side4))
 
 
 def make_model_bottom(shape, calculate_normals=False):
@@ -119,10 +127,10 @@ def make_model_bottom(shape, calculate_normals=False):
 
     Parameters
     ----------
-    shape : 2 tuple
+    shape : 2-tuple
         The image shape.
 
-    calculate_normals : bool
+    calculate_normals : bool, optional
         Set to `True` to calculate the normals.
 
     Returns
@@ -160,7 +168,7 @@ def calculate_normals(triangles):
 
     Returns
     -------
-    result : Nx1x3 `~numpy.ndarray`
+    result : Nx3 `~numpy.ndarray`
         An array of normal vectors.
     """
 
@@ -286,7 +294,7 @@ def write_ascii_stl(triangles, filename):
         f.write("endsolid model")
 
 
-def write_mesh(image, filename_prefix, depth=1, double_sided=False,
+def write_mesh(image, filename_prefix, double_sided=False,
                stl_format='binary', clobber=False):
     """
     Write an image to a STL file by splitting each pixel into two
@@ -294,24 +302,17 @@ def write_mesh(image, filename_prefix, depth=1, double_sided=False,
 
     Parameters
     ----------
-    image : ndarray
+    image : `~numpy.ndarray`
         The image to convert.
 
     filename_prefix : str
         The prefix of output file. ``'.stl'`` is automatically appended.
 
-    depth : int
-        The depth of the back plate. Should probably be between
-        10 and 30. A thicker plate gives greater stability, but
-        uses more material and has a longer build time.
-        For writing JPG or PNG images, a depth of 10 probably
-        suffices.
-
-    double_sided : bool
+    double_sided : bool, optional
         Set to `True` for a double-sided model, which will be a simple
         reflection.
 
-    stl_format : {'binary', 'ascii'}
+    stl_format : {'binary', 'ascii'}, optional
         Format for the output STL file.  The default is 'binary'.  The
         binary STL file is harder to debug, but takes up less storage
         space.
@@ -323,8 +324,7 @@ def write_mesh(image, filename_prefix, depth=1, double_sided=False,
     if isinstance(image, np.ma.core.MaskedArray):
         image = deepcopy(image.data)
 
-    triangles = make_triangles(image, depth)
-
+    triangles = make_triangles(image)
     if double_sided:
         triangles = np.concatenate((triangles, reflect_triangles(triangles)))
 
