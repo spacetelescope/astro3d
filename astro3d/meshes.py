@@ -5,115 +5,191 @@ from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 import os
 from copy import deepcopy
-from struct import unpack
 import numpy as np
 from astropy import log
 
 
-def get_triangles(npimage, depth=10):
+def make_triangles(image, center_model=True):
     """
-    Make upper left and lower right triangles.
+    Create a 3D model of a 2D image using triangular tessellation.
 
-    Automatically exclude invalid triangles (triangles with
-    one vertex off the edge).
+    Each pixel is split into two triangles (upper left and lower right).
 
     Parameters
     ----------
-    npimage : ndarray
+    image : 2D `~numpy.ndarray`
+        The image from which to create the triangular mesh.
 
-    depth : int
+    center_model : bool, optional
+        Set to `True` to center the model at ``(x, y) = (0, 0)``.  This
+        will center the model on the printer plate.
 
     Returns
     -------
-    normalized_triset : ndarray
-        An array of triangles.
+    triangles : Nx4x3 `~numpy.ndarray`
+        An array of normal vectors and vertices for a set of triangles.
     """
 
-    npimage = npimage + depth
-    h, w = npimage.shape
-    y, x = np.indices((h, w))
-    cube = np.dstack((x, y, npimage))
-    ults = np.zeros((h-1, w-1, 3, 4))
-    lrts = np.zeros((h-1, w-1, 3, 4))
-    ults[:, :, :, 1] = cube[:-1, :-1]
-    ults[:, :, :, 2] = cube[:-1, 1:]
-    ults[:, :, :, 3] = cube[1:, :-1]
-    lrts[:, :, :, 1] = cube[1:, 1:]
-    lrts[:, :, :, 2] = cube[1:, :-1]
-    lrts[:, :, :, 3] = cube[:-1, 1:]
-    sides = make_sides(ults, lrts)
-    ults = ults.reshape(((ults.shape[0])*(ults.shape[1]), 3, 4))
-    lrts = lrts.reshape(((lrts.shape[0])*(lrts.shape[1]), 3, 4))
-    triset = get_cross(np.concatenate((ults, lrts, sides)))
-    triset = np.swapaxes(triset, 1, 2).copy()
-    triset = np.concatenate((triset, make_bottom(h-1, w-1)))
+    ny, nx = image.shape
+    yy, xx = np.indices((ny, nx))
+    npts = (ny - 1) * (nx - 1)
+    vertices = np.dstack((xx, yy, image))     # x, y, z vertices
 
-    return normalize_triangles(triset)
+    # upper-left triangles
+    ul_tri = np.zeros((npts, 4, 3))
+    ul_tri[:, 1, :] = vertices[1:, :-1].reshape(npts, 3)   # top-left vertices
+    ul_tri[:, 2, :] = vertices[:-1, :-1].reshape(npts, 3)  # bottom-left
+    ul_tri[:, 3, :] = vertices[1:, 1:].reshape(npts, 3)    # top-right
 
+    # lower-right triangles
+    lr_tri = np.zeros((npts, 4, 3))
+    lr_tri[:, 1, :] = vertices[1:, 1:].reshape(npts, 3)    # top-right
+    lr_tri[:, 2, :] = vertices[:-1, :-1].reshape(npts, 3)  # bottom-left
+    lr_tri[:, 3, :] = vertices[:-1, 1:].reshape(npts, 3)   # bottom-right
 
-def make_sides(ults, lrts):
-    """Creates the sides of the base."""
+    sides = make_sides(vertices)
+    bottom = make_model_bottom((ny-1, nx-1))
+    triangles = np.concatenate((ul_tri, lr_tri, sides, bottom))
+    triangles[:, 0, :] = calculate_normals(triangles)
 
-    a = ults[0].copy()
-    a[:, :, 3] = a[:, :, 1]
-    a[:, 2, 3] = 0
-    b = ults[:, 0].copy()
-    b[:, :, 2] = b[:, :, 1]
-    b[:, :, 2][:, 2] = 0
-    c = ults[-1].copy()
-    c[:, 1, 1:3] = c[:, 1, 1:3] + 1
-    c[:, 2, 1:3] = 0
-    d = ults[:, -1].copy()
-    d[:, 0, 1] = d[:, 0, 1] + 1
-    d[:, 0, 3] = d[:, 0, 3] + 1
-    d[:, 2, 1] = 0
-    d[:, 2, 3] = 0
+    if center_model:
+        triangles[:, 1:, 0] -= (nx - 1) / 2.
+        triangles[:, 1:, 1] -= (ny - 1) / 2.
 
-    e = lrts[0].copy()
-    e[:, 1, 1:3] = e[:, 1, 1:3] - 1
-    e[:, 2, 1:3] = 0
-    f = lrts[:, 0].copy()
-    f[:, 0, 1] = f[:, 0, 1] - 1
-    f[:, 0, 3] = f[:, 0, 3] - 1
-    f[:, 2, 1] = 0
-    f[:, 2, 3] = 0
-    g = lrts[-1].copy()
-    g[:, 1, 3] = g[:, 1, 3] + 1
-    g[:, 2, 3] = 0
-    h = lrts[:, -1].copy()
-    h[:, 0, 2] = h[:, 0, 2] + 1
-    h[:, 2, 2] = 0
-
-    a[:, :, [1, 2]] = a[:, :, [2, 1]]
-    b[:, :, [1, 2]] = b[:, :, [2, 1]]
-    c[:, :, [1, 2]] = c[:, :, [2, 1]]
-    d[:, :, [1, 2]] = d[:, :, [2, 1]]
-    e[:, :, [1, 2]] = e[:, :, [2, 1]]
-    f[:, :, [1, 2]] = f[:, :, [2, 1]]
-    g[:, :, [1, 2]] = g[:, :, [2, 1]]
-    h[:, :, [1, 2]] = h[:, :, [2, 1]]
-
-    return np.concatenate((a, b, c, d, e, f, g, h))
+    return normalize_triangles(triangles)
 
 
-def make_bottom(height, width):
-    """Create the bottom of the base."""
+def make_side_triangles(side_vertices, flip_order=False):
+    """
+    Make the triangles for a single side.
 
-    bottom = np.array([[[width, 0, 0], [0, 0, 0], [0, height, 0]],
-                       [[width, height, 0], [width, 0, 0], [0, height, 0]]])
-    triset = np.zeros((2, 4, 3))
-    triset[0, 1:] = bottom[0]
-    triset[1, 1:] = bottom[1]
+    Parameters
+    ----------
+    side_vertices : NxMx3 `~numpy.ndarray`
+        The (x, y, z) vertices along one side of the image.  ``N`` is
+        length of the y size of the image and ``M`` is the x size of the
+        image.
 
-    for tri in triset:
-        v1 = tri[2] - tri[1]
-        v2 = tri[3] - tri[1]
-        tri[0] = np.cross(v1, v2)
+    flip_order : bool, optional
+        Set to flip the ordering of the triangle vertices to keep the
+        normals pointed "outward".
 
-    return triset
+    Returns
+    -------
+    triangles : Nx4x3 `~numpy.ndarray`
+        The triangles for a single side.
+    """
+
+    npts = len(side_vertices) - 1
+    side_bottom = np.copy(side_vertices)
+    side_bottom[:, 2] = 0
+    ul_tri = np.zeros((npts, 4, 3))
+    lr_tri = np.zeros((npts, 4, 3))
+
+    if not flip_order:
+        ul_tri[:, 1, :] = side_vertices[1:]     # top-left
+        ul_tri[:, 2, :] = side_bottom[1:]       # bottom-left
+        ul_tri[:, 3, :] = side_vertices[:-1]    # top-right
+        lr_tri[:, 1, :] = side_vertices[:-1]    # top-right
+        lr_tri[:, 2, :] = side_bottom[1:]       # bottom-left
+        lr_tri[:, 3, :] = side_bottom[:-1]      # bottom-right
+    else:
+        ul_tri[:, 1, :] = side_vertices[:-1]    # top-left
+        ul_tri[:, 2, :] = side_bottom[:-1]      # bottom-left
+        ul_tri[:, 3, :] = side_vertices[1:]     # top-right
+        lr_tri[:, 1, :] = side_vertices[1:]     # top-right
+        lr_tri[:, 2, :] = side_bottom[:-1]      # bottom-left
+        lr_tri[:, 3, :] = side_bottom[1:]       # bottom-right
+    return np.concatenate((ul_tri, lr_tri))
 
 
-def normalize_triangles(triset):
+def make_sides(vertices):
+    """
+    Make the model sides.
+
+    Parameters
+    ----------
+    vertices : NxMx3 `~numpy.ndarray`
+        The (x, y, z) vertices of the entire mesh.  ``N`` is length of
+        the y size of the image and ``M`` is the x size of the image.
+
+    Returns
+    -------
+    triangles : Nx4x3 `~numpy.ndarray`
+        The triangles comprised the model sides.
+    """
+
+    side1 = make_side_triangles(vertices[:, 0])    # x=0
+    side2 = make_side_triangles(vertices[0, :], flip_order=True)    # y=0
+    side3 = make_side_triangles(vertices[:, -1], flip_order=True)   # x=-1
+    side4 = make_side_triangles(vertices[-1, :])   # y=-1
+    return np.concatenate((side1, side2, side3, side4))
+
+
+def make_model_bottom(shape, calculate_normals=False):
+    """
+    Create the bottom of the model.
+
+    The bottom is a rectangle of given ``shape`` at z=0 that is split
+    into two triangles.  The triangle normals are in the -z direction.
+
+    Parameters
+    ----------
+    shape : 2-tuple
+        The image shape.
+
+    calculate_normals : bool, optional
+        Set to `True` to calculate the normals.
+
+    Returns
+    -------
+    result : 2x4x3 `~numpy.ndarray`
+        The two triangles for the model bottom.
+    """
+
+    ny, nx = shape
+    triangles = np.zeros((2, 4, 3))
+    # lower-right triangle as viewed from the bottom
+    triangles[0, 1:, :] = [[nx, 0, 0], [0, 0, 0], [0, ny, 0]]
+    # upper-left triangle as viewed from the bottom
+    triangles[1, 1:, :] = [[nx, ny, 0], [nx, 0, 0], [0, ny, 0]]
+
+    if calculate_normals:
+        # vertices were ordered such that normals are in the -z direction
+        triangles[:, 0, :] = calculate_normals(triangles)
+
+    return triangles
+
+
+def calculate_normals(triangles):
+    """
+    Calculate the normal vectors for a set of triangles.
+
+    The normal vector is calculated using the cross product of two
+    triangle sides.  The normal direction follows the right-hand rule
+    applied to the order of the triangle vertices.
+
+    Parameters
+    ----------
+    triangles : Nx4x3 `~numpy.ndarray`
+        An array of normal vectors and vertices for a set of triangles.
+
+    Returns
+    -------
+    result : Nx3 `~numpy.ndarray`
+        An array of normal vectors.
+    """
+
+    vertex1 = triangles[:, 1, :]
+    vertex2 = triangles[:, 2, :]
+    vertex3 = triangles[:, 3, :]
+    vec1 = vertex2 - vertex1     # vector of first triangle side
+    vec2 = vertex3 - vertex1     # vector of second triangle side
+    return np.cross(vec1, vec2)
+
+
+# TODO
+def normalize_triangles(triangles):
     """
     Ensure model can fit on MakerBot plate.
 
@@ -125,149 +201,69 @@ def normalize_triangles(triset):
         All sizes are in mm, not inches.
     """
 
-    xsize = triset[:, 1:, 0].ptp()
+    xsize = triangles[:, 1:, 0].ptp()
     if xsize > 140:
-        triset = triset * 140 / float(xsize)
+        triangles = triangles * 140 / float(xsize)
 
-    ysize = triset[:, 1:, 1].ptp()
+    ysize = triangles[:, 1:, 1].ptp()
     if ysize > 140:
-        triset = triset * 140 / float(ysize)
+        triangles = triangles * 140 / float(ysize)
 
-    zsize = triset[:, 1:, 2].ptp()
+    zsize = triangles[:, 1:, 2].ptp()
     if zsize > 100:
-        triset = triset * 100 / float(zsize)
+        triangles = triangles * 100 / float(zsize)
 
-    return triset
+    return triangles
 
 
-def get_cross(triset):
+def reflect_triangles(triangles):
     """
-    Set the normal vector for each triangle.
+    Reflect a triangle mesh about the z axis.
 
-    This is necessary for some 3D printing software, including MakerWare.
-    """
-
-    t1 = triset[:, :, 1]
-    t2 = triset[:, :, 2]
-    t3 = triset[:, :, 3]
-    v1 = t2 - t1
-    v2 = t3 - t1
-    triset[:, :, 0] = np.cross(v1, v2)
-
-    return triset
-
-
-def reflect_mesh(triset):
-    """
-    Reflect mesh around the z axis.
-
-    Parameters
-    ----------
-    triset : `~numpy.ndarray` (Nx4x3)
-        A array of triangles (normals and vertices).
-
-    Returns
-    -------
-    result : `~numpy.ndarray` (Nx4x3)
-        The refected meshes.
-
-    Notes
-    -----
     The triangle vertices are reflected about the z axis and then
     reordered such that the triangle normal is consistent with the
     right-hand rule.  The triangle normal is also reflected about the z
     axis.  All of these steps are required to properly reflect the mesh.
-    """
-
-    triset2 = triset.copy()
-    triset2[:, 0, 2] = -triset2[:, 0, 2]         # reflect normal about z axis
-    triset2[:, 1:, 2] = -triset2[:, 1:, 2]       # reflect z vertices
-    triset2[:, 1:, :] = triset2[:, 1:, :][:, ::-1]   # reorder vertices
-    return triset2
-
-
-def write_mesh(image, filename_prefix, depth=1, double_sided=False,
-               stl_format='binary', clobber=False):
-    """
-    Write an image to a STL file by splitting each pixel into two
-    triangles.
 
     Parameters
     ----------
-    image : ndarray
-        The image to convert.
+    triangles : Nx4x3 `~numpy.ndarray`
+        An array of normal vectors and vertices for a set of triangles.
 
-    filename_prefix : str
-        The prefix of output file. ``'.stl'`` is automatically appended.
-
-    depth : int
-        The depth of the back plate. Should probably be between
-        10 and 30. A thicker plate gives greater stability, but
-        uses more material and has a longer build time.
-        For writing JPG or PNG images, a depth of 10 probably
-        suffices.
-
-    double_sided : bool
-        Set to `True` for a double-sided model, which will be a simple
-        reflection.
-
-    stl_format : {'binary', 'ascii'}
-        Format for the output STL file.  The default is 'binary'.  The
-        binary STL file is harder to debug, but takes up less storage
-        space.
-
-    clobber : bool, optional
-        Set to `True` to overwrite any existing file.
+    Returns
+    -------
+    result : Nx4x3 `~numpy.ndarray`
+        The refected triangles.
     """
 
-    if isinstance(image, np.ma.core.MaskedArray):
-        npimage = deepcopy(image.data)
-    else:
-        npimage = deepcopy(image)
-
-    triset = get_triangles(npimage, depth)
-
-    if double_sided:
-        triset = np.concatenate((triset, reflect_mesh(triset)))
-
-    if stl_format == 'binary':
-        write_func = write_binary
-    elif stl_format == 'ascii':
-        write_func = write_ascii
-    else:
-        raise ValueError('stl_format must be "binary" or "ascii"')
-
-    filename = filename_prefix + '.stl'
-    if os.path.exists(filename) and not clobber:
-        raise IOError('File "{0}" already exists. Use clobber=True to '
-                      'overwrite'.format(filename))
-    else:
-        write_func(triset, filename)
-        log.info('Saved "{0}"'.format(filename))
+    triangles2 = np.copy(triangles)
+    triangles2[:, 0, 2] = -triangles2[:, 0, 2]   # reflect normal about z axis
+    triangles2[:, 1:, 2] = -triangles2[:, 1:, 2]      # reflect z vertices
+    triangles2[:, 1:, :] = triangles2[:, 1:, :][:, ::-1]   # reorder vertices
+    return triangles2
 
 
-def write_binary(triset, filename):
+def write_binary_stl(triangles, filename):
     """
     Write a binary STL file.
 
     Parameters
     ----------
-    triset : ndarray
-        A set of triangles and normal vectors.
+    triangles : Nx4x3 `~numpy.ndarray`
+        An array of normal vectors and vertices for a set of triangles.
 
     filename : str
-        Output filename.
+        The output filename.
     """
 
-    triset = triset.astype('<f4')
-    triset = triset.reshape((triset.shape[0], 12))
-    buff = np.zeros((triset.shape[0],), dtype=('f4,'*12+'i2'))
+    triangles = triangles.astype('<f4')
+    triangles = triangles.reshape((triangles.shape[0], 12))
+    buff = np.zeros((triangles.shape[0],), dtype=('f4,'*12+'i2'))
 
-    for n in range(12):    # Fills in array by column
+    for n in range(12):    # fill in array by columns
         col = 'f' + str(n)
-        buff[col] = triset[:, n]
+        buff[col] = triangles[:, n]
 
-    # Took the header straight from stl.py
     strhdr = "binary STL format"
     strhdr += (80-len(strhdr))*" "
     ntri = len(buff)
@@ -280,18 +276,22 @@ def write_binary(triset, filename):
         buff.tofile(f)
 
 
-def write_ascii(triset, filename):
+def write_ascii_stl(triangles, filename):
     """
-    Like :func:`write_binary` but in ASCII format.
+    Write an ASCII STL file.
 
-    .. note::
+    Parameters
+    ----------
+    triangles : Nx4x3 `~numpy.ndarray`
+        An array of normal vectors and vertices for a set of triangles.
 
-        Recommended for debugging only.
+    filename : str
+        The output filename.
     """
 
     with open(filename, 'w') as f:
-        f.write("solid bozo\n")
-        for t in triset:
+        f.write("solid model\n")
+        for t in triangles:
             f.write("facet normal %e %e %e\n" % tuple(t[0]))
             f.write("\touter loop\n")
             f.write("\t\tvertex %e %e %e\n" % tuple(t[1]))
@@ -299,43 +299,54 @@ def write_ascii(triset, filename):
             f.write("\t\tvertex %e %e %e\n" % tuple(t[3]))
             f.write("\tendloop\n")
             f.write("endfacet\n")
-        f.write("endsolid bozo")
+        f.write("endsolid model")
 
 
-def read_binary(filename):
+def write_mesh(image, filename_prefix, double_sided=False,
+               stl_format='binary', clobber=False):
     """
-    Read binary STL file.
-
-    http://sukhbinder.wordpress.com/2013/11/28/binary-stl-file-reader-in-python-powered-by-numpy/
+    Write an image to a STL file by splitting each pixel into two
+    triangles.
 
     Parameters
     ----------
-    filename : str
+    image : `~numpy.ndarray`
+        The image to convert.
 
-    Returns
-    -------
-    header, normals, points, v1, v2, v3
+    filename_prefix : str
+        The prefix of output file. ``'.stl'`` is automatically appended.
+
+    double_sided : bool, optional
+        Set to `True` for a double-sided model, which will be a simple
+        reflection.
+
+    stl_format : {'binary', 'ascii'}, optional
+        Format for the output STL file.  The default is 'binary'.  The
+        binary STL file is harder to debug, but takes up less storage
+        space.
+
+    clobber : bool, optional
+        Set to `True` to overwrite any existing file.
     """
 
-    with open(filename, 'rb') as fp:
-        header = fp.read(80)
-        nn = fp.read(4)
-        numtri = unpack('i', nn)[0]
-        record_dtype = np.dtype(
-            [('normals', np.float32, (3, )),
-             ('Vertex1', np.float32, (3, )),
-             ('Vertex2', np.float32, (3, )),
-             ('Vertex3', np.float32, (3, )),
-             ('atttr', '<i2', (1, ))])
-        data = np.fromfile(fp, dtype=record_dtype, count=numtri)
+    if isinstance(image, np.ma.core.MaskedArray):
+        image = deepcopy(image.data)
 
-    normals = data['normals']
-    v1 = data['Vertex1']
-    v2 = data['Vertex2']
-    v3 = data['Vertex3']
+    triangles = make_triangles(image)
+    if double_sided:
+        triangles = np.concatenate((triangles, reflect_triangles(triangles)))
 
-    p = np.append(v1, v2, axis=0)
-    p = np.append(p, v3, axis=0)
-    points = np.array(list(set(tuple(p1) for p1 in p)))
+    if stl_format == 'binary':
+        write_func = write_binary_stl
+    elif stl_format == 'ascii':
+        write_func = write_ascii_stl
+    else:
+        raise ValueError('stl_format must be "binary" or "ascii"')
 
-    return header, normals, points, v1, v2, v3
+    filename = filename_prefix + '.stl'
+    if os.path.exists(filename) and not clobber:
+        raise IOError('File "{0}" already exists. Use clobber=True to '
+                      'overwrite'.format(filename))
+    else:
+        write_func(triangles, filename)
+        log.info('Saved "{0}"'.format(filename))
