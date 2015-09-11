@@ -20,8 +20,6 @@ class MainWindow(GTK_MainWindow):
 
         # Setup signals
         self.image_viewer.set_callback('drag-drop', self.drop_file)
-        self.wopen.clicked.connect(self.open_file)
-        self.wquit.clicked.connect(self.signals.Quit)
         self.signals.Quit.connect(self.quit)
         self.signals.NewImage.connect(self.image_update)
         self.signals.UpdateMesh.connect(self.mesh_viewer.update_mesh)
@@ -44,23 +42,26 @@ class MainWindow(GTK_MainWindow):
         for w in (image_viewer_widget, mesh_viewer):
             viewer_hbox.addWidget(w, stretch=1)
 
-        # Main buttons
-        wopen = QtGui.QPushButton("Open File")
-        self.wopen = wopen
-        wquit = QtGui.QPushButton("Quit")
-        self.wquit = wquit
+        # Menu Bar
+        quit_action = QtGui.QAction('&Quit', self)
+        quit_action.setStatusTip('Quit application')
+        quit_action.triggered.connect(self.signals.Quit)
 
-        button_hbox = QtGui.QHBoxLayout()
-        button_hbox.setContentsMargins(QtCore.QMargins(4, 2, 4, 2))
-        button_hbox.addStretch(1)
-        for w in (wopen, wquit):
-            button_hbox.addWidget(w, stretch=0)
+        open_action = QtGui.QAction('&Open', self)
+        open_action.setShortcut(QtGui.QKeySequence.Open)
+        open_action.setStatusTip('Open image')
+        open_action.triggered.connect(self.open_file)
+
+        menubar = self.menuBar()
+        file_menu = menubar.addMenu('&File')
+        file_menu.addAction(open_action)
+        file_menu.addAction(quit_action)
 
         # Window
         vbox = QtGui.QVBoxLayout()
         vbox.setContentsMargins(QtCore.QMargins(2, 2, 2, 2))
         vbox.setSpacing(1)
-        for w in (viewer_hbox, button_hbox):
+        for w in (viewer_hbox,):
             hw = QtGui.QWidget()
             hw.setLayout(w)
             vbox.addWidget(hw)
