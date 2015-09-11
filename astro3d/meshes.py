@@ -56,7 +56,7 @@ def make_triangles(image, center_model=True):
         triangles[:, 1:, 0] -= (nx - 1) / 2.
         triangles[:, 1:, 1] -= (ny - 1) / 2.
 
-    return normalize_triangles(triangles)
+    return scale_triangles(triangles, x_size=275)
 
 
 def make_side_triangles(side_vertices, flip_order=False):
@@ -188,31 +188,34 @@ def calculate_normals(triangles):
     return np.cross(vec1, vec2)
 
 
-# TODO
-def normalize_triangles(triangles):
+def scale_triangles(triangles, x_size=275):
     """
-    Ensure model can fit on MakerBot plate.
+    Uniformly xcale triangles such that the model ``x`` axis has a
+    maximum size of ``x_size`` mm.
 
-    .. note::
+    The maximum sizes for the MakerBot 2 printer are:
+        ``x``: 275 mm
+        ``y``: 143 mm
+        ``z``: 150 mm
 
-        The sizing may be off when using different software
-        or a different printer.
+    Parameters
+    ---------
+    triangles : Nx4x3 `~numpy.ndarray`
+        An array of normal vectors and vertices for a set of triangles.
 
-        All sizes are in mm, not inches.
+    x_size : int, optional
+        The maximum x size of the model in mm.
+
+    Returns
+    -------
+    triangles : Nx4x3 `~numpy.ndarray`
+        The scaled triangles.
     """
 
-    xsize = triangles[:, 1:, 0].ptp()
-    if xsize > 140:
-        triangles = triangles * 140 / float(xsize)
-
-    ysize = triangles[:, 1:, 1].ptp()
-    if ysize > 140:
-        triangles = triangles * 140 / float(ysize)
-
-    zsize = triangles[:, 1:, 2].ptp()
-    if zsize > 100:
-        triangles = triangles * 100 / float(zsize)
-
+    model_xsize = triangles[:, 1:, 0].ptp()
+    if model_xsize > x_size:
+        scale = float(x_size / model_xsize)
+        triangles[:, 1:, :] *= scale
     return triangles
 
 
