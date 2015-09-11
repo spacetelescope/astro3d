@@ -1,19 +1,16 @@
 """astro3d UI Application
 """
+from __future__ import absolute_import
+
 import sys
 import logging
 
 from ginga import AstroImage
 
-from .util.signal_slot import Signal
-from .gui import (Controller, MainWindow, Model)
+from .gui import (Controller, MainWindow, Model, signals as sig)
 from .gui.start_ui_app import start_ui_app
 
 STD_FORMAT = '%(asctime)s | %(levelname)1.1s | %(filename)s:%(lineno)d (%(funcName)s) | %(message)s'
-
-
-class Signals(object):
-    """Container for signals"""
 
 
 class Application(Controller):
@@ -33,14 +30,11 @@ class Application(Controller):
         self.logger = logger
 
         # Setup the connections.
-        self.signals = Signals()
-        self.signals.open_file = Signal(logger, self.open_file)
-        self.signals.quit = Signal(logger, self.quit)
-        self.signals.new_image = Signal(logger)
-        self.signals.model_update = Signal(logger, self.process)
-        self.signals.process_start = Signal(logger)
-        self.signals.process_finish = Signal(logger, self.process_finish)
-        self.signals.update_mesh = Signal(logger)
+        self.signals = sig.Signals(signal_class=sig.Signal, logger=logger)
+        self.signals.Quit.connect(self.quit)
+        self.signals.OpenFile.connect(self.open_file)
+        self.signals.ModelUpdate.connect(self.process)
+        self.signals.ProcessFinish.connect(self.process_finish)
 
         if self.__class__.ui_app is None:
             self.__class__.ui_app = start_ui_app(argv)
@@ -54,7 +48,7 @@ class Application(Controller):
     def open_file(self, filepath):
         image = AstroImage.AstroImage(logger=self.logger)
         image.load_file(filepath)
-        self.signals.new_image(image)
+        self.signals.NewImage(image)
 
     def quit(self, *args):
         self.logger.debug("Attempting to shut down the application...")
@@ -62,12 +56,11 @@ class Application(Controller):
     def process(self, *args, **kwargs):
         """Do the processing."""
         self.logger.info('Starting processing...')
-        self.signals.process_start()
+        self.signals.ProcessStart()
 
     def process_finish(self, mesh):
         self.logger.info('3D generation completed.')
-        self.signals.update_mesh(mesh)
-
+        self.signals.UpdateMesh(mesh)
 
 
 def main():

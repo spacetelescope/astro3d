@@ -20,6 +20,7 @@ __all__ = ['Signal',
            'Signals',
            'SignalsNotAClass']
 
+
 class Signal(object):
     def __init__(self, logger=None, *args):
         """Setup a signal
@@ -45,13 +46,17 @@ class Signal(object):
 
     def __call__(self, *args, **kwargs):
         # Call handler functions
-        self.logger.debug('Emitting with args:"{}", kwargs:"{}"'.format(args, kwargs))
+        self.logger.debug(
+            'Emitting with args:"{}", kwargs:"{}"'.format(args, kwargs)
+        )
         to_be_removed = []
         for func in self._functions.copy():
             try:
                 func(*args, **kwargs)
             except RuntimeError:
-                Warning.warn('Signals func->RuntimeError: func "{}" will be removed.'.format(func))
+                Warning.warn(
+                    'Signals func->RuntimeError: func "{}" will be removed.'.format(func)
+                )
                 to_be_removed.append(func)
 
         for remove in to_be_removed:
@@ -65,7 +70,9 @@ class Signal(object):
                 try:
                     func(obj, *args, **kwargs)
                 except RuntimeError:
-                    warnings.warn('Signals methods->RuntimeError, obj.func "{}.{}" will be removed'.format(obj, func))
+                    warnings.warn(
+                        'Signals methods->RuntimeError, obj.func "{}.{}" will be removed'.format(obj, func)
+                    )
                     to_be_removed.append((obj, func))
 
         for obj, func in to_be_removed:
@@ -129,9 +136,9 @@ class Signals(dict):
                 return self[signal]
         raise KeyError('{}'.format(key))
 
-    def add(self, signal_class):
+    def add(self, signal_class, *args, **kwargs):
         if inspect.isclass(signal_class):
-            self.__setitem__(signal_class, signal_class())
+            self.__setitem__(signal_class, signal_class(*args, **kwargs))
         else:
             raise SignalsNotAClass
 

@@ -17,8 +17,8 @@ class Model(object):
         self.logger = logger
 
         self.signals = signals
-        self.signals.new_image.connect(self.set_image)
-        self.signals.process_start.connect(self.process)
+        self.signals.NewImage.connect(self.set_image)
+        self.signals.ProcessStart.connect(self.process)
 
     def set_image(self, image):
         """Set the image
@@ -29,7 +29,7 @@ class Model(object):
             The image to make the model from.
         """
         self.image = image
-        self.signals.model_update()
+        self.signals.ModelUpdate()
 
     def process(self):
         """Create the 3D model."""
@@ -51,4 +51,4 @@ class Model(object):
         triset = get_triangles(m.data)
         if m.double_sided:
             triset = concatenate((triset, reflect_mesh(triset)))
-        self.signals.process_finish(triset)
+        self.signals.ProcessFinish(triset)

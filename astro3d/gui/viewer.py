@@ -21,10 +21,10 @@ class MainWindow(GTK_MainWindow):
         # Setup signals
         self.image_viewer.set_callback('drag-drop', self.drop_file)
         self.wopen.clicked.connect(self.open_file)
-        self.wquit.clicked.connect(self.signals.quit)
-        self.signals.quit.connect(self.quit)
-        self.signals.new_image.connect(self.image_update)
-        self.signals.update_mesh.connect(self.mesh_viewer.update_mesh)
+        self.wquit.clicked.connect(self.signals.Quit)
+        self.signals.Quit.connect(self.quit)
+        self.signals.NewImage.connect(self.image_update)
+        self.signals.UpdateMesh.connect(self.mesh_viewer.update_mesh)
 
     def _build_gui(self):
         """Construct the app's GUI"""
@@ -77,11 +77,11 @@ class MainWindow(GTK_MainWindow):
         else:
             filename = str(res)
         if len(filename) != 0:
-            self.signals.open_file(filename)
+            self.signals.OpenFile(filename)
 
     def drop_file(self, viewer, paths):
         filename = paths[0]
-        self.signals.open_file(filename)
+        self.signals.OpenFile(filename)
 
     def image_update(self, image):
         """Image has updated.
