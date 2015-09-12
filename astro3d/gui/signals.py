@@ -58,6 +58,10 @@ class ModelUpdate(Signal):
     """Update mesh model"""
 
 
+class ModeChange(Signal):
+    """Model mode change"""
+
+
 # GUI events
 class UpdateMesh(Signal):
     """Update Mesh view"""

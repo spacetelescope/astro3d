@@ -58,11 +58,30 @@ class MainWindow(GTK_MainWindow):
         file_menu.addAction(open_action)
         file_menu.addAction(quit_action)
 
+        # Modes
+        mode_list = (
+            'Textures',
+            'Intensity',
+            'Spiral Galaxy',
+            'Double sided'
+        )
+        modes = QtGui.QListWidget()
+        modes.itemClicked.connect(self.mode_change)
+        for mode in mode_list:
+            item = QtGui.QListWidgetItem(mode, modes)
+            item.setFlags(QtCore.Qt.ItemIsUserCheckable)
+            item.setCheckState(QtCore.Qt.Unchecked)
+
+        # Modifier region
+        modifier_hbox = QtGui.QHBoxLayout()
+        for w in (modes,):
+            modifier_hbox.addWidget(w)
+
         # Window
         vbox = QtGui.QVBoxLayout()
         vbox.setContentsMargins(QtCore.QMargins(2, 2, 2, 2))
         vbox.setSpacing(1)
-        for w in (viewer_hbox,):
+        for w in (viewer_hbox, modifier_hbox):
             hw = QtGui.QWidget()
             hw.setLayout(w)
             vbox.addWidget(hw)
@@ -70,6 +89,17 @@ class MainWindow(GTK_MainWindow):
         vw = QtGui.QWidget()
         self.setCentralWidget(vw)
         vw.setLayout(vbox)
+
+    def mode_change(self, mode):
+        self.logger.debug('mode_change: mode="{}"'.format(mode))
+        state = mode.checkState()
+        if state == QtCore.Qt.Checked:
+            mode.setCheckState(QtCore.Qt.Unchecked)
+            state = False
+        else:
+            mode.setCheckState(QtCore.Qt.Checked)
+            state = True
+        self.signals.ModeChange(mode.text(), state)
 
     def open_file(self):
         res = QtGui.QFileDialog.getOpenFileName(self, "Open FITS file",

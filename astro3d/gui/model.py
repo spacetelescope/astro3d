@@ -33,8 +33,26 @@ class Model(object):
         self.signals.ProcessStart.connect(self.thread_process)
         self.signals.ProcessForceQuit.connect(self.process_force_quit)
         self.signals.Quit.connect(self.process_force_quit)
+        self.signals.ModeChange.connect(self.mode_change)
 
         self.mesh_thread = None
+
+        self.has_textures = False
+        self.has_intensity = False
+        self.spiral_galaxy = False
+        self.double_sided = False
+
+    def mode_change(self, mode, state):
+        self.logger.debug('mode_change: mode="{}" state="{}"'.format(mode, state))
+        if mode == 'Textures':
+            self.has_textures = state
+        elif mode == 'Intensity':
+            self.has_intensity = state
+        elif mode == 'Spiral Galaxy':
+            self.spiral_galaxy = state
+        elif mode == 'Double sided':
+            self.double_sided = state
+        self.signals.ModelUpdate()
 
     def set_image(self, image):
         """Set the image
@@ -59,10 +77,10 @@ class Model(object):
 
         m.read_stellar_table('features/ngc3344_clusters.txt', 'star_clusters')
 
-        m.has_textures = True
-        m.has_intensity = True
-        m.spiral_galaxy = True
-        m.double_sided = False
+        m.has_textures = self.has_textures
+        m.has_intensity = self.has_intensity
+        m.spiral_galaxy = self.spiral_galaxy
+        m.double_sided = self.double_sided
 
         m.make()
 
