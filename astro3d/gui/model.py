@@ -32,6 +32,7 @@ class Model(object):
         self.signals.NewImage.connect(self.set_image)
         self.signals.ProcessStart.connect(self.thread_process)
         self.signals.ProcessForceQuit.connect(self.process_force_quit)
+        self.signals.Quit.connect(self.process_force_quit)
 
         self.mesh_thread = None
 
