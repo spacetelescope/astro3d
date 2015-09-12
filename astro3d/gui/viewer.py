@@ -23,6 +23,7 @@ class MainWindow(GTK_MainWindow):
         self.signals.Quit.connect(self.quit)
         self.signals.NewImage.connect(self.image_update)
         self.signals.UpdateMesh.connect(self.mesh_viewer.update_mesh)
+        self.signals.ProcessStart.connect(self.mesh_viewer.process)
 
     def _build_gui(self):
         """Construct the app's GUI"""

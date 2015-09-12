@@ -18,14 +18,16 @@ class ViewMesh(GLViewWidget):
         self.grid = grid
         self.mesh_item = None
 
-    def update_mesh(self, mesh):
-        if self.mesh_item is not None:
-            self.removeItem(self.mesh_item)
+    def process(self):
+        """Display while new mesh is processing"""
+        self.remove_mesh()
 
+    def update_mesh(self, mesh):
+        self.remove_mesh()
         scaling = mesh[:, 1:].max(axis=0)[0]
         distance = sqrt(scaling[0]**2 + scaling[1]**2)
 
-        self.grid.setSize(x=scaling[0] * 2, y = scaling[1] * 2)
+        self.grid.setSize(x=scaling[0] * 2, y=scaling[1] * 2)
 
         mesh_data = MeshData(vertexes=mesh[:, 1:, :])
         mesh_item = GLMeshItem(meshdata=mesh_data,
@@ -37,3 +39,11 @@ class ViewMesh(GLViewWidget):
         self.setCameraPosition(distance=distance, azimuth=45, elevation=45)
         self.addItem(mesh_item)
         self.mesh_item = mesh_item
+
+    def remove_mesh(self):
+        """Remove the current mesh from display"""
+        try:
+            self.removeItem(self.mesh_item)
+        except ValueError:
+            pass
+        self.mesh_item = None

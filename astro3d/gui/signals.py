@@ -41,6 +41,10 @@ class ProcessFinish(Signal):
     """Mesh processing complete"""
 
 
+class ProcessForceQuit(Signal):
+    """Force quit mesh processing"""
+
+
 # Data Manipulation
 class OpenFile(Signal):
     """Open a new data file"""
