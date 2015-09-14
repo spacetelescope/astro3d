@@ -47,7 +47,11 @@ class Signal(object):
     def __call__(self, *args, **kwargs):
         # Call handler functions
         self.logger.debug(
-            'Emitting with args:"{}", kwargs:"{}"'.format(args, kwargs)
+            'Signal {}: Emitting with args:"{}", kwargs:"{}"'.format(
+                self.__class__.__name__,
+                args,
+                kwargs
+            )
         )
         to_be_removed = []
         for func in self._functions.copy():
@@ -55,7 +59,10 @@ class Signal(object):
                 func(*args, **kwargs)
             except RuntimeError:
                 Warning.warn(
-                    'Signals func->RuntimeError: func "{}" will be removed.'.format(func)
+                    'Signal {}: Signals func->RuntimeError: func "{}" will be removed.'.format(
+                        self.__class__.__name_,
+                        func
+                    )
                 )
                 to_be_removed.append(func)
 
@@ -71,7 +78,11 @@ class Signal(object):
                     func(obj, *args, **kwargs)
                 except RuntimeError:
                     warnings.warn(
-                        'Signals methods->RuntimeError, obj.func "{}.{}" will be removed'.format(obj, func)
+                        'Signal {}: Signals methods->RuntimeError, obj.func "{}.{}" will be removed'.format(
+                            self.__class__.__new__,
+                            obj,
+                            func
+                        )
                     )
                     to_be_removed.append((obj, func))
 
@@ -79,7 +90,12 @@ class Signal(object):
             self._methods[obj].discard(func)
 
     def connect(self, slot):
-        self.logger.debug('Connecting slot:"{}"'.format(slot))
+        self.logger.debug(
+            'Signal {}: Connecting slot:"{}"'.format(
+                self.__class__.__name__,
+                slot
+            )
+        )
         if inspect.ismethod(slot):
             if slot.__self__ not in self._methods:
                 self._methods[slot.__self__] = set()
@@ -90,7 +106,12 @@ class Signal(object):
             self._functions.add(slot)
 
     def disconnect(self, slot):
-        self.logger.debug('Disconnecting slot:"{}"'.format(slot))
+        self.logger.debug(
+            'Signal {}: Disconnecting slot:"{}"'.format(
+                self.__class__.__name__,
+                slot
+            )
+        )
         if inspect.ismethod(slot):
             if slot.__self__ in self._methods:
                 self._methods[slot.__self__].remove(slot.__func__)
@@ -99,7 +120,11 @@ class Signal(object):
                 self._functions.remove(slot)
 
     def clear(self):
-        self.logger.debug('Clearing slots')
+        self.logger.debug(
+            'Signal {}: Clearing slots'.format(
+                self.__class__.__name__
+            )
+        )
         self._functions.clear()
         self._methods.clear()
 

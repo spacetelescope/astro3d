@@ -6,22 +6,22 @@ from ..util import signal_slot
 from ..util.register_leaf_classes import (RegisterLeafClasses)
 
 
+@six.add_metaclass(RegisterLeafClasses)
+class Signal(signal_slot.Signal):
+    '''Specview signals'''
+
+
 class Signals(signal_slot.Signals):
     '''The signal container that allows autoregistring of a
     set of predefined signals.
     '''
-    def __init__(self, signal_class=None, logger=None):
+    def __init__(self, signal_class=Signal, logger=None):
         super(Signals, self).__init__()
         if signal_class is not None:
             with warnings.catch_warnings():
                 warnings.simplefilter('ignore')
                 for signal in signal_class:
                     self.add(signal, logger)
-
-
-@six.add_metaclass(RegisterLeafClasses)
-class Signal(signal_slot.Signal):
-    '''Specview signals'''
 
 
 # Specific Signal Definitions
