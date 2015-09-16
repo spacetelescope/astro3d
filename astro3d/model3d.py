@@ -216,9 +216,8 @@ class Model3D(object):
 
         if data.ndim == 3:    # RGB cube
             # TODO: interpolate over non-finite values?
-            # TODO: improve RGB to grayscale conversion
             data[~np.isfinite(data)] = 0.
-            data = data.sum(axis=0)
+            data = data[0] * 0.299 + data[1] * 0.587 + data[2] * 0.144
 
         return cls(data)
 
