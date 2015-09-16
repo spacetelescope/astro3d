@@ -951,8 +951,9 @@ class Model3D(object):
                     base_height = cusp_model.base_height
 
                     yy, xx = np.indices(self.data.shape)
+                    self._cusp_texture_layer = cusp_model(xx, yy)
                     self.data = textures.apply_textures(
-                        self.data, cusp_model(xx, yy))
+                        self.data, self._cusp_texture_layer)
                     log.info('Placed cusp texture at the galaxy center.')
 
                 return base_height
