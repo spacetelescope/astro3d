@@ -5,6 +5,7 @@ from copy import deepcopy
 import warnings
 from PIL import Image
 import numpy as np
+from astropy.convolution import convolve
 from astropy import log
 from astropy.utils.exceptions import AstropyUserWarning
 
@@ -24,11 +25,25 @@ def remove_nonfinite(data):
         The array with non-finite values removed.
     """
 
-    # TODO: interpolate over non-finite values -
-    # simply setting to zero is not optimal!
-    data_out = deepcopy(np.asanyarray(data))
-    data_out[~np.isfinite(data_out)] = 0.
-    return data_out
+    mask = ~np.isfinite(data)
+
+    if np.any(mask):
+        # use astropy's convolve as a 5x5 mean filter that ignores nans
+        # (in regions that are smaller than 5x5)
+        data_out = deepcopy(np.asanyarray(data))
+        data_out[mask] = np.nan
+        filt = np.ones((5, 5))
+        data_conv = convolve(data_out, filt) / filt.sum()
+        data_out[mask] = data_conv[mask]
+
+        # if there any non-finite values left (e.g. contiguous non-finite
+        # regions larger than the filter size), then simply set them to zero.
+        # For example, RGB FITS files appear to assign nan to large regions
+        # of zero weight (as a coverage mask).
+        data_out[~np.isfinite(data_out)] = 0.
+        return data_out
+    else:
+        return data
 
 
 def resize_image(data, scale_factor):
