@@ -1,7 +1,10 @@
 """Main UI Viewer
 """
 
+from attrdict import AttrDict
+
 from ..external.qt import (QtGui, QtCore)
+from ..external.qt.QtCore import Qt
 from ..external.qt.QtGui import QMainWindow as GTK_MainWindow
 from qt4 import (ViewImage, ViewMesh)
 
@@ -18,7 +21,7 @@ class MainWindow(GTK_MainWindow):
         self.signals = signals
         self._build_gui()
 
-        # Setup signals
+        # Application signals
         self.image_viewer.set_callback('drag-drop', self.drop_file)
         self.signals.Quit.connect(self.quit)
         self.signals.NewImage.connect(self.image_update)
@@ -28,35 +31,24 @@ class MainWindow(GTK_MainWindow):
     def _build_gui(self):
         """Construct the app's GUI"""
 
-        # Content
+        ####
+        # Setup main content views
+        ####
+
+        # Image View
         image_viewer = ViewImage(self.logger)
-        image_viewer_widget = image_viewer.get_widget()
-        image_viewer_widget.resize(512, 512)
         self.image_viewer = image_viewer
+        image_viewer_widget = image_viewer.get_widget()
+        self.setCentralWidget(image_viewer_widget)
 
-        mesh_viewer = ViewMesh()
-        mesh_viewer.resize(512, 512)
-        self.mesh_viewer = mesh_viewer
+        # 3D mesh preview
+        self.mesh_viewer = ViewMesh()
 
-        # Viewers
-        viewer_hbox = QtGui.QHBoxLayout()
-        for w in (image_viewer_widget, mesh_viewer):
-            viewer_hbox.addWidget(w, stretch=1)
-
-        # Menu Bar
-        quit_action = QtGui.QAction('&Quit', self)
-        quit_action.setStatusTip('Quit application')
-        quit_action.triggered.connect(self.signals.Quit)
-
-        open_action = QtGui.QAction('&Open', self)
-        open_action.setShortcut(QtGui.QKeySequence.Open)
-        open_action.setStatusTip('Open image')
-        open_action.triggered.connect(self.open_file)
-
-        menubar = self.menuBar()
-        file_menu = menubar.addMenu('&File')
-        file_menu.addAction(open_action)
-        file_menu.addAction(quit_action)
+        # Setup all the auxiliary gui.
+        self._create_actions()
+        self._create_menus()
+        self._create_toolbars()
+        self._create_statusbar()
 
         # Modes
         mode_list = (
@@ -70,14 +62,16 @@ class MainWindow(GTK_MainWindow):
         for mode in mode_list:
             item = QtGui.QListWidgetItem(mode, modes)
             item.setFlags(QtCore.Qt.ItemIsUserCheckable)
-            item.setCheckState(QtCore.Qt.Unchecked)
+            item.setCheckState(QtCore.Qt.Checked)
 
         # Modifier region
         modifier_hbox = QtGui.QHBoxLayout()
         for w in (modes,):
             modifier_hbox.addWidget(w)
 
-        # Window
+        # Setup main window.
+
+        """
         vbox = QtGui.QVBoxLayout()
         vbox.setContentsMargins(QtCore.QMargins(2, 2, 2, 2))
         vbox.setSpacing(1)
@@ -89,6 +83,7 @@ class MainWindow(GTK_MainWindow):
         vw = QtGui.QWidget()
         self.setCentralWidget(vw)
         vw.setLayout(vbox)
+        """
 
     def mode_change(self, mode):
         self.logger.debug('mode_change: mode="{}"'.format(mode))
@@ -130,3 +125,43 @@ class MainWindow(GTK_MainWindow):
         """Shutdown"""
         self.logger.debug('GUI shutting down...')
         self.deleteLater()
+
+    def _create_actions(self):
+        """Setup the main actions"""
+        self.actions = AttrDict()
+
+        quit = QtGui.QAction('&Quit', self)
+        quit.setStatusTip('Quit application')
+        quit.triggered.connect(self.signals.Quit)
+        self.actions.quit = quit
+
+        open = QtGui.QAction('&Open', self)
+        open.setShortcut(QtGui.QKeySequence.Open)
+        open.setStatusTip('Open image')
+        open.triggered.connect(self.open_file)
+        self.actions.open = open
+
+        preview_toggle = QtGui.QAction('Mesh View', self)
+        preview_toggle.setStatusTip('Open mesh view panel')
+        preview_toggle.setCheckable(True)
+        preview_toggle.setChecked(False)
+        preview_toggle.toggled.connect(self.mesh_viewer.toggle_view)
+        self.mesh_viewer.closed.connect(preview_toggle.setChecked)
+        self.actions.preview_toggle = preview_toggle
+
+    def _create_menus(self):
+        """Setup the main menus"""
+        menubar = self.menuBar()
+
+        file_menu = menubar.addMenu('&File')
+        file_menu.addAction(self.actions.open)
+        file_menu.addAction(self.actions.quit)
+
+        view_menu = menubar.addMenu('&View')
+        view_menu.addAction(self.actions.preview_toggle)
+
+    def _create_toolbars(self):
+        """Setup the main toolbars"""
+
+    def _create_statusbar(self):
+        """Setup the status bar"""

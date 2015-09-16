@@ -1,5 +1,8 @@
 from math import sqrt
 
+from ...external.qt import (QtGui, QtCore)
+from ...external.qt.QtCore import Qt
+
 from pyqtgraph.opengl import (GLGridItem, GLMeshItem, GLViewWidget, MeshData)
 
 
@@ -9,9 +12,11 @@ __all__ = ['ViewMesh']
 class ViewMesh(GLViewWidget):
     """The 3D Mesh"""
 
+    closed = QtCore.pyqtSignal(bool)
+
     def __init__(self, *args, **kwargs):
         super(ViewMesh, self).__init__(*args, **kwargs)
-
+        self.setAttribute(Qt.WA_QuitOnClose, False)
         grid = GLGridItem()
         grid.scale(2, 2, 1)
         self.addItem(grid)
@@ -47,3 +52,15 @@ class ViewMesh(GLViewWidget):
         except ValueError:
             pass
         self.mesh_item = None
+
+    def toggle_view(self):
+        """Toggle this view"""
+        sender = self.sender()
+        self.setVisible(sender.isChecked())
+
+    def sizeHint(self):
+        return QtCore.QSize(512, 512)
+
+    def closeEvent(self, event):
+        self.closed.emit(False)
+        event.accept()

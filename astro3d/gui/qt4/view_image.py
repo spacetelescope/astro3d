@@ -1,13 +1,3 @@
-#! /usr/bin/env python
-#
-# example1_qt.py -- Simple, configurable FITS viewer.
-#
-# Eric Jeschke (eric@naoj.org)
-#
-# Copyright (c)  Eric R. Jeschke.  All rights reserved.
-# This is open-source software licensed under a BSD license.
-# Please see the file LICENSE.txt for details.
-#
 from ginga.qtw.ImageViewCanvasQt import ImageViewCanvas
 
 

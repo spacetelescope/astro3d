@@ -37,9 +37,9 @@ class Model(object):
 
         self.mesh_thread = None
 
-        self.has_textures = False
-        self.has_intensity = False
-        self.spiral_galaxy = False
+        self.has_textures = True
+        self.has_intensity = True
+        self.spiral_galaxy = True
         self.double_sided = False
 
     def mode_change(self, mode, state):
