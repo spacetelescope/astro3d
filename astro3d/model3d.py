@@ -215,9 +215,8 @@ class Model3D(object):
             raise ValueError('data is not a 2D image or a 3D RGB cube')
 
         if data.ndim == 3:    # RGB cube
-            # TODO: interpolate over non-finite values?
-            data[~np.isfinite(data)] = 0.
             data = data[0] * 0.299 + data[1] * 0.587 + data[2] * 0.144
+            data = image_utils.remove_nonfinite(data)
 
         return cls(data)
 
