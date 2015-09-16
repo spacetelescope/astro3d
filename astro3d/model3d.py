@@ -61,7 +61,7 @@ class Model3D(object):
 
     >>> # write the model to a STL file
     >>> filename_prefix = 'myobject'
-    >>> model.write_stl(prefix, split_model=True)
+    >>> model.write_stl(filename_prefix, split_model=True)
 
     >>> # write the texture and region masks to FITS files
     >>> model.write_all_masks(filename_prefix)
