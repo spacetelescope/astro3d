@@ -3,6 +3,8 @@
 
 from attrdict import AttrDict
 
+from ginga import AstroImage
+
 from ..util.logger import make_logger
 from ..external.qt import (QtGui, QtCore)
 from ..external.qt.QtCore import Qt
@@ -23,21 +25,15 @@ STAGES = {
 
 class MainWindow(GTK_MainWindow):
     """Main Viewer"""
-    def __init__(self, signals, logger=None, parent=None):
+    def __init__(self, model, signals, logger=None, parent=None):
         super(MainWindow, self).__init__(parent)
         if logger is None:
             logger = make_logger('astro3d viewer')
         self.logger = logger
+        self.model = model
         self.signals = signals
         self._build_gui()
-
-        # Application signals
-        self.image_viewer.set_callback('drag-drop', self.drop_file)
-        self.signals.Quit.connect(self.quit)
-        self.signals.NewImage.connect(self.image_update)
-        self.signals.UpdateMesh.connect(self.mesh_viewer.update_mesh)
-        self.signals.ProcessStart.connect(self.mesh_viewer.process)
-        self.signals.StageChange.connect(self.stagechange)
+        self._create_signals()
 
     def _build_gui(self):
         """Construct the app's GUI"""
@@ -96,19 +92,26 @@ class MainWindow(GTK_MainWindow):
         vw.setLayout(vbox)
         """
 
-    def open_file(self):
+    def path_from_dialog(self):
         res = QtGui.QFileDialog.getOpenFileName(self, "Open FITS file",
                                                 ".", "FITS files (*.fits)")
         if isinstance(res, tuple):
-            filename = res[0]
+            pathname = res[0]
         else:
-            filename = str(res)
-        if len(filename) != 0:
-            self.signals.OpenFile(filename)
+            pathname = str(res)
+        if len(pathname) != 0:
+            self.open_path(pathname)
 
-    def drop_file(self, viewer, paths):
-        filename = paths[0]
-        self.signals.OpenFile(filename)
+    def path_by_drop(self, viewer, paths):
+        pathname = paths[0]
+        self.open_path(pathname)
+
+    def open_path(self, pathname):
+        """Open the image from pathname"""
+        image = AstroImage.AstroImage(logger=self.logger)
+        image.load_file(pathname)
+        self.image_update(image)
+        self.signals.NewImage(image)
 
     def image_update(self, image):
         """Image has updated.
@@ -147,7 +150,7 @@ class MainWindow(GTK_MainWindow):
         open = QtGui.QAction('&Open', self)
         open.setShortcut(QtGui.QKeySequence.Open)
         open.setStatusTip('Open image')
-        open.triggered.connect(self.open_file)
+        open.triggered.connect(self.path_from_dialog)
         self.actions.open = open
 
         preview_toggle = QtGui.QAction('Mesh View', self)
@@ -186,3 +189,12 @@ class MainWindow(GTK_MainWindow):
 
     def _create_statusbar(self):
         """Setup the status bar"""
+
+    def _create_signals(self):
+        """Setup the overall signal structure"""
+        self.image_viewer.set_callback('drag-drop', self.path_by_drop)
+        self.signals.Quit.connect(self.quit)
+        self.signals.NewImage.connect(self.image_update)
+        self.signals.UpdateMesh.connect(self.mesh_viewer.update_mesh)
+        self.signals.ProcessStart.connect(self.mesh_viewer.process)
+        self.signals.StageChange.connect(self.stagechange)
