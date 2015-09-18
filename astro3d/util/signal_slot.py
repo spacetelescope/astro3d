@@ -13,8 +13,10 @@ License: MIT
 from __future__ import print_function
 import inspect
 import warnings
-import logging
 from weakref import WeakSet, WeakKeyDictionary
+
+from .logger import make_logger
+
 
 __all__ = ['Signal',
            'Signals',
@@ -36,10 +38,9 @@ class Signal(object):
         """
         self._functions = WeakSet()
         self._methods = WeakKeyDictionary()
-        if logger is not None:
-            self.logger = logger
-        else:
-            self.logger = logging.Logger('Signal')
+        if logger is None:
+            logger = make_logger('Signal')
+        self.logger = logger
 
         for arg in args:
             self.connect(arg)

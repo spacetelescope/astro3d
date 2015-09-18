@@ -12,6 +12,7 @@ from numpy import concatenate
 
 from ..core.model3d import Model3D
 from ..core.meshes import (get_triangles, reflect_mesh)
+from ..util.logger import make_logger
 
 
 __all__ = ['Model']
@@ -25,7 +26,9 @@ class Model(object):
 
     image = None
 
-    def __init__(self, signals, logger):
+    def __init__(self, signals, logger=None):
+        if logger is None:
+            logger = make_logger('astro3d model')
         self.logger = logger
 
         self.signals = signals
@@ -33,24 +36,25 @@ class Model(object):
         self.signals.ProcessStart.connect(self.thread_process)
         self.signals.ProcessForceQuit.connect(self.process_force_quit)
         self.signals.Quit.connect(self.process_force_quit)
-        self.signals.ModeChange.connect(self.mode_change)
+        self.signals.StageChange.connect(self.stagechange)
 
         self.mesh_thread = None
 
-        self.has_textures = True
-        self.has_intensity = True
-        self.spiral_galaxy = True
-        self.double_sided = False
+        self.signals.StageChange('textures', True)
+        self.signals.StageChange('intensity', True)
+        self.signals.StageChange('spiral_galaxy', True)
+        self.signals.StageChange('double_sided', False)
 
-    def mode_change(self, mode, state):
-        self.logger.debug('mode_change: mode="{}" state="{}"'.format(mode, state))
-        if mode == 'Textures':
+    def stagechange(self, stage, state):
+        self.logger.debug('stagechange: stage="{}" state="{}"'.format(stage, state))
+
+        if stage == 'textures':
             self.has_textures = state
-        elif mode == 'Intensity':
+        elif stage == 'intensity':
             self.has_intensity = state
-        elif mode == 'Spiral Galaxy':
+        elif stage == 'spiral_galaxy':
             self.spiral_galaxy = state
-        elif mode == 'Double sided':
+        elif stage == 'double_sided':
             self.double_sided = state
         self.signals.ModelUpdate()
 

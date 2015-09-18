@@ -3,6 +3,7 @@
 
 from attrdict import AttrDict
 
+from ..util.logger import make_logger
 from ..external.qt import (QtGui, QtCore)
 from ..external.qt.QtCore import Qt
 from ..external.qt.QtGui import QMainWindow as GTK_MainWindow
@@ -12,11 +13,20 @@ from qt4 import (ViewImage, ViewMesh)
 __all__ = ['MainWindow']
 
 
+STAGES = {
+    'Intensity':     'intensity',
+    'Textures':      'textures',
+    'Spiral Galaxy': 'spiral_galaxy',
+    'Double-sided':  'double_sided'
+}
+
+
 class MainWindow(GTK_MainWindow):
-    """Main Viewer
-    """
-    def __init__(self, signals, logger, parent=None):
+    """Main Viewer"""
+    def __init__(self, signals, logger=None, parent=None):
         super(MainWindow, self).__init__(parent)
+        if logger is None:
+            logger = make_logger('astro3d viewer')
         self.logger = logger
         self.signals = signals
         self._build_gui()
@@ -27,6 +37,7 @@ class MainWindow(GTK_MainWindow):
         self.signals.NewImage.connect(self.image_update)
         self.signals.UpdateMesh.connect(self.mesh_viewer.update_mesh)
         self.signals.ProcessStart.connect(self.mesh_viewer.process)
+        self.signals.StageChange.connect(self.stagechange)
 
     def _build_gui(self):
         """Construct the app's GUI"""
@@ -50,6 +61,7 @@ class MainWindow(GTK_MainWindow):
         self._create_toolbars()
         self._create_statusbar()
 
+        """
         # Modes
         mode_list = (
             'Textures',
@@ -71,7 +83,6 @@ class MainWindow(GTK_MainWindow):
 
         # Setup main window.
 
-        """
         vbox = QtGui.QVBoxLayout()
         vbox.setContentsMargins(QtCore.QMargins(2, 2, 2, 2))
         vbox.setSpacing(1)
@@ -84,17 +95,6 @@ class MainWindow(GTK_MainWindow):
         self.setCentralWidget(vw)
         vw.setLayout(vbox)
         """
-
-    def mode_change(self, mode):
-        self.logger.debug('mode_change: mode="{}"'.format(mode))
-        state = mode.checkState()
-        if state == QtCore.Qt.Checked:
-            mode.setCheckState(QtCore.Qt.Unchecked)
-            state = False
-        else:
-            mode.setCheckState(QtCore.Qt.Checked)
-            state = True
-        self.signals.ModeChange(mode.text(), state)
 
     def open_file(self):
         res = QtGui.QFileDialog.getOpenFileName(self, "Open FITS file",
@@ -120,6 +120,15 @@ class MainWindow(GTK_MainWindow):
         """
         self.image_viewer.set_image(image)
         self.setWindowTitle(image.get('name'))
+
+    def stagechange(self, *args, **kwargs):
+        self.logger.debug('args="{}" kwargs="{}"'.format(args, kwargs))
+
+        try:
+            stage = STAGES[self.sender().text()]
+            self.signals.StageChange(stage=stage, state=args[0])
+        except AttributeError:
+            self.actions[args[0]].setChecked(args[1])
 
     def quit(self, *args, **kwargs):
         """Shutdown"""
@@ -149,6 +158,14 @@ class MainWindow(GTK_MainWindow):
         self.mesh_viewer.closed.connect(preview_toggle.setChecked)
         self.actions.preview_toggle = preview_toggle
 
+        for name in STAGES:
+            action = STAGES[name]
+            qaction = QtGui.QAction(name, self)
+            qaction.setCheckable(True)
+            qaction.setChecked(False)
+            qaction.toggled.connect(self.stagechange)
+            self.actions[action] = qaction
+
     def _create_menus(self):
         """Setup the main menus"""
         menubar = self.menuBar()
@@ -157,8 +174,12 @@ class MainWindow(GTK_MainWindow):
         file_menu.addAction(self.actions.open)
         file_menu.addAction(self.actions.quit)
 
-        view_menu = menubar.addMenu('&View')
+        view_menu = menubar.addMenu('View')
         view_menu.addAction(self.actions.preview_toggle)
+
+        stage_menu = menubar.addMenu('Stages')
+        for name in STAGES:
+            stage_menu.addAction(self.actions[STAGES[name]])
 
     def _create_toolbars(self):
         """Setup the main toolbars"""

@@ -3,12 +3,13 @@ import six
 import warnings
 
 from ..util import signal_slot
+from ..util.logger import make_logger
 from ..util.register_leaf_classes import (RegisterLeafClasses)
 
 
 @six.add_metaclass(RegisterLeafClasses)
 class Signal(signal_slot.Signal):
-    '''Specview signals'''
+    """Specview signals"""
 
 
 class Signals(signal_slot.Signals):
@@ -17,6 +18,9 @@ class Signals(signal_slot.Signals):
     '''
     def __init__(self, signal_class=Signal, logger=None):
         super(Signals, self).__init__()
+        if logger is None:
+            logger = make_logger('Signals')
+        self.logger = logger
         if signal_class is not None:
             with warnings.catch_warnings():
                 warnings.simplefilter('ignore')
@@ -58,8 +62,8 @@ class ModelUpdate(Signal):
     """Update mesh model"""
 
 
-class ModeChange(Signal):
-    """Model mode change"""
+class StageChange(Signal):
+    """A stage has changed state"""
 
 
 # GUI events

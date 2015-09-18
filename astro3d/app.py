@@ -7,10 +7,9 @@ import logging
 
 from ginga import AstroImage
 
+from .util.logger import make_logger
 from .gui import (Controller, MainWindow, Model, signals as sig)
 from .gui.start_ui_app import start_ui_app
-
-STD_FORMAT = '%(asctime)s | %(levelname)1.1s | %(filename)s:%(lineno)d (%(funcName)s) | %(message)s'
 
 
 class Application(Controller):
@@ -21,16 +20,13 @@ class Application(Controller):
     def __init__(self, argv=None):
 
         # Log it.
-        logger = logging.getLogger('astro3d')
-        logger.setLevel(logging.DEBUG)
-        fmt = logging.Formatter(STD_FORMAT)
-        stderrHdlr = logging.StreamHandler()
-        stderrHdlr.setFormatter(fmt)
-        logger.addHandler(stderrHdlr)
-        self.logger = logger
+        self.logger = make_logger(name='astro3d', level=logging.DEBUG)
 
         # Setup the connections.
-        self.signals = sig.Signals(signal_class=sig.Signal, logger=logger)
+        self.signals = sig.Signals(
+            signal_class=sig.Signal,
+            logger=self.logger
+        )
         self.signals.Quit.connect(self.quit)
         self.signals.OpenFile.connect(self.open_file)
         self.signals.ModelUpdate.connect(self.process)
@@ -50,7 +46,7 @@ class Application(Controller):
         image.load_file(filepath)
         self.signals.NewImage(image)
 
-    def quit(self, *args):
+    def quit(self, *args, **kwargs):
         self.logger.debug("Attempting to shut down the application...")
 
     def process(self, *args, **kwargs):
