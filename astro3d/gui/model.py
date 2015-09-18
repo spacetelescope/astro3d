@@ -2,7 +2,7 @@
 
 from __future__ import absolute_import, print_function
 
-from collections import namedtuple
+from attrdict import AttrDict
 
 from numpy import concatenate
 
@@ -12,9 +12,6 @@ from ..util.logger import make_logger
 
 
 __all__ = ['Model']
-
-
-Task = namedtuple('Task', 'func, args, result')
 
 
 class Model(object):
@@ -27,22 +24,12 @@ class Model(object):
             logger = make_logger('astro3d model')
         self.logger = logger
 
-        self.has_textures = True
-        self.has_intensity = True
-        self.spiral_galaxy = True
-        self.double_sided = True
-
-    def stagechange(self, stage, state):
-        self.logger.debug('stagechange: stage="{}" state="{}"'.format(stage, state))
-
-        if stage == 'textures':
-            self.has_textures = state
-        elif stage == 'intensity':
-            self.has_intensity = state
-        elif stage == 'spiral_galaxy':
-            self.spiral_galaxy = state
-        elif stage == 'double_sided':
-            self.double_sided = state
+        self.stages = AttrDict({
+            'textures': True,
+            'intensity': True,
+            'spiral_galaxy': True,
+            'double_sided': False
+        })
 
     def set_image(self, image):
         """Set the image"""
@@ -60,10 +47,10 @@ class Model(object):
 
         m.read_stellar_table('features/ngc3344_clusters.txt', 'star_clusters')
 
-        m.has_textures = self.has_textures
-        m.has_intensity = self.has_intensity
-        m.spiral_galaxy = self.spiral_galaxy
-        m.double_sided = self.double_sided
+        m.has_textures = self.stages.textures
+        m.has_intensity = self.stages.intensity
+        m.spiral_galaxy = self.stages.spiral_galaxy
+        m.double_sided = self.stages.double_sided
 
         m.make()
 

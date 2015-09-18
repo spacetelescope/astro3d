@@ -125,13 +125,12 @@ class MainWindow(GTK_MainWindow):
         self.setWindowTitle(image.get('name'))
 
     def stagechange(self, *args, **kwargs):
+        """Act on a Stage toggle form the UI"""
         self.logger.debug('args="{}" kwargs="{}"'.format(args, kwargs))
 
-        try:
-            stage = STAGES[self.sender().text()]
-            self.signals.StageChange(stage=stage, state=args[0])
-        except AttributeError:
-            self.actions[args[0]].setChecked(args[1])
+        stage = STAGES[self.sender().text()]
+        self.model.stages[stage] = args[0]
+        self.signals.ModelUpdate()
 
     def quit(self, *args, **kwargs):
         """Shutdown"""
@@ -165,7 +164,7 @@ class MainWindow(GTK_MainWindow):
             action = STAGES[name]
             qaction = QtGui.QAction(name, self)
             qaction.setCheckable(True)
-            qaction.setChecked(False)
+            qaction.setChecked(self.model.stages[action])
             qaction.toggled.connect(self.stagechange)
             self.actions[action] = qaction
 
