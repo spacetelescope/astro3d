@@ -284,6 +284,10 @@ class Model3D(object):
             The name of the FITS file.  The mask data must be in the
             primary FITS extension and the header must have a 'MASKTYPE'
             keyword defining the mask type.
+
+        Returns
+        -------
+        Type of mask read.
         """
 
         region_mask = RegionMask.from_fits(
@@ -297,6 +301,7 @@ class Model3D(object):
 
         log.info('Mask type "{0}" loaded from "{1}"'.format(mask_type,
                                                             filename))
+        return mask_type
 
     def read_all_masks(self, pathname):
         """

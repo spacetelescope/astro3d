@@ -34,18 +34,6 @@ class Application(Controller):
         )
         self.viewer.show()
 
-    def image_update(self, image):
-        """Set new image and reprocess
-
-        Parameters
-        ----------
-        image: `ginga.AstroImage.AstroImage`
-            The image to make the model from.
-        """
-        data = image.get_data()
-        self.model.set_image(data)
-        self.process()
-
     def quit(self, *args, **kwargs):
         self.logger.debug("Attempting to shut down the application...")
 
@@ -73,7 +61,6 @@ class Application(Controller):
             logger=self.logger
         )
         self.signals.Quit.connect(self.quit)
-        self.signals.NewImage.connect(self.image_update)
         self.signals.ModelUpdate.connect(self.process)
         self.signals.ProcessFinish.connect(self.process_finish)
 

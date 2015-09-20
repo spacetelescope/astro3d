@@ -102,6 +102,17 @@ class MainWindow(GTK_MainWindow):
         if len(pathname) != 0:
             self.open_path(pathname)
 
+    def maskpath_from_dialog(self):
+        res = QtGui.QFileDialog.getOpenFileNames(
+            self, "Open Mask files",
+            ".", "FITS files (*.fits)"
+        )
+        self.logger.debug('res="{}"'.format(res))
+        if len(res) > 0:
+            self.model.read_maskpathlist(res)
+            self.actions.textures.setChecked(True)
+            self.signals.ModelUpdate()
+
     def path_by_drop(self, viewer, paths):
         pathname = paths[0]
         self.open_path(pathname)
@@ -122,7 +133,9 @@ class MainWindow(GTK_MainWindow):
             The image.
         """
         self.image_viewer.set_image(image)
+        self.model.set_image(image.get_data())
         self.setWindowTitle(image.get('name'))
+        self.signals.ModelUpdate()
 
     def stagechange(self, *args, **kwargs):
         """Act on a Stage toggle form the UI"""
@@ -152,6 +165,12 @@ class MainWindow(GTK_MainWindow):
         open.triggered.connect(self.path_from_dialog)
         self.actions.open = open
 
+        masks = QtGui.QAction('&Masks', self)
+        masks.setShortcut('Ctrl+M')
+        masks.setStatusTip('Open Masks')
+        masks.triggered.connect(self.maskpath_from_dialog)
+        self.actions.masks = masks
+
         preview_toggle = QtGui.QAction('Mesh View', self)
         preview_toggle.setStatusTip('Open mesh view panel')
         preview_toggle.setCheckable(True)
@@ -174,6 +193,7 @@ class MainWindow(GTK_MainWindow):
 
         file_menu = menubar.addMenu('&File')
         file_menu.addAction(self.actions.open)
+        file_menu.addAction(self.actions.masks)
         file_menu.addAction(self.actions.quit)
 
         view_menu = menubar.addMenu('View')

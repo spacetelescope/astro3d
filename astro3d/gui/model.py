@@ -25,15 +25,21 @@ class Model(object):
         self.logger = logger
 
         self.stages = AttrDict({
-            'textures': True,
             'intensity': True,
-            'spiral_galaxy': True,
+            'textures': False,
+            'spiral_galaxy': False,
             'double_sided': False
         })
+
+        self.maskpathlist = []
 
     def set_image(self, image):
         """Set the image"""
         self.image = image
+
+    def read_maskpathlist(self, pathlist):
+        """Read a list of mask files"""
+        self.maskpathlist = pathlist
 
     def process(self):
         """Create the 3D model."""
@@ -43,7 +49,8 @@ class Model(object):
         # check to see if stopped.
         m = Model3D(self.image)
 
-        m.read_all_masks('features/*.fits')
+        for path in self.maskpathlist:
+            m.read_mask(path)
 
         m.read_stellar_table('features/ngc3344_clusters.txt', 'star_clusters')
 
