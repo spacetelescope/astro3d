@@ -32,6 +32,8 @@ class Model(object):
         })
 
         self.maskpathlist = []
+        self.star_catalog = None
+        self.cluster_catalog = None
 
     def set_image(self, image):
         """Set the image"""
@@ -39,7 +41,15 @@ class Model(object):
 
     def read_maskpathlist(self, pathlist):
         """Read a list of mask files"""
-        self.maskpathlist = pathlist
+        self.maskpathlist += pathlist
+
+    def read_star_catalog(self, pathname):
+        """Read in a star catalog"""
+        self.star_catalog = pathname
+
+    def read_cluster_catalog(self, pathname):
+        """Read in a star cluster catalog"""
+        self.cluster_catalog = pathname
 
     def process(self):
         """Create the 3D model."""
@@ -52,7 +62,11 @@ class Model(object):
         for path in self.maskpathlist:
             m.read_mask(path)
 
-        m.read_stellar_table('features/ngc3344_clusters.txt', 'star_clusters')
+        if self.cluster_catalog is not None:
+            m.read_star_clusters(self.cluster_catalog)
+
+        if self.star_catalog is not None:
+            m.read_stars(self.star_catalog)
 
         m.has_textures = self.stages.textures
         m.has_intensity = self.stages.intensity

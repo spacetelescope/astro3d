@@ -113,6 +113,31 @@ class MainWindow(GTK_MainWindow):
             self.actions.textures.setChecked(True)
             self.signals.ModelUpdate()
 
+    def starpath_from_dialog(self):
+        res = QtGui.QFileDialog.getOpenFileName(self, "Open Stellar Catalog",
+                                                ".")
+        if isinstance(res, tuple):
+            pathname = res[0]
+        else:
+            pathname = str(res)
+        if len(pathname) != 0:
+            self.model.read_star_catalog(pathname)
+            self.signals.ModelUpdate()
+
+    def clusterpath_from_dialog(self):
+        res = QtGui.QFileDialog.getOpenFileName(
+            self,
+            "Open Star Cluster Catalog",
+            "."
+        )
+        if isinstance(res, tuple):
+            pathname = res[0]
+        else:
+            pathname = str(res)
+        if len(pathname) != 0:
+            self.model.read_cluster_catalog(pathname)
+            self.signals.ModelUpdate()
+
     def path_by_drop(self, viewer, paths):
         pathname = paths[0]
         self.open_path(pathname)
@@ -171,6 +196,18 @@ class MainWindow(GTK_MainWindow):
         masks.triggered.connect(self.maskpath_from_dialog)
         self.actions.masks = masks
 
+        stars = QtGui.QAction('&Stars', self)
+        stars.setShortcut('Ctrl+S')
+        stars.setStatusTip('Open a stellar table')
+        stars.triggered.connect(self.starpath_from_dialog)
+        self.actions.stars = stars
+
+        clusters = QtGui.QAction('Stellar &Clusters', self)
+        clusters.setShortcut('Ctrl+C')
+        clusters.setStatusTip('Open a stellar clusters table')
+        clusters.triggered.connect(self.clusterpath_from_dialog)
+        self.actions.clusters = clusters
+
         preview_toggle = QtGui.QAction('Mesh View', self)
         preview_toggle.setStatusTip('Open mesh view panel')
         preview_toggle.setCheckable(True)
@@ -194,6 +231,8 @@ class MainWindow(GTK_MainWindow):
         file_menu = menubar.addMenu('&File')
         file_menu.addAction(self.actions.open)
         file_menu.addAction(self.actions.masks)
+        file_menu.addAction(self.actions.clusters)
+        file_menu.addAction(self.actions.stars)
         file_menu.addAction(self.actions.quit)
 
         view_menu = menubar.addMenu('View')
