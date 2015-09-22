@@ -37,7 +37,7 @@ class Application(Controller):
     def quit(self, *args, **kwargs):
         self.logger.debug("Attempting to shut down the application...")
 
-    def process(self):
+    def process(self, *args, **kwargs):
         """Do the processing."""
         self.logger.debug('Starting processing...')
         self.process_force_quit()

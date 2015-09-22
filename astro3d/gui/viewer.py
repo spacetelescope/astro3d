@@ -9,7 +9,7 @@ from ..util.logger import make_logger
 from ..external.qt import (QtGui, QtCore)
 from ..external.qt.QtCore import Qt
 from ..external.qt.QtGui import QMainWindow as GTK_MainWindow
-from qt4 import (ViewImage, ViewMesh)
+from qt4 import (LayerManager, ViewImage, ViewMesh)
 
 
 __all__ = ['MainWindow']
@@ -51,46 +51,22 @@ class MainWindow(GTK_MainWindow):
         # 3D mesh preview
         self.mesh_viewer = ViewMesh()
 
+        # The Layer manager
+        self.layer_viewer = LayerManager(logger=self.logger)
+        self.layer_viewer.setModel(self.model)
+        layer_dock = QtGui.QDockWidget('Layers', self)
+        layer_dock.setAllowedAreas(
+            Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea
+        )
+        layer_dock.setWidget(self.layer_viewer)
+        self.addDockWidget(Qt.RightDockWidgetArea, layer_dock)
+        self.layer_dock = layer_dock
+
         # Setup all the auxiliary gui.
         self._create_actions()
         self._create_menus()
         self._create_toolbars()
         self._create_statusbar()
-
-        """
-        # Modes
-        mode_list = (
-            'Textures',
-            'Intensity',
-            'Spiral Galaxy',
-            'Double sided'
-        )
-        modes = QtGui.QListWidget()
-        modes.itemClicked.connect(self.mode_change)
-        for mode in mode_list:
-            item = QtGui.QListWidgetItem(mode, modes)
-            item.setFlags(QtCore.Qt.ItemIsUserCheckable)
-            item.setCheckState(QtCore.Qt.Checked)
-
-        # Modifier region
-        modifier_hbox = QtGui.QHBoxLayout()
-        for w in (modes,):
-            modifier_hbox.addWidget(w)
-
-        # Setup main window.
-
-        vbox = QtGui.QVBoxLayout()
-        vbox.setContentsMargins(QtCore.QMargins(2, 2, 2, 2))
-        vbox.setSpacing(1)
-        for w in (viewer_hbox, modifier_hbox):
-            hw = QtGui.QWidget()
-            hw.setLayout(w)
-            vbox.addWidget(hw)
-
-        vw = QtGui.QWidget()
-        self.setCentralWidget(vw)
-        vw.setLayout(vbox)
-        """
 
     def path_from_dialog(self):
         res = QtGui.QFileDialog.getOpenFileName(self, "Open FITS file",
@@ -102,14 +78,14 @@ class MainWindow(GTK_MainWindow):
         if len(pathname) != 0:
             self.open_path(pathname)
 
-    def maskpath_from_dialog(self):
+    def regionpath_from_dialog(self):
         res = QtGui.QFileDialog.getOpenFileNames(
-            self, "Open Mask files",
+            self, "Open Region files",
             ".", "FITS files (*.fits)"
         )
         self.logger.debug('res="{}"'.format(res))
         if len(res) > 0:
-            self.model.read_maskpathlist(res)
+            self.model.read_regionpathlist(res)
             self.actions.textures.setChecked(True)
             self.signals.ModelUpdate()
 
@@ -190,11 +166,11 @@ class MainWindow(GTK_MainWindow):
         open.triggered.connect(self.path_from_dialog)
         self.actions.open = open
 
-        masks = QtGui.QAction('&Masks', self)
-        masks.setShortcut('Ctrl+M')
-        masks.setStatusTip('Open Masks')
-        masks.triggered.connect(self.maskpath_from_dialog)
-        self.actions.masks = masks
+        regions = QtGui.QAction('&Regions', self)
+        regions.setShortcut('Ctrl+R')
+        regions.setStatusTip('Open Regions')
+        regions.triggered.connect(self.regionpath_from_dialog)
+        self.actions.regions = regions
 
         stars = QtGui.QAction('&Stars', self)
         stars.setShortcut('Ctrl+S')
@@ -230,13 +206,14 @@ class MainWindow(GTK_MainWindow):
 
         file_menu = menubar.addMenu('&File')
         file_menu.addAction(self.actions.open)
-        file_menu.addAction(self.actions.masks)
+        file_menu.addAction(self.actions.regions)
         file_menu.addAction(self.actions.clusters)
         file_menu.addAction(self.actions.stars)
         file_menu.addAction(self.actions.quit)
 
         view_menu = menubar.addMenu('View')
         view_menu.addAction(self.actions.preview_toggle)
+        view_menu.addAction(self.layer_dock.toggleViewAction())
 
         stage_menu = menubar.addMenu('Stages')
         for name in STAGES:
@@ -256,3 +233,4 @@ class MainWindow(GTK_MainWindow):
         self.signals.UpdateMesh.connect(self.mesh_viewer.update_mesh)
         self.signals.ProcessStart.connect(self.mesh_viewer.process)
         self.signals.StageChange.connect(self.stagechange)
+        self.model.itemChanged.connect(self.signals.ModelUpdate)
