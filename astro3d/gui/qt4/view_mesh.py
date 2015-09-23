@@ -39,7 +39,7 @@ class ViewMesh(GLViewWidget):
                                shader='viewNormalColor',
                                glOptions='opaque',
                                smooth=True)
-        mesh_item.translate(-1. * scaling[0] / 2., -1. * scaling[1] / 2., 0)
+#        mesh_item.translate(-1. * scaling[0] / 2., -1. * scaling[1] / 2., 0)
 
         self.setCameraPosition(distance=distance, azimuth=45, elevation=45)
         self.addItem(mesh_item)

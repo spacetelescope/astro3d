@@ -11,7 +11,7 @@ from numpy import concatenate
 from ..external.qt.QtGui import (QStandardItem, QStandardItemModel)
 from ..core.model3d import Model3D
 from ..core.region_mask import RegionMask
-from ..core.meshes import (get_triangles, reflect_mesh)
+from ..core.meshes import (make_triangles, reflect_triangles)
 from ..util.logger import make_logger
 
 
@@ -131,7 +131,7 @@ class Model(QStandardItemModel):
 
         m.make()
 
-        triset = get_triangles(m.data)
+        triset = make_triangles(m.data)
         if m.double_sided:
-            triset = concatenate((triset, reflect_mesh(triset)))
+            triset = concatenate((triset, reflect_triangles(triset)))
         return triset
