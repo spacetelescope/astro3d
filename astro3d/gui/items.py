@@ -24,7 +24,7 @@ class LayerItem(QStandardItem):
     def next(self):
         self._currentrow = self._currentrow + 1 \
                            if self._currentrow is not None \
-                              else 0
+                           else 0
         item = self.child(self._currentrow, 2)
         if item is None:
             raise StopIteration
@@ -56,9 +56,10 @@ class Regions(LayerItem):
         self.setText('Regions')
 
     def next(self):
-        item = super(Regions, self).next()
-        if item.checkState():
-            return item.value
+        while True:
+            item = super(Regions, self).next()
+            if item.checkState():
+                return item.value
 
     def add(self, region, id):
         """Add a new region"""
