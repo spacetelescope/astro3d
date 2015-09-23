@@ -8,40 +8,15 @@ from attrdict import AttrDict
 
 from numpy import concatenate
 
-from ..external.qt.QtGui import (QStandardItem, QStandardItemModel)
+from ..external.qt.QtGui import QStandardItemModel
 from ..core.model3d import Model3D
 from ..core.region_mask import RegionMask
 from ..core.meshes import (make_triangles, reflect_triangles)
 from ..util.logger import make_logger
+from .items import (Regions, Textures, Clusters, Stars)
 
 
 __all__ = ['Model']
-
-
-class LayerItem(QStandardItem):
-    """Layers"""
-
-    def __init__(self, *args, **kwargs):
-        super(LayerItem, self).__init__(*args, **kwargs)
-        self._value = None
-        self.setCheckable(True)
-        self.setCheckState(True)
-
-    @property
-    def value(self):
-        """Value of the item"""
-        return self._value
-
-    @value.setter
-    def value(self, value):
-        self._value = value
-
-    @classmethod
-    def empty(cls):
-        result = cls('')
-        result.setCheckable(False)
-        result.setEnabled(False)
-        return result
 
 
 class Model(QStandardItemModel):
@@ -58,10 +33,10 @@ class Model(QStandardItemModel):
         super(Model, self).__init__(*args, **kwargs)
 
         # Setup the basic structure
-        self.regions = LayerItem('Regions')
-        self.textures = LayerItem('Textures')
-        self.cluster_catalogs = LayerItem('Star Clusters')
-        self.stars_catalogs = LayerItem('Stars')
+        self.regions = Regions()
+        self.textures = Textures()
+        self.cluster_catalogs = Clusters()
+        self.stars_catalogs = Stars()
 
         self.setHorizontalHeaderLabels(['Class', 'Type', 'Name'])
         root = self.invisibleRootItem()
@@ -84,16 +59,9 @@ class Model(QStandardItemModel):
     def read_regionpathlist(self, pathlist):
         """Read a list of mask files"""
         for path in pathlist:
-            data = RegionMask.from_fits(path)
-            region_type = LayerItem(data.mask_type)
-            region = LayerItem()
-            region.setText(basename(path))
-            region.value = path
-            self.regions.appendRow(
-                [LayerItem.empty(),
-                 region_type,
-                 region]
-            )
+            region = RegionMask.from_fits(path)
+            id = basename(path)
+            self.regions.add(region=region, id=id)
 
     def read_star_catalog(self, pathname):
         """Read in a star catalog"""
@@ -116,7 +84,7 @@ class Model(QStandardItemModel):
         for row in range(self.regions.rowCount()):
             region = self.regions.child(row, 2)
             if region.checkState():
-                m.read_mask(region.value)
+                m.add_mask(region.value)
 
         #if self.cluster_catalog is not None:
         #    m.read_star_clusters(self.cluster_catalog)

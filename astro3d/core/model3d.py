@@ -268,6 +268,16 @@ class Model3D(object):
                               'type.'.format(mask_type), AstropyUserWarning)
             return
 
+    def add_mask(self, mask):
+        """Add a region mask"""
+        mask_type = mask.mask_type
+        mtype = self._translate_mask_type(mask_type)
+        if mtype in self.region_mask_types:
+            self.region_masks_original[mtype].append(mask)
+        else:
+            self.texture_masks_original[mtype].append(mask)
+        return mask_type
+
     def read_mask(self, filename):
         """
         Read a region mask from a FITS file.
@@ -292,13 +302,7 @@ class Model3D(object):
 
         region_mask = RegionMask.from_fits(
             filename, required_shape=self.data_original.shape)
-        mask_type = region_mask.mask_type
-        mtype = self._translate_mask_type(mask_type)
-        if mtype in self.region_mask_types:
-            self.region_masks_original[mtype].append(region_mask)
-        else:
-            self.texture_masks_original[mtype].append(region_mask)
-
+        mask_type = self.add_mask(region_mask)
         log.info('Mask type "{0}" loaded from "{1}"'.format(mask_type,
                                                             filename))
         return mask_type
