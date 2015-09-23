@@ -79,12 +79,8 @@ class Model(QStandardItemModel):
         # check to see if stopped.
         m = Model3D(self.image)
 
-        #for path in self.maskpathlist:
-        #    m.read_mask(path)
-        for row in range(self.regions.rowCount()):
-            region = self.regions.child(row, 2)
-            if region.checkState():
-                m.add_mask(region.value)
+        for region in self.regions:
+            m.add_mask(region)
 
         #if self.cluster_catalog is not None:
         #    m.read_star_clusters(self.cluster_catalog)

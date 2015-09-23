@@ -15,6 +15,23 @@ class LayerItem(QStandardItem):
         self._value = None
         self.setCheckable(True)
         self.setCheckState(True)
+        self._currentrow = None
+
+    def __iter__(self):
+        return self
+
+    def next(self):
+        if self._currentrow is None:
+            self._currentrow = 0
+        else:
+            self._currentrow += 1
+        child = self.child(self._currentrow, 2)
+        if child is None:
+            self._currentrow = None
+            raise StopIteration
+        else:
+            if child.checkState():
+                return child.value
 
     @property
     def value(self):

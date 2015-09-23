@@ -276,6 +276,7 @@ class Model3D(object):
             self.region_masks_original[mtype].append(mask)
         else:
             self.texture_masks_original[mtype].append(mask)
+        log.info('Mask type "{0}" loaded.'.format(mask_type))
         return mask_type
 
     def read_mask(self, filename):
