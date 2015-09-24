@@ -52,6 +52,12 @@ class LayerItem(QStandardItem):
     def value(self, value):
         self._value = value
 
+    def fix_family(self):
+        """Change ancestor/children states based on self state"""
+        fix_children_availabilty(self)
+        if self.isEnabled():
+            fix_tristate(self.parent())
+
 
 class CheckableItem(LayerItem):
     """Items that are checkable"""
@@ -77,7 +83,7 @@ class Regions(CheckableItem):
     def next(self):
         while True:
             item = super(Regions, self).next()
-            if item.checkState():
+            if item.isEnabled() and item.checkState():
                 return item.value
 
     def add(self, region, id):
@@ -110,3 +116,30 @@ class Stars(LayerItem):
     def __init__(self, *args, **kwargs):
         super(Stars, self).__init__(*args, **kwargs)
         self.setText('Stars')
+
+
+# Utilities
+def fix_tristate(item):
+    """Set tristate based on siblings"""
+    if item is not None and item.hasChildren():
+        current = item.rowCount() - 1
+        state = item.child(current).checkState()
+        current -= 1
+        while current >= 0:
+            if state != item.child(current).checkState():
+                state = Qt.PartiallyChecked
+                break
+            current -= 1
+        if state == Qt.Unchecked:
+            state = Qt.PartiallyChecked
+        item.setCheckState(state)
+
+
+def fix_children_availabilty(item):
+    """Set tristate based on siblings"""
+    if item is not None and item.hasChildren():
+        enable = item.isEnabled() and \
+                 item.checkState() in (Qt.PartiallyChecked, Qt.Checked)
+        for idx in range(item.rowCount()):
+            child = item.child(idx)
+            child.setEnabled(enable)

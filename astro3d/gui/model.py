@@ -116,22 +116,6 @@ class Model(QStandardItemModel):
         """
         if not index_ul.isValid():
             return
-
-        # Change check states of all ancestors
-        parent = self.itemFromIndex(index_ul.parent())
-        fix_item_tristate(parent)
-
-
-# Utilities
-def fix_item_tristate(item):
-    """Set tristate based on siblings"""
-    if item is not None and item.hasChildren():
-        current = item.rowCount() - 1
-        state = item.child(current).checkState()
-        current -= 1
-        while current >= 0:
-            if state != item.child(current).checkState():
-                state = Qt.PartiallyChecked
-                break
-            current -= 1
-        item.setCheckState(state)
+        item = self.itemFromIndex(index_ul)
+        self.logger.debug('item="{}"'.format(item.text()))
+        item.fix_family()
