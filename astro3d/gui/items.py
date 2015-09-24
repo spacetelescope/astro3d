@@ -1,10 +1,24 @@
 """Model Items"""
 from __future__ import absolute_import, print_function
 
+from collections import defaultdict
+import logging as log
+
 from ..external.qt.QtGui import QStandardItem
+from ..external.qt.QtCore import Qt
 
 
 __all__ = ['LayerItem']
+
+
+class InstanceDefaultDict(defaultdict):
+    """A default dict with class instantion using the key as argument"""
+    def __missing__(self, key):
+        if self.default_factory is None:
+            raise KeyError(key)
+        else:
+            self[key] = self.default_factory(key)
+            return self[key]
 
 
 class LayerItem(QStandardItem):
@@ -13,8 +27,6 @@ class LayerItem(QStandardItem):
     def __init__(self, *args, **kwargs):
         super(LayerItem, self).__init__(*args, **kwargs)
         self._value = None
-        self.setCheckable(True)
-        self.setCheckState(True)
         self._currentrow = None
 
     def __iter__(self):
@@ -40,20 +52,27 @@ class LayerItem(QStandardItem):
     def value(self, value):
         self._value = value
 
-    @classmethod
-    def empty(cls):
-        result = cls('')
-        result.setCheckable(False)
-        result.setEnabled(False)
-        return result
+
+class CheckableItem(LayerItem):
+    """Items that are checkable"""
+    def __init__(self, *args, **kwargs):
+        super(CheckableItem, self).__init__(*args, **kwargs)
+        self.setCheckable(True)
+        self.setCheckState(Qt.Checked)
 
 
-class Regions(LayerItem):
+class TypeItem(CheckableItem):
+    """Types of regions"""
+
+
+class Regions(CheckableItem):
     """Regions container"""
 
     def __init__(self, *args, **kwargs):
         super(Regions, self).__init__(*args, **kwargs)
         self.setText('Regions')
+
+        self.types = InstanceDefaultDict(TypeItem)
 
     def next(self):
         while True:
@@ -63,14 +82,12 @@ class Regions(LayerItem):
 
     def add(self, region, id):
         """Add a new region"""
-        type_item = LayerItem(region.mask_type)
-        region_item = LayerItem(id)
+        type_item = self.types[region.mask_type]
+        region_item = CheckableItem(id)
         region_item.value = region
-        self.appendRow([
-            LayerItem.empty(),
-            type_item,
-            region_item
-        ])
+        type_item.appendRow(region_item)
+        if not type_item.index().isValid():
+            self.appendRow(type_item)
 
 
 class Textures(LayerItem):

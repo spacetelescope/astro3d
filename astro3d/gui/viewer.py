@@ -242,4 +242,4 @@ class MainWindow(GTK_MainWindow):
         self.signals.UpdateMesh.connect(self.mesh_viewer.update_mesh)
         self.signals.ProcessStart.connect(self.mesh_viewer.process)
         self.signals.StageChange.connect(self.stagechange)
-        self.model.itemChanged.connect(self.signals.ModelUpdate)
+        self.model.dataChanged.connect(self.signals.ModelUpdate)
