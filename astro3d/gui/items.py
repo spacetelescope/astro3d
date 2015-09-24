@@ -52,6 +52,10 @@ class LayerItem(QStandardItem):
     def value(self, value):
         self._value = value
 
+    @property
+    def is_available(self):
+        return self.isEnabled() and self.checkState()
+
     def fix_family(self):
         """Change ancestor/children states based on self state"""
         fix_children_availabilty(self)
@@ -67,6 +71,10 @@ class CheckableItem(LayerItem):
         self.setCheckState(Qt.Checked)
 
 
+class RegionItem(CheckableItem):
+    """The regions"""
+
+
 class TypeItem(CheckableItem):
     """Types of regions"""
 
@@ -80,16 +88,22 @@ class Regions(CheckableItem):
 
         self.types = InstanceDefaultDict(TypeItem)
 
-    def next(self):
-        while True:
-            item = super(Regions, self).next()
-            if item.isEnabled() and item.checkState():
-                return item.value
+    # Regions iterate over all the leaf nodes.
+    # These would be the masks themselves.
+    def __iter__(self):
+        regions = (
+            self.child(type_id).child(region_id).value
+            for type_id in range(self.rowCount())
+            if self.child(type_id).is_available
+            for region_id in range(self.child(type_id).rowCount())
+            if self.child(type_id).child(region_id).is_available
+        )
+        return regions
 
     def add(self, region, id):
         """Add a new region"""
         type_item = self.types[region.mask_type]
-        region_item = CheckableItem(id)
+        region_item = RegionItem(id)
         region_item.value = region
         type_item.appendRow(region_item)
         if not type_item.index().isValid():

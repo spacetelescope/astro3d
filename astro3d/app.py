@@ -61,7 +61,7 @@ class Application(Controller):
             logger=self.logger
         )
         self.signals.Quit.connect(self.quit)
-        #self.signals.ModelUpdate.connect(self.process)
+        self.signals.ModelUpdate.connect(self.process)
         self.signals.ProcessFinish.connect(self.process_finish)
 
 
