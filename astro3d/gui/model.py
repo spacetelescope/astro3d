@@ -8,40 +8,16 @@ from attrdict import AttrDict
 
 from numpy import concatenate
 
-from ..external.qt.QtGui import (QStandardItem, QStandardItemModel)
+from ..external.qt.QtGui import QStandardItemModel
+from ..external.qt.QtCore import Qt
 from ..core.model3d import Model3D
 from ..core.region_mask import RegionMask
 from ..core.meshes import (make_triangles, reflect_triangles)
 from ..util.logger import make_logger
+from .items import (Regions, Textures, Clusters, Stars)
 
 
 __all__ = ['Model']
-
-
-class LayerItem(QStandardItem):
-    """Layers"""
-
-    def __init__(self, *args, **kwargs):
-        super(LayerItem, self).__init__(*args, **kwargs)
-        self._value = None
-        self.setCheckable(True)
-        self.setCheckState(True)
-
-    @property
-    def value(self):
-        """Value of the item"""
-        return self._value
-
-    @value.setter
-    def value(self, value):
-        self._value = value
-
-    @classmethod
-    def empty(cls):
-        result = cls('')
-        result.setCheckable(False)
-        result.setEnabled(False)
-        return result
 
 
 class Model(QStandardItemModel):
@@ -58,17 +34,17 @@ class Model(QStandardItemModel):
         super(Model, self).__init__(*args, **kwargs)
 
         # Setup the basic structure
-        self.regions = LayerItem('Regions')
-        self.textures = LayerItem('Textures')
-        self.cluster_catalogs = LayerItem('Star Clusters')
-        self.stars_catalogs = LayerItem('Stars')
+        self.image = None
+        self.regions = Regions()
+        self.textures = Textures()
+        self.cluster_catalogs = Clusters()
+        self.stars_catalogs = Stars()
 
-        self.setHorizontalHeaderLabels(['Class', 'Type', 'Name'])
         root = self.invisibleRootItem()
         root.appendRow(self.regions)
-        root.appendRow(self.textures)
         root.appendRow(self.cluster_catalogs)
         root.appendRow(self.stars_catalogs)
+        root.appendRow(self.textures)
 
         self.stages = AttrDict({
             'intensity': True,
@@ -77,6 +53,9 @@ class Model(QStandardItemModel):
             'double_sided': False
         })
 
+        # Signals
+        self.dataChanged.connect(self._update)
+
     def set_image(self, image):
         """Set the image"""
         self.image = image
@@ -84,24 +63,19 @@ class Model(QStandardItemModel):
     def read_regionpathlist(self, pathlist):
         """Read a list of mask files"""
         for path in pathlist:
-            data = RegionMask.from_fits(path)
-            region_type = LayerItem(data.mask_type)
-            region = LayerItem()
-            region.setText(basename(path))
-            region.value = path
-            self.regions.appendRow(
-                [LayerItem.empty(),
-                 region_type,
-                 region]
-            )
+            region = RegionMask.from_fits(path)
+            id = basename(path)
+            self.regions.add(region=region, id=id)
 
     def read_star_catalog(self, pathname):
         """Read in a star catalog"""
-        self.star_catalog = pathname
+        id = basename(pathname)
+        self.stars_catalogs.add(pathname, id)
 
     def read_cluster_catalog(self, pathname):
         """Read in a star cluster catalog"""
-        self.cluster_catalog = pathname
+        id = basename(pathname)
+        self.cluster_catalogs.add(pathname, id)
 
     def process(self):
         """Create the 3D model."""
@@ -109,20 +83,18 @@ class Model(QStandardItemModel):
 
         # Setup steps in the thread. Between each step,
         # check to see if stopped.
+        if self.image is None:
+            return
         m = Model3D(self.image)
 
-        #for path in self.maskpathlist:
-        #    m.read_mask(path)
-        for row in range(self.regions.rowCount()):
-            region = self.regions.child(row, 2)
-            if region.checkState():
-                m.read_mask(region.value)
+        for region in self.regions:
+            m.add_mask(region)
 
-        #if self.cluster_catalog is not None:
-        #    m.read_star_clusters(self.cluster_catalog)
+        for (catalog, id) in self.cluster_catalogs:
+            m.read_star_clusters(catalog)
 
-        #if self.star_catalog is not None:
-        #    m.read_stars(self.star_catalog)
+        for (catalog, id) in self.stars_catalogs:
+            m.read_stars(catalog)
 
         m.has_textures = self.stages.textures
         m.has_intensity = self.stages.intensity
@@ -135,3 +107,20 @@ class Model(QStandardItemModel):
         if m.double_sided:
             triset = concatenate((triset, reflect_triangles(triset)))
         return triset
+
+    def _update(self, index_ul, index_br):
+        """Update model due to an item change
+
+        Slot for the dataChanged signal
+
+        Parameters
+        ----------
+        index_ul, index_br: Qt::QModelIndex
+            The Upper-Left (ul) and Bottom-Right (br) indexes
+            of the model's table.
+        """
+        if not index_ul.isValid():
+            return
+        item = self.itemFromIndex(index_ul)
+        self.logger.debug('item="{}"'.format(item.text()))
+        item.fix_family()

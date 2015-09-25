@@ -185,6 +185,7 @@ class MainWindow(GTK_MainWindow):
         self.actions.clusters = clusters
 
         preview_toggle = QtGui.QAction('Mesh View', self)
+        preview_toggle.setShortcut('Ctrl+V')
         preview_toggle.setStatusTip('Open mesh view panel')
         preview_toggle.setCheckable(True)
         preview_toggle.setChecked(False)
@@ -199,6 +200,12 @@ class MainWindow(GTK_MainWindow):
             qaction.setChecked(self.model.stages[action])
             qaction.toggled.connect(self.stagechange)
             self.actions[action] = qaction
+
+        reprocess = QtGui.QAction('Reprocess', self)
+        reprocess.setShortcut('Shift+Ctrl+R')
+        reprocess.setStatusTip('Reprocess the model')
+        reprocess.triggered.connect(self.signals.ModelUpdate)
+        self.actions.reprocess = reprocess
 
     def _create_menus(self):
         """Setup the main menus"""
@@ -218,6 +225,8 @@ class MainWindow(GTK_MainWindow):
         stage_menu = menubar.addMenu('Stages')
         for name in STAGES:
             stage_menu.addAction(self.actions[STAGES[name]])
+        stage_menu.addSeparator()
+        stage_menu.addAction(self.actions.reprocess)
 
     def _create_toolbars(self):
         """Setup the main toolbars"""
@@ -233,4 +242,4 @@ class MainWindow(GTK_MainWindow):
         self.signals.UpdateMesh.connect(self.mesh_viewer.update_mesh)
         self.signals.ProcessStart.connect(self.mesh_viewer.process)
         self.signals.StageChange.connect(self.stagechange)
-        self.model.itemChanged.connect(self.signals.ModelUpdate)
+        self.model.dataChanged.connect(self.signals.ModelUpdate)

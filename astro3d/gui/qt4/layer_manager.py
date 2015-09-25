@@ -16,3 +16,4 @@ class LayerManager(QtGui.QTreeView):
         self.logger = logger
 
         super(LayerManager, self).__init__(*args, **kwargs)
+        self.setHeaderHidden(True)

@@ -53,7 +53,8 @@ class Application(Controller):
 
     def process_finish(self, mesh):
         self.logger.debug('3D generation completed.')
-        self.signals.UpdateMesh(mesh)
+        if mesh is not None:
+            self.signals.UpdateMesh(mesh)
 
     def _create_signals(self):
         self.signals = sig.Signals(
