@@ -23,11 +23,11 @@ class InstanceDefaultDict(defaultdict):
 
 class LayerItem(QStandardItem):
     """Layers"""
-
     def __init__(self, *args, **kwargs):
+        value = kwargs.pop('value', None)
         super(LayerItem, self).__init__(*args, **kwargs)
-        self._value = None
         self._currentrow = None
+        self.value = value
 
     def __iter__(self):
         self._currentrow = None
@@ -37,11 +37,11 @@ class LayerItem(QStandardItem):
         self._currentrow = self._currentrow + 1 \
                            if self._currentrow is not None \
                            else 0
-        item = self.child(self._currentrow, 2)
+        item = self.child(self._currentrow)
         if item is None:
             raise StopIteration
         else:
-            return item
+            return (item.value, item.data(Qt.DisplayRole))
 
     @property
     def value(self):
@@ -68,11 +68,15 @@ class CheckableItem(LayerItem):
     def __init__(self, *args, **kwargs):
         super(CheckableItem, self).__init__(*args, **kwargs)
         self.setCheckable(True)
-        self.setCheckState(Qt.Checked)
+        self.setCheckState(Qt.Unchecked)
 
 
 class RegionItem(CheckableItem):
     """The regions"""
+
+
+class ClusterItem(CheckableItem):
+    """A cluster"""
 
 
 class TypeItem(CheckableItem):
@@ -103,34 +107,45 @@ class Regions(CheckableItem):
     def add(self, region, id):
         """Add a new region"""
         type_item = self.types[region.mask_type]
-        region_item = RegionItem(id)
-        region_item.value = region
+        region_item = RegionItem(id, value=region)
+        region_item.setCheckState(Qt.Checked)
         type_item.appendRow(region_item)
         if not type_item.index().isValid():
             self.appendRow(type_item)
+        region_item.fix_family()
 
-
-class Textures(LayerItem):
+class Textures(CheckableItem):
     """Textures container"""
     def __init__(self, *args, **kwargs):
         super(Textures, self).__init__(*args, **kwargs)
         self.setText('Textures')
 
 
-class Clusters(LayerItem):
+class Clusters(CheckableItem):
     """Cluster container"""
     def __init__(self, *args, **kwargs):
         super(Clusters, self).__init__(*args, **kwargs)
         self.setText('Clusters')
 
+    def add(self, cluster, id):
+        item = ClusterItem(id, value=cluster)
+        item.setCheckState(Qt.Checked)
+        self.appendRow(item)
+        item.fix_family()
 
-class Stars(LayerItem):
+
+class Stars(CheckableItem):
     """Stars container"""
 
     def __init__(self, *args, **kwargs):
         super(Stars, self).__init__(*args, **kwargs)
         self.setText('Stars')
 
+    def add(self, stars, id):
+        item = ClusterItem(id, value=stars)
+        item.setCheckState(Qt.Checked)
+        self.appendRow(item)
+        item.fix_family()
 
 # Utilities
 def fix_tristate(item):

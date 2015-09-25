@@ -34,6 +34,7 @@ class Model(QStandardItemModel):
         super(Model, self).__init__(*args, **kwargs)
 
         # Setup the basic structure
+        self.image = None
         self.regions = Regions()
         self.textures = Textures()
         self.cluster_catalogs = Clusters()
@@ -41,9 +42,9 @@ class Model(QStandardItemModel):
 
         root = self.invisibleRootItem()
         root.appendRow(self.regions)
-        root.appendRow(self.textures)
         root.appendRow(self.cluster_catalogs)
         root.appendRow(self.stars_catalogs)
+        root.appendRow(self.textures)
 
         self.stages = AttrDict({
             'intensity': True,
@@ -68,11 +69,13 @@ class Model(QStandardItemModel):
 
     def read_star_catalog(self, pathname):
         """Read in a star catalog"""
-        self.star_catalog = pathname
+        id = basename(pathname)
+        self.stars_catalogs.add(pathname, id)
 
     def read_cluster_catalog(self, pathname):
         """Read in a star cluster catalog"""
-        self.cluster_catalog = pathname
+        id = basename(pathname)
+        self.cluster_catalogs.add(pathname, id)
 
     def process(self):
         """Create the 3D model."""
@@ -80,16 +83,18 @@ class Model(QStandardItemModel):
 
         # Setup steps in the thread. Between each step,
         # check to see if stopped.
+        if self.image is None:
+            return
         m = Model3D(self.image)
 
         for region in self.regions:
             m.add_mask(region)
 
-        #if self.cluster_catalog is not None:
-        #    m.read_star_clusters(self.cluster_catalog)
+        for (catalog, id) in self.cluster_catalogs:
+            m.read_star_clusters(catalog)
 
-        #if self.star_catalog is not None:
-        #    m.read_stars(self.star_catalog)
+        for (catalog, id) in self.stars_catalogs:
+            m.read_stars(catalog)
 
         m.has_textures = self.stages.textures
         m.has_intensity = self.stages.intensity
