@@ -28,6 +28,7 @@ class Model(QStandardItemModel):
         if logger is None:
             logger = make_logger('astro3d Layer Manager')
         self.logger = logger
+        self.signals = kwargs.pop('signals')
 
         super(Model, self).__init__(*args, **kwargs)
 
@@ -52,7 +53,15 @@ class Model(QStandardItemModel):
         })
 
         # Signals
-        self.dataChanged.connect(self._update)
+        self.itemChanged.connect(self._update)
+
+        self.itemChanged.connect(self.signals.ModelUpdate)
+        self.columnsInserted.connect(self.signals.ModelUpdate)
+        self.columnsMoved.connect(self.signals.ModelUpdate)
+        self.columnsRemoved.connect(self.signals.ModelUpdate)
+        self.rowsInserted.connect(self.signals.ModelUpdate)
+        self.rowsMoved.connect(self.signals.ModelUpdate)
+        self.rowsRemoved.connect(self.signals.ModelUpdate)
 
 
     @property
@@ -118,7 +127,7 @@ class Model(QStandardItemModel):
             triset = concatenate((triset, reflect_triangles(triset)))
         return triset
 
-    def _update(self, index_ul, index_br):
+    def _update_from_index(self, index_ul, index_br):
         """Update model due to an item change
 
         Slot for the dataChanged signal
@@ -132,5 +141,18 @@ class Model(QStandardItemModel):
         if not index_ul.isValid():
             return
         item = self.itemFromIndex(index_ul)
+        self.logger.debug('item="{}"'.format(item.text()))
+        item.fix_family()
+
+    def _update(self, item):
+        """Update model due to an item change
+
+        Slot for the dataChanged signal
+
+        Parameters
+        ----------
+        item: Qt::QStandardItem
+            The item that has changed.
+        """
         self.logger.debug('item="{}"'.format(item.text()))
         item.fix_family()

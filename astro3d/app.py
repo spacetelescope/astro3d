@@ -23,6 +23,7 @@ class Application(Controller):
         self._create_signals()
         self.model = Model(
             logger=self.logger,
+            signals=self.signals
         )
 
         if self.__class__.ui_app is None:

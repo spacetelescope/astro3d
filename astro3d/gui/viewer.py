@@ -246,12 +246,3 @@ class MainWindow(GTK_MainWindow):
         self.signals.ProcessStart.connect(self.mesh_viewer.process)
         self.signals.StageChange.connect(self.stagechange)
         self.signals.ModelUpdate.connect(self.image_viewer.update)
-
-        # Group a bunch of signals into ModelUpdate
-        self.model.itemChanged.connect(self.signals.ModelUpdate)
-        self.model.columnsInserted.connect(self.signals.ModelUpdate)
-        self.model.columnsMoved.connect(self.signals.ModelUpdate)
-        self.model.columnsRemoved.connect(self.signals.ModelUpdate)
-        self.model.rowsInserted.connect(self.signals.ModelUpdate)
-        self.model.rowsMoved.connect(self.signals.ModelUpdate)
-        self.model.rowsRemoved.connect(self.signals.ModelUpdate)
