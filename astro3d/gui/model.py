@@ -23,13 +23,12 @@ __all__ = ['Model']
 class Model(QStandardItemModel):
     """Data model"""
 
-    image = None
-
     def __init__(self, *args, **kwargs):
         logger = kwargs.pop('logger', None)
         if logger is None:
             logger = make_logger('astro3d Layer Manager')
         self.logger = logger
+        self.signals = kwargs.pop('signals')
 
         super(Model, self).__init__(*args, **kwargs)
 
@@ -54,18 +53,40 @@ class Model(QStandardItemModel):
         })
 
         # Signals
-        self.dataChanged.connect(self._update)
+        self.itemChanged.connect(self._update)
 
-    def set_image(self, image):
-        """Set the image"""
-        self.image = image
+        self.columnsInserted.connect(self.signals.ModelUpdate)
+        self.columnsMoved.connect(self.signals.ModelUpdate)
+        self.columnsRemoved.connect(self.signals.ModelUpdate)
+        self.rowsInserted.connect(self.signals.ModelUpdate)
+        self.rowsMoved.connect(self.signals.ModelUpdate)
+        self.rowsRemoved.connect(self.signals.ModelUpdate)
+
+    @property
+    def image(self):
+        return self._image
+
+    @image.setter
+    def image(self, image):
+        """Set the image
+
+        Parameters
+        ----------
+        image: 2D numpy array
+               The image data.
+        """
+        self._image = image
 
     def read_regionpathlist(self, pathlist):
         """Read a list of mask files"""
-        for path in pathlist:
-            region = RegionMask.from_fits(path)
-            id = basename(path)
-            self.regions.add(region=region, id=id)
+        self.signals.ModelUpdate.disable()
+        try:
+            for path in pathlist:
+                region = RegionMask.from_fits(path)
+                id = basename(path)
+                self.regions.add(region=region, id=id)
+        finally:
+            self.signals.ModelUpdate.enable()
 
     def read_star_catalog(self, pathname):
         """Read in a star catalog"""
@@ -108,7 +129,7 @@ class Model(QStandardItemModel):
             triset = concatenate((triset, reflect_triangles(triset)))
         return triset
 
-    def _update(self, index_ul, index_br):
+    def _update_from_index(self, index_ul, index_br):
         """Update model due to an item change
 
         Slot for the dataChanged signal
@@ -124,3 +145,19 @@ class Model(QStandardItemModel):
         item = self.itemFromIndex(index_ul)
         self.logger.debug('item="{}"'.format(item.text()))
         item.fix_family()
+
+    def _update(self, item):
+        """Update model due to an item change
+
+        Slot for the dataChanged signal
+
+        Parameters
+        ----------
+        item: Qt::QStandardItem
+            The item that has changed.
+        """
+        self.logger.debug('item="{}"'.format(item.text()))
+        self.itemChanged.disconnect()
+        item.fix_family()
+        self.itemChanged.connect(self._update)
+        self.signals.ModelUpdate()

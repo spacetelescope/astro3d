@@ -38,6 +38,7 @@ class Signal(object):
         """
         self._functions = WeakSet()
         self._methods = WeakKeyDictionary()
+        self._enabled = True
         if logger is None:
             logger = make_logger('Signal')
         self.logger = logger
@@ -54,41 +55,67 @@ class Signal(object):
                 kwargs
             )
         )
-        to_be_removed = []
-        for func in self._functions.copy():
-            try:
-                func(*args, **kwargs)
-            except RuntimeError:
-                Warning.warn(
-                    'Signal {}: Signals func->RuntimeError: func "{}" will be removed.'.format(
-                        self.__class__.__name_,
-                        func
-                    )
+
+        if not self._enabled:
+            self.logger.debug(
+                'Signal {}: Disabled, exiting...'.format(
+                    self.__class__.__name__
                 )
-                to_be_removed.append(func)
+            )
+            return
 
-        for remove in to_be_removed:
-            self._functions.discard(remove)
+        # No recursive signalling
+        self.disable()
 
-        # Call handler methods
-        to_be_removed = []
-        emitters = self._methods.copy()
-        for obj, funcs in emitters.items():
-            for func in funcs.copy():
+        # Call the slots.
+        try:
+            to_be_removed = []
+            for func in self._functions.copy():
                 try:
-                    func(obj, *args, **kwargs)
+                    func(*args, **kwargs)
                 except RuntimeError:
-                    warnings.warn(
-                        'Signal {}: Signals methods->RuntimeError, obj.func "{}.{}" will be removed'.format(
-                            self.__class__.__new__,
-                            obj,
+                    Warning.warn(
+                        'Signal {}: Signals func->RuntimeError: func "{}" will be removed.'.format(
+                            self.__class__.__name_,
                             func
                         )
                     )
-                    to_be_removed.append((obj, func))
+                    to_be_removed.append(func)
 
-        for obj, func in to_be_removed:
-            self._methods[obj].discard(func)
+            for remove in to_be_removed:
+                self._functions.discard(remove)
+
+            # Call handler methods
+            to_be_removed = []
+            emitters = self._methods.copy()
+            for obj, funcs in emitters.items():
+                for func in funcs.copy():
+                    try:
+                        func(obj, *args, **kwargs)
+                    except RuntimeError:
+                        warnings.warn(
+                            'Signal {}: Signals methods->RuntimeError, obj.func "{}.{}" will be removed'.format(
+                                self.__class__.__new__,
+                                obj,
+                                func
+                            )
+                        )
+                        to_be_removed.append((obj, func))
+
+            for obj, func in to_be_removed:
+                self._methods[obj].discard(func)
+        finally:
+            self.enable()
+
+    @property
+    def enabled(self):
+        return self._enabled
+
+    def enable(self):
+        self._enabled = True
+
+    def disable(self):
+        self._enabled = False
 
     def connect(self, slot):
         self.logger.debug(

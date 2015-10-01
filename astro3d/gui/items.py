@@ -114,6 +114,7 @@ class Regions(CheckableItem):
             self.appendRow(type_item)
         region_item.fix_family()
 
+
 class Textures(CheckableItem):
     """Textures container"""
     def __init__(self, *args, **kwargs):
@@ -147,6 +148,7 @@ class Stars(CheckableItem):
         self.appendRow(item)
         item.fix_family()
 
+
 # Utilities
 def fix_tristate(item):
     """Set tristate based on siblings"""
@@ -162,13 +164,14 @@ def fix_tristate(item):
         if state == Qt.Unchecked:
             state = Qt.PartiallyChecked
         item.setCheckState(state)
-
+        fix_tristate(item.parent())
 
 def fix_children_availabilty(item):
-    """Set tristate based on siblings"""
+    """Enable/disable children based on current state"""
     if item is not None and item.hasChildren():
         enable = item.isEnabled() and \
                  item.checkState() in (Qt.PartiallyChecked, Qt.Checked)
         for idx in range(item.rowCount()):
             child = item.child(idx)
             child.setEnabled(enable)
+            fix_children_availabilty(child)
