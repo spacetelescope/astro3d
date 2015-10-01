@@ -2,8 +2,8 @@
 """
 
 from attrdict import AttrDict
-
-from ginga import AstroImage
+from ginga.AstroImage import AstroImage
+from ginga.LayerImage import LayerImage
 
 from ..util.logger import make_logger
 from ..external.qt import (QtGui, QtCore)
@@ -21,6 +21,10 @@ STAGES = {
     'Spiral Galaxy': 'spiral_galaxy',
     'Double-sided':  'double_sided'
 }
+
+
+class Image(AstroImage, LayerImage):
+    """Image container"""
 
 
 class MainWindow(GTK_MainWindow):
@@ -43,7 +47,7 @@ class MainWindow(GTK_MainWindow):
         ####
 
         # Image View
-        image_viewer = ViewImage(self.logger)
+        image_viewer = ViewImage(self.logger, model=self.model)
         self.image_viewer = image_viewer
         image_viewer_widget = image_viewer.get_widget()
         self.setCentralWidget(image_viewer_widget)
@@ -120,10 +124,9 @@ class MainWindow(GTK_MainWindow):
 
     def open_path(self, pathname):
         """Open the image from pathname"""
-        image = AstroImage.AstroImage(logger=self.logger)
-        image.load_file(pathname)
-        self.image_update(image)
-        self.signals.NewImage(image)
+        self.image = Image(logger=self.logger)
+        self.image.load_file(pathname)
+        self.image_update(self.image)
 
     def image_update(self, image):
         """Image has updated.
@@ -134,7 +137,7 @@ class MainWindow(GTK_MainWindow):
             The image.
         """
         self.image_viewer.set_image(image)
-        self.model.set_image(image.get_data())
+        self.model.image = image.get_data()
         self.setWindowTitle(image.get('name'))
         self.signals.ModelUpdate()
 
@@ -243,3 +246,4 @@ class MainWindow(GTK_MainWindow):
         self.signals.ProcessStart.connect(self.mesh_viewer.process)
         self.signals.StageChange.connect(self.stagechange)
         self.model.dataChanged.connect(self.signals.ModelUpdate)
+        self.model.dataChanged.connect(self.image_viewer.update)

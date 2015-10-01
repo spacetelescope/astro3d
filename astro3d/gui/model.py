@@ -23,8 +23,6 @@ __all__ = ['Model']
 class Model(QStandardItemModel):
     """Data model"""
 
-    image = None
-
     def __init__(self, *args, **kwargs):
         logger = kwargs.pop('logger', None)
         if logger is None:
@@ -56,9 +54,21 @@ class Model(QStandardItemModel):
         # Signals
         self.dataChanged.connect(self._update)
 
-    def set_image(self, image):
-        """Set the image"""
-        self.image = image
+
+    @property
+    def image(self):
+        return self._image
+
+    @image.setter
+    def image(self, image):
+        """Set the image
+
+        Parameters
+        ----------
+        image: 2D numpy array
+               The image data.
+        """
+        self._image = image
 
     def read_regionpathlist(self, pathlist):
         """Read a list of mask files"""
