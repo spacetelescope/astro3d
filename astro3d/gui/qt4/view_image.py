@@ -56,3 +56,4 @@ class ViewImage(ImageViewCanvas):
         for region in self.model.regions:
             self.logger.debug('overlaying region "{}"'.format(region))
             overlay.add_region(region)
+        self.redraw()
