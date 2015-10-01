@@ -41,9 +41,11 @@ class ViewImage(ImageViewCanvas):
     def model(self, model):
         self._model = model
 
-    def update(self):
+    def update(self, *args, **kwargs):
         """Update the image display"""
-        self.logger.debug('Updating...')
+        self.logger.debug(
+            'Updating args="{}" kwargs="{}"'.format(args, kwargs)
+        )
 
         self._update_overlays()
 

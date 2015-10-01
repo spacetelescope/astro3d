@@ -38,6 +38,8 @@ class Overlay(object):
             self.parent = parent
         self.color = color
 
+        self._known_shapes = {}
+
     @property
     def parent(self):
         return self.canvas.get_surface()
@@ -54,9 +56,13 @@ class Overlay(object):
     def add_region(self, region):
         print('Overlay.add_region: region="{}"'.format(region))
         if isinstance(region, RegionMask):
-            mask = AstroImage(data_np=region.mask)
-            maskrgb = masktorgb(mask, color=self.color, opacity=0.3)
-            maskrgb_obj = self.dc.Image(0, 0, maskrgb)
+            try:
+                maskrgb_obj = self._known_shapes[region]
+            except KeyError:
+                mask = AstroImage(data_np=region.mask)
+                maskrgb = masktorgb(mask, color=self.color, opacity=0.3)
+                maskrgb_obj = self.dc.Image(0, 0, maskrgb)
+                self._known_shapes[region] = maskrgb_obj
             self.canvas.add(maskrgb_obj)
 
 
