@@ -54,7 +54,6 @@ class Overlay(object):
         self.canvas.add(shape)
 
     def add_region(self, region):
-        print('Overlay.add_region: region="{}"'.format(region))
         if isinstance(region, RegionMask):
             try:
                 maskrgb_obj = self._known_shapes[region]

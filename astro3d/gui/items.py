@@ -164,7 +164,7 @@ def fix_tristate(item):
         if state == Qt.Unchecked:
             state = Qt.PartiallyChecked
         item.setCheckState(state)
-
+        fix_tristate(item.parent())
 
 def fix_children_availabilty(item):
     """Enable/disable children based on current state"""
@@ -174,3 +174,4 @@ def fix_children_availabilty(item):
         for idx in range(item.rowCount()):
             child = item.child(idx)
             child.setEnabled(enable)
+            fix_children_availabilty(child)

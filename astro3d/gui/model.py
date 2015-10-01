@@ -55,14 +55,12 @@ class Model(QStandardItemModel):
         # Signals
         self.itemChanged.connect(self._update)
 
-        self.itemChanged.connect(self.signals.ModelUpdate)
         self.columnsInserted.connect(self.signals.ModelUpdate)
         self.columnsMoved.connect(self.signals.ModelUpdate)
         self.columnsRemoved.connect(self.signals.ModelUpdate)
         self.rowsInserted.connect(self.signals.ModelUpdate)
         self.rowsMoved.connect(self.signals.ModelUpdate)
         self.rowsRemoved.connect(self.signals.ModelUpdate)
-
 
     @property
     def image(self):
@@ -81,10 +79,14 @@ class Model(QStandardItemModel):
 
     def read_regionpathlist(self, pathlist):
         """Read a list of mask files"""
-        for path in pathlist:
-            region = RegionMask.from_fits(path)
-            id = basename(path)
-            self.regions.add(region=region, id=id)
+        self.signals.ModelUpdate.disable()
+        try:
+            for path in pathlist:
+                region = RegionMask.from_fits(path)
+                id = basename(path)
+                self.regions.add(region=region, id=id)
+        finally:
+            self.signals.ModelUpdate.enable()
 
     def read_star_catalog(self, pathname):
         """Read in a star catalog"""
@@ -155,4 +157,7 @@ class Model(QStandardItemModel):
             The item that has changed.
         """
         self.logger.debug('item="{}"'.format(item.text()))
+        self.itemChanged.disconnect()
         item.fix_family()
+        self.itemChanged.connect(self._update)
+        self.signals.ModelUpdate()
