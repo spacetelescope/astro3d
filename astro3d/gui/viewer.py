@@ -56,13 +56,13 @@ class MainWindow(GTK_MainWindow):
         self.mesh_viewer = ViewMesh()
 
         # The Layer manager
-        self.layer_viewer = LayerManager(logger=self.logger)
-        self.layer_viewer.setModel(self.model)
+        self.layer_manager = LayerManager(logger=self.logger)
+        self.layer_manager.setModel(self.model)
         layer_dock = QtGui.QDockWidget('Layers', self)
         layer_dock.setAllowedAreas(
             Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea
         )
-        layer_dock.setWidget(self.layer_viewer)
+        layer_dock.setWidget(self.layer_manager)
         self.addDockWidget(Qt.RightDockWidgetArea, layer_dock)
         self.layer_dock = layer_dock
 
