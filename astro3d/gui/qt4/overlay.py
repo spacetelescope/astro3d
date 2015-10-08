@@ -22,18 +22,39 @@ COLORS = defaultdict(
 )
 
 
-class Overlay(object):
-    """Overlays
+class BaseOverlay(object):
+    """Base class for Overlays
 
     Parameters
     ----------
     parent: ginga Canvas
-        The canvas we'll work on.
+        The parent canvas.
+    """
+    def __init__(self, parent=None):
+        self._dc = get_canvas_types()
+        self.canvas = self._dc.Canvas()
+        if parent is not None:
+            self.parent = parent
+
+    @property
+    def parent(self):
+        return self._parent
+
+    @parent.setter
+    def parent(self, parent):
+        parent.add(self.canvas)
+        self._parent = parent
+
+
+class Overlay(BaseOverlay):
+    """Overlays
+
+    Overlays on which regions are shown.
     """
 
     def __init__(self, parent=None, color='red'):
-        self.dc = get_canvas_types()
-        self.canvas = self.dc.DrawingCanvas()
+        super(Overlay, self).__init__()
+        self.canvas = self._dc.DrawingCanvas()
         if parent is not None:
             self.parent = parent
         self.color = color
@@ -47,6 +68,7 @@ class Overlay(object):
     @parent.setter
     def parent(self, parent):
         self.canvas.set_surface(parent)
+        self.canvas.register_for_cursor_drawing(parent)
         parent.add(self.canvas)
 
     def add(self, shape):
@@ -60,12 +82,12 @@ class Overlay(object):
             except KeyError:
                 mask = AstroImage(data_np=region.mask)
                 maskrgb = masktorgb(mask, color=self.color, opacity=0.3)
-                maskrgb_obj = self.dc.Image(0, 0, maskrgb)
+                maskrgb_obj = self._dc.Image(0, 0, maskrgb)
                 self._known_shapes[region] = maskrgb_obj
             self.canvas.add(maskrgb_obj)
 
 
-class RegionsOverlay(Overlay):
+class RegionsOverlay(BaseOverlay):
     """Top level Regions overlay
 
     Individual region types are sub-overlays

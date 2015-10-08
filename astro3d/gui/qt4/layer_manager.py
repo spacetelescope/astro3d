@@ -2,12 +2,16 @@
 
 from ...external.qt import (QtGui, QtCore)
 from ...util.logger import make_logger
+from ..items import LayerItem
+
 
 __all__ = ['LayerManager']
 
 
 class LayerManager(QtGui.QTreeView):
     """Manager the various layers"""
+
+    layer_selected = QtCore.pyqtSignal(LayerItem, name='layerSelected')
 
     def __init__(self, *args, **kwargs):
         logger = kwargs.pop('logger', None)
@@ -17,6 +21,13 @@ class LayerManager(QtGui.QTreeView):
 
         super(LayerManager, self).__init__(*args, **kwargs)
         self.setHeaderHidden(True)
+
+    def selectionChanged(self, selected, deselected):
+        """QT builtin slot called when a selection is changed"""
+        layer = selected.indexes()[0]
+        layer = self.model().itemFromIndex(layer)
+        self.logger.debug('layer="{}"'.format(layer))
+        self.layer_selected.emit(layer)
 
     def contextMenuEvent(self, event):
         self.logger.debug('event = "{}"'.format(event))

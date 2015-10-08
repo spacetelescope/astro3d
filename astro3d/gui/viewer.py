@@ -9,7 +9,7 @@ from ..util.logger import make_logger
 from ..external.qt import (QtGui, QtCore)
 from ..external.qt.QtCore import Qt
 from ..external.qt.QtGui import QMainWindow as GTK_MainWindow
-from qt4 import (LayerManager, ViewImage, ViewMesh)
+from qt4 import (LayerManager, ViewImage, ViewMesh, ShapeEditor)
 
 
 __all__ = ['MainWindow']
@@ -38,39 +38,6 @@ class MainWindow(GTK_MainWindow):
         self.signals = signals
         self._build_gui()
         self._create_signals()
-
-    def _build_gui(self):
-        """Construct the app's GUI"""
-
-        ####
-        # Setup main content views
-        ####
-
-        # Image View
-        image_viewer = ViewImage(self.logger, model=self.model)
-        self.image_viewer = image_viewer
-        image_viewer_widget = image_viewer.get_widget()
-        self.setCentralWidget(image_viewer_widget)
-
-        # 3D mesh preview
-        self.mesh_viewer = ViewMesh()
-
-        # The Layer manager
-        self.layer_manager = LayerManager(logger=self.logger)
-        self.layer_manager.setModel(self.model)
-        layer_dock = QtGui.QDockWidget('Layers', self)
-        layer_dock.setAllowedAreas(
-            Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea
-        )
-        layer_dock.setWidget(self.layer_manager)
-        self.addDockWidget(Qt.RightDockWidgetArea, layer_dock)
-        self.layer_dock = layer_dock
-
-        # Setup all the auxiliary gui.
-        self._create_actions()
-        self._create_menus()
-        self._create_toolbars()
-        self._create_statusbar()
 
     def path_from_dialog(self):
         res = QtGui.QFileDialog.getOpenFileName(self, "Open FITS file",
@@ -153,6 +120,49 @@ class MainWindow(GTK_MainWindow):
         """Shutdown"""
         self.logger.debug('GUI shutting down...')
         self.deleteLater()
+
+    def _build_gui(self):
+        """Construct the app's GUI"""
+
+        ####
+        # Setup main content views
+        ####
+
+        # Image View
+        image_viewer = ViewImage(self.logger, model=self.model)
+        self.image_viewer = image_viewer
+        image_viewer_widget = image_viewer.get_widget()
+        self.setCentralWidget(image_viewer_widget)
+
+        # 3D mesh preview
+        self.mesh_viewer = ViewMesh()
+
+        # The Layer manager
+        self.layer_manager = LayerManager(logger=self.logger)
+        self.layer_manager.setModel(self.model)
+        layer_dock = QtGui.QDockWidget('Layers', self)
+        layer_dock.setAllowedAreas(
+            Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea
+        )
+        layer_dock.setWidget(self.layer_manager)
+        self.addDockWidget(Qt.RightDockWidgetArea, layer_dock)
+        self.layer_dock = layer_dock
+
+        # The Shape Editor
+        self.shape_editor = ShapeEditor(logger=self.logger)
+        shape_editor_dock = QtGui.QDockWidget('Shape Editor', self)
+        shape_editor_dock.setAllowedAreas(
+            Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea
+        )
+        shape_editor_dock.setWidget(self.shape_editor)
+        self.addDockWidget(Qt.LeftDockWidgetArea, shape_editor_dock)
+        self.shape_editor_dock = shape_editor_dock
+
+        # Setup all the auxiliary gui.
+        self._create_actions()
+        self._create_menus()
+        self._create_toolbars()
+        self._create_statusbar()
 
     def _create_actions(self):
         """Setup the main actions"""
