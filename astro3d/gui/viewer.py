@@ -1,5 +1,6 @@
 """Main UI Viewer
 """
+from functools import partial
 
 from attrdict import AttrDict
 from ginga.AstroImage import AstroImage

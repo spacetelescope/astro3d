@@ -7,7 +7,16 @@ from ..external.qt.QtGui import QStandardItem
 from ..external.qt.QtCore import Qt
 
 
-__all__ = ['LayerItem']
+__all__ = [
+    'ClusterItem',
+    'Clusters',
+    'LayerItem',
+    'RegionItem',
+    'Regions',
+    'Stars',
+    'Textures',
+    'TypeItem',
+]
 
 Action = namedtuple('Action', ('text', 'func', 'args'))
 
@@ -29,6 +38,7 @@ class LayerItem(QStandardItem):
         super(LayerItem, self).__init__(*args, **kwargs)
         self._currentrow = None
         self.value = value
+        self.view = None
 
     def __iter__(self):
         self._currentrow = None
@@ -38,11 +48,10 @@ class LayerItem(QStandardItem):
         self._currentrow = self._currentrow + 1 \
                            if self._currentrow is not None \
                            else 0
-        item = self.child(self._currentrow)
-        if item is None:
+        child = self.child(self._currentrow)
+        if child is None:
             raise StopIteration
-        else:
-            return (item.value, item.data(Qt.DisplayRole))
+        return child
 
     @property
     def value(self):
@@ -124,7 +133,8 @@ class Regions(CheckableItem):
 
     # Regions iterate over all the leaf nodes.
     # These would be the masks themselves.
-    def __iter__(self):
+    @property
+    def regions(self):
         regions = (
             self.child(type_id).child(region_id).value
             for type_id in range(self.rowCount())
