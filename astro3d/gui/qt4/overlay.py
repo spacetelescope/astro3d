@@ -2,6 +2,7 @@
 from __future__ import absolute_import, print_function
 
 from collections import defaultdict
+from functools import partial
 
 import numpy as np
 
@@ -14,6 +15,9 @@ from ...external.qt import (QtGui, QtCore)
 from ...core.region_mask import RegionMask
 from ...util.logger import make_logger
 from ..items import *
+
+from .util import EventDeferred
+
 
 __all__ = [
     'OverlayView'
@@ -254,12 +258,16 @@ class OverlayView(QtCore.QObject):
         self._connect()
         self.paint()
 
+    @EventDeferred
     def paint(self, *args, **kwargs):
         self.logger.debug('Called: args="{}" kwargs="{}".'.format(args, kwargs))
-        try:
-            self._defer_paint.stop()
-        except:
-            raise
+        self._paint(*args, **kwargs)
+
+    def paint_explicit(self, *args, **kwargs):
+        self.logger.debug('Called: args="{}" kwargs="{}".'.format(args, kwargs))
+        self._defer_paint.stop()
+        part = partial(self._paint, *args, **kwargs)
+        self._defer_paint.timeout.connect(part)
         self._defer_paint.start(0)
 
     def _paint(self, *args, **kwargs):
