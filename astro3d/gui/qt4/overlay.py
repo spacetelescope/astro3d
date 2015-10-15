@@ -291,6 +291,12 @@ class OverlayView(QtCore.QObject):
         """Connect model signals"""
         try:
             self.model.itemChanged.connect(self.paint)
+            self.model.columnsInserted.connect(self.paint)
+            self.model.columnsMoved.connect(self.paint)
+            self.model.columnsRemoved.connect(self.paint)
+            self.model.rowsInserted.connect(self.paint)
+            self.model.rowsMoved.connect(self.paint)
+            self.model.rowsRemoved.connect(self.paint)
         except AttributeError:
             """Model is probably not defined. Ignore"""
             pass
@@ -299,6 +305,12 @@ class OverlayView(QtCore.QObject):
         """Disconnect signals"""
         try:
             self.model.itemChanged.disconnect(self.paint)
+            self.model.columnsInserted.disconnect(self.paint)
+            self.model.columnsMoved.disconnect(self.paint)
+            self.model.columnsRemoved.disconnect(self.paint)
+            self.model.rowsInserted.disconnect(self.paint)
+            self.model.rowsMoved.disconnect(self.paint)
+            self.model.rowsRemoved.disconnect(self.paint)
         except AttributeError:
             """Model is probably not defined. Ignore"""
             pass
