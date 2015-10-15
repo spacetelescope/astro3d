@@ -44,6 +44,7 @@ class Model(QStandardItemModel):
         root.appendRow(self.cluster_catalogs)
         root.appendRow(self.stars_catalogs)
         root.appendRow(self.textures)
+        self._root = root
 
         self.stages = AttrDict({
             'intensity': True,
@@ -61,6 +62,19 @@ class Model(QStandardItemModel):
         self.rowsInserted.connect(self.signals.ModelUpdate)
         self.rowsMoved.connect(self.signals.ModelUpdate)
         self.rowsRemoved.connect(self.signals.ModelUpdate)
+
+    def __iter__(self):
+        self._currentrow = None
+        return self
+
+    def next(self):
+        self._currentrow = self._currentrow + 1 \
+                           if self._currentrow is not None \
+                           else 0
+        child = self._root.child(self._currentrow)
+        if child is None:
+            raise StopIteration
+        return child
 
     @property
     def image(self):
@@ -108,7 +122,7 @@ class Model(QStandardItemModel):
             return
         m = Model3D(self.image)
 
-        for region in self.regions:
+        for region in self.regions.regions:
             m.add_mask(region)
 
         for (catalog, id) in self.cluster_catalogs:
@@ -157,7 +171,7 @@ class Model(QStandardItemModel):
             The item that has changed.
         """
         self.logger.debug('item="{}"'.format(item.text()))
-        self.itemChanged.disconnect()
+        self.itemChanged.disconnect(self._update)
         item.fix_family()
         self.itemChanged.connect(self._update)
         self.signals.ModelUpdate()

@@ -1,14 +1,24 @@
 """Model Items"""
 from __future__ import absolute_import, print_function
 
-from collections import defaultdict
-import logging as log
+from collections import (defaultdict, namedtuple)
 
 from ..external.qt.QtGui import QStandardItem
 from ..external.qt.QtCore import Qt
 
 
-__all__ = ['LayerItem']
+__all__ = [
+    'ClusterItem',
+    'Clusters',
+    'LayerItem',
+    'RegionItem',
+    'Regions',
+    'Stars',
+    'Textures',
+    'TypeItem',
+]
+
+Action = namedtuple('Action', ('text', 'func', 'args'))
 
 
 class InstanceDefaultDict(defaultdict):
@@ -28,6 +38,7 @@ class LayerItem(QStandardItem):
         super(LayerItem, self).__init__(*args, **kwargs)
         self._currentrow = None
         self.value = value
+        self.view = None
 
     def __iter__(self):
         self._currentrow = None
@@ -37,11 +48,10 @@ class LayerItem(QStandardItem):
         self._currentrow = self._currentrow + 1 \
                            if self._currentrow is not None \
                            else 0
-        item = self.child(self._currentrow)
-        if item is None:
+        child = self.child(self._currentrow)
+        if child is None:
             raise StopIteration
-        else:
-            return (item.value, item.data(Qt.DisplayRole))
+        return child
 
     @property
     def value(self):
@@ -55,6 +65,11 @@ class LayerItem(QStandardItem):
     @property
     def is_available(self):
         return self.isEnabled() and self.checkState()
+
+    @property
+    def _actions(self):
+        actions = ()
+        return actions
 
     def fix_family(self):
         """Change ancestor/children states based on self state"""
@@ -73,6 +88,18 @@ class CheckableItem(LayerItem):
 
 class RegionItem(CheckableItem):
     """The regions"""
+    @property
+    def _actions(self):
+        actions = (
+            Action(text='Remove',
+                   func=self.remove,
+                   args=()
+            ),
+        )
+        return actions
+
+    def remove(self):
+        self.parent().removeRow(self.row())
 
 
 class ClusterItem(CheckableItem):
@@ -81,6 +108,18 @@ class ClusterItem(CheckableItem):
 
 class TypeItem(CheckableItem):
     """Types of regions"""
+    @property
+    def _actions(self):
+        actions = (
+            Action(text='Add Region',
+                   func=self.add_type,
+                   args=()
+            ),
+        )
+        return actions
+
+    def add_type(self):
+        """Add a new region."""
 
 
 class Regions(CheckableItem):
@@ -94,7 +133,8 @@ class Regions(CheckableItem):
 
     # Regions iterate over all the leaf nodes.
     # These would be the masks themselves.
-    def __iter__(self):
+    @property
+    def regions(self):
         regions = (
             self.child(type_id).child(region_id).value
             for type_id in range(self.rowCount())
@@ -113,6 +153,31 @@ class Regions(CheckableItem):
         if not type_item.index().isValid():
             self.appendRow(type_item)
         region_item.fix_family()
+
+    def add_type(self):
+        """Add a type"""
+
+    @property
+    def _actions(self):
+        actions = (
+            Action(text='Add Bulge',
+                   func=self.add_type,
+                   args=('bulge')
+            ),
+            Action(text='Add Gas',
+                   func=self.add_type,
+                   args=('gas')
+            ),
+            Action(text='Add Spiral',
+                   func=self.add_type,
+                   args=('spiral')
+            ),
+            Action(text='Add Remove Star',
+                   func=self.add_type,
+                   args=('remove_star')
+            )
+        )
+        return actions
 
 
 class Textures(CheckableItem):

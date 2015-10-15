@@ -1,7 +1,7 @@
 from ginga.qtw.ImageViewCanvasQt import ImageViewCanvas
 
 from ...util.logger import make_logger
-from .overlay import RegionsOverlay
+from .overlay import OverlayView
 
 __all__ = ['ViewImage']
 
@@ -30,8 +30,7 @@ class ViewImage(ImageViewCanvas):
         bd.enable_cuts(True)
         bd.enable_flip(True)
 
-        self.overlay = RegionsOverlay(parent=self)
-        self.model = model
+        self.overlay = OverlayView(parent=self, model=model)
 
     @property
     def model(self):
@@ -40,22 +39,10 @@ class ViewImage(ImageViewCanvas):
     @model.setter
     def model(self, model):
         self._model = model
+        self.overlay.model = model
 
     def update(self, *args, **kwargs):
         """Update the image display"""
         self.logger.debug(
             'Updating args="{}" kwargs="{}"'.format(args, kwargs)
         )
-
-        self._update_overlays()
-
-    def _update_overlays(self):
-        """Update the overlays from the model"""
-        self.logger.debug('updating overlays')
-
-        overlay = self.overlay
-        overlay.delete_all_objects()
-        for region in self.model.regions:
-            self.logger.debug('overlaying region "{}"'.format(region))
-            overlay.add_region(region)
-        self.redraw()
