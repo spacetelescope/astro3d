@@ -3,8 +3,8 @@ from __future__ import absolute_import, print_function
 
 from collections import (defaultdict, namedtuple)
 
-from ..external.qt.QtGui import QStandardItem
-from ..external.qt.QtCore import Qt
+from ..external.qt.QtGui import (QAction, QStandardItem)
+from ..external.qt.QtCore import (QObject, Qt)
 
 
 __all__ = [
@@ -16,9 +16,19 @@ __all__ = [
     'Stars',
     'Textures',
     'TypeItem',
+    'Action',
+    'Action_Separator'
 ]
 
 Action = namedtuple('Action', ('text', 'func', 'args'))
+
+
+class Action_Separator(QAction):
+    """Indicate a separator"""
+    def __init__(self):
+        self.obj = QObject()
+        super(Action_Separator, self).__init__(self.obj)
+        self.setSeparator(True)
 
 
 class InstanceDefaultDict(defaultdict):
@@ -68,7 +78,7 @@ class LayerItem(QStandardItem):
 
     @property
     def _actions(self):
-        actions = ()
+        actions = []
         return actions
 
     def fix_family(self):
@@ -85,17 +95,33 @@ class CheckableItem(LayerItem):
         self.setCheckable(True)
         self.setCheckState(Qt.Unchecked)
 
+    @property
+    def _actions(self):
+        actions = super(CheckableItem, self)._actions
+        actions.extend([
+            Action_Separator(),
+            Action(text='Hide' if self.checkState() else 'Show',
+                   func=self.toggle_available,
+                   args=()
+            )
+        ])
+        return actions
+
+    def toggle_available(self):
+        self.setCheckState(Qt.Unchecked if self.checkState() else Qt.Checked)
+
 
 class RegionItem(CheckableItem):
     """The regions"""
     @property
     def _actions(self):
-        actions = (
+        base_actions = super(RegionItem, self)._actions
+        actions = [
             Action(text='Remove',
                    func=self.remove,
                    args=()
-            ),
-        )
+            )
+        ] + base_actions
         return actions
 
     def remove(self):
@@ -110,12 +136,13 @@ class TypeItem(CheckableItem):
     """Types of regions"""
     @property
     def _actions(self):
-        actions = (
+        base_actions = super(TypeItem, self)._actions
+        actions = [
             Action(text='Add Region',
                    func=self.add_type,
                    args=()
             ),
-        )
+        ] + base_actions
         return actions
 
     def add_type(self):
@@ -159,7 +186,8 @@ class Regions(CheckableItem):
 
     @property
     def _actions(self):
-        actions = (
+        base_actions = super(Regions, self)._actions
+        actions = [
             Action(text='Add Bulge',
                    func=self.add_type,
                    args=('bulge')
@@ -176,7 +204,7 @@ class Regions(CheckableItem):
                    func=self.add_type,
                    args=('remove_star')
             )
-        )
+        ] + base_actions
         return actions
 
 

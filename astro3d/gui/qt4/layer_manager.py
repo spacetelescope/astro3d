@@ -2,7 +2,7 @@
 
 from ...external.qt import (QtGui, QtCore)
 from ...util.logger import make_logger
-from ..items import LayerItem
+from ..items import LayerItem, Action
 
 
 __all__ = ['LayerManager']
@@ -38,11 +38,19 @@ class LayerManager(QtGui.QTreeView):
             item = self.model().itemFromIndex(index)
             menu = QtGui.QMenu()
             for action_def in item._actions:
-                action = menu.addAction(action_def.text)
-                action.setData(action_def)
+                if isinstance(action_def, Action):
+                    action = menu.addAction(action_def.text)
+                    action.setData(action_def)
+                else:
+                    menu.addAction(action_def)
 
-            action = menu.exec_(event.globalPos())
-            if action:
-                self.logger.debug('chosen action = "{}", data="{}"'.format(action, action.data()))
-                action_def = action.data()
+            taken = menu.exec_(event.globalPos())
+            if taken:
+                self.logger.debug(
+                    'taken action = "{}", data="{}"'.format(
+                        taken,
+                        taken.data()
+                    )
+                )
+                action_def = taken.data()
                 action_def.func(*action_def.args)
