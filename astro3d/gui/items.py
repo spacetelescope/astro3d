@@ -231,6 +231,7 @@ def fix_tristate(item):
         item.setCheckState(state)
         fix_tristate(item.parent())
 
+
 def fix_children_availabilty(item):
     """Enable/disable children based on current state"""
     if item is not None and item.hasChildren():

@@ -2,7 +2,6 @@
 from __future__ import absolute_import, print_function
 
 from collections import defaultdict
-from functools import partial
 
 import numpy as np
 
@@ -56,6 +55,11 @@ class BaseOverlay(object):
         parent.canvas.add(self.canvas)
         self._parent = parent
 
+    def delete_all_objects(self):
+        """Remove the immediate children"""
+        self.canvas.delete_all_objects()
+        self.children = []
+
 
 class Overlay(BaseOverlay):
     """Overlays
@@ -88,8 +92,6 @@ class Overlay(BaseOverlay):
         self.parent = parent
         self.color = color
         self.children = []
-
-        self._known_shapes = {}
 
     @property
     def parent(self):
@@ -155,17 +157,19 @@ class Overlay(BaseOverlay):
         """
         if not region_item.is_available:
             return None
-        region = region_item.value
-        if isinstance(region, RegionMask):
-            try:
-                maskrgb_obj = self._known_shapes[region]
-            except KeyError:
+        if region_item.view is None:
+            region = region_item.value
+            if isinstance(region, RegionMask):
                 mask = AstroImage(data_np=region.mask)
                 maskrgb = masktorgb(mask, color=self.color, opacity=0.3)
                 maskrgb_obj = self._dc.Image(0, 0, maskrgb)
-                self._known_shapes[region] = maskrgb_obj
-            region_item.view = self.canvas.add(maskrgb_obj)
-            return region_item.view
+                region_item.view = maskrgb_obj
+            else:
+                raise NotImplementedError(
+                    'Cannot create view of region "{}"'.format(region_item)
+                )
+        self.canvas.add(region_item.view)
+        return region_item.view
 
     def add_overlay(self, layer_item):
         """Add another overlay
@@ -181,8 +185,14 @@ class Overlay(BaseOverlay):
         """
         if not layer_item.is_available:
             return None
-        overlay = Overlay(parent=self)
-        overlay.color = COLORS[layer_item.text()]
+        if layer_item.view is not None:
+            overlay = layer_item.view
+            overlay.delete_all_objects()
+            overlay.parent = self
+        else:
+            overlay = Overlay(parent=self)
+            layer_item.view = overlay
+            overlay.color = COLORS[layer_item.text()]
         self.add_child(overlay)
         return overlay
 
@@ -260,19 +270,16 @@ class OverlayView(QtCore.QObject):
 
     @EventDeferred
     def paint(self, *args, **kwargs):
-        self.logger.debug('Called: args="{}" kwargs="{}".'.format(args, kwargs))
+        self.logger.debug(
+            'Called: args="{}" kwargs="{}".'.format(args, kwargs)
+        )
         self._paint(*args, **kwargs)
-
-    def paint_explicit(self, *args, **kwargs):
-        self.logger.debug('Called: args="{}" kwargs="{}".'.format(args, kwargs))
-        self._defer_paint.stop()
-        part = partial(self._paint, *args, **kwargs)
-        self._defer_paint.timeout.connect(part)
-        self._defer_paint.start(0)
 
     def _paint(self, *args, **kwargs):
         """Show all overlays"""
-        self.logger.debug('Called: args="{}" kwargs="{}".'.format(args, kwargs))
+        self.logger.debug(
+            'Called: args="{}" kwargs="{}".'.format(args, kwargs)
+        )
         try:
             self.logger.debug('sender="{}"'.format(self.sender()))
         except AttributeError:
@@ -282,8 +289,7 @@ class OverlayView(QtCore.QObject):
         if self.model is None or self.parent is None:
             return
         root = self._root
-        root.canvas.delete_all_objects()
-        root.children = []
+        root.delete_all_objects()
         root.add_tree(self.model)
         root.canvas.redraw(whence=2)
 
