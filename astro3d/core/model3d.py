@@ -94,6 +94,7 @@ class Model3D(object):
         textures, including the spiral galaxy central cusp, are applied.
 
         A ``base_height`` of 10 corresponds to 2.74 mm.
+        A ``base_height`` of 18.25 corresponds to 5.0 mm.
         """
 
         self.data_original = np.asanyarray(data)
@@ -109,7 +110,7 @@ class Model3D(object):
         self._double_sided = False
         self._spiral_galaxy = False
         self.height = 250.         # total model height of *intensity* model
-        self.base_height = 10.     # total base height
+        self.base_height = 18.25    # total base height of 5 mm
 
         self.texture_order = ['small_dots', 'dots', 'lines']
         self.region_mask_types = ['smooth', 'remove_star']
@@ -976,7 +977,7 @@ class Model3D(object):
             self._apply_stellar_textures()
             self._apply_spiral_central_cusp()
 
-    def _make_model_base(self, filter_size=75, min_value=0.5):
+    def _make_model_base(self, filter_size=75, min_value=1.83):
         """
         Make a structural base for the model and replace zeros with
         ``min_value``.
@@ -994,7 +995,9 @@ class Model3D(object):
 
         min_value : float, optional
             The minimum value that the final image can have, e.g.
-            prevents printing zeros.
+            prevents printing zeros.  The default value of 1.83
+            corresponds to 0.5 mm (which will be doubled to 1 mm for a
+            double-sided model).
         """
 
         log.info('Making model base.')
@@ -1079,7 +1082,7 @@ class Model3D(object):
         self.data_intensity = deepcopy(self.data)
         self._apply_textures()
         self._make_model_base(filter_size=model_base_filter_size,
-                              min_value=0.5)
+                              min_value=1.83)
         self._model_complete = True
         log.info('Make complete!')
 
