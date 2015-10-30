@@ -1016,7 +1016,7 @@ class Model3D(object):
              suppress_background_percentile=90.,
              suppress_background_factor=0.2, smooth_size=11,
              minvalue_to_zero=0.02, crop_data_threshold=0.,
-             model_base_filter_size=75, model_base_min_value=1.83)
+             model_base_filter_size=75, model_base_min_value=1.83):
         """
         Make the model.
 
