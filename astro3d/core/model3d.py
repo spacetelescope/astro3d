@@ -1016,7 +1016,7 @@ class Model3D(object):
              suppress_background_percentile=90.,
              suppress_background_factor=0.2, smooth_size=11,
              minvalue_to_zero=0.02, crop_data_threshold=0.,
-             model_base_filter_size=75):
+             model_base_filter_size=75, model_base_min_value=1.83)
         """
         Make the model.
 
@@ -1061,6 +1061,12 @@ class Model3D(object):
         model_base_filter_size : int, optional
             The size of the binary dilation filter used in making the
             model base.  See `_make_model_base`.
+
+        model_base_min_value : float, optional
+            The minimum value that the final image can have, e.g.
+            prevents printing zeros.  The default value of 1.83
+            corresponds to 0.5 mm (which will be doubled to 1 mm for a
+            double-sided model).
         """
 
         self.data = deepcopy(self.data_original_resized)    # start fresh
@@ -1082,7 +1088,7 @@ class Model3D(object):
         self.data_intensity = deepcopy(self.data)
         self._apply_textures()
         self._make_model_base(filter_size=model_base_filter_size,
-                              min_value=1.83)
+                              min_value=model_base_min_value)
         self._model_complete = True
         log.info('Make complete!')
 
