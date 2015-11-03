@@ -866,19 +866,24 @@ class Model3D(object):
             depth = 10.
             data = np.zeros_like(self.data)
 
-        if not self.stellar_tables:
-            return
-
-        log.info('Adding stellar-like textures.')
-        self._stellar_texture_layer = textures.make_starlike_textures(
-            data, self.stellar_tables, radius_a=radius_a, radius_b=radius_b,
-            depth=depth, base_percentile=base_percentile)
-        if self.has_intensity:
-            self.data = textures.apply_textures(self.data,
-                                                self._stellar_texture_layer)
+        if len(self.stellar_tables) == 0:
+            if not self.has_intensity:
+                log.info('Discarding data intensity')
+                self.data = self._texture_layer
         else:
-            self.data = textures.apply_textures(self._texture_layer,
-                                                self._stellar_texture_layer)
+            log.info('Adding stellar-like textures.')
+            self._stellar_texture_layer = textures.make_starlike_textures(
+                data, self.stellar_tables, radius_a=radius_a,
+                radius_b=radius_b, depth=depth,
+                base_percentile=base_percentile)
+
+            if self.has_intensity:
+                self.data = textures.apply_textures(
+                    self.data, self._stellar_texture_layer)
+            else:
+                log.info('Discarding data intensity')
+                self.data = textures.apply_textures(
+                    self._texture_layer, self._stellar_texture_layer)
 
     def _find_galaxy_center(self, mask=None):
         """
