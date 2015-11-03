@@ -72,6 +72,13 @@ def resize_image(data, scale_factor):
 
     data = np.asanyarray(data)
     ny, nx = data.shape
+
+    if scale_factor == 1:
+        log.info('The array (ny * nx) = ({0}x{1}) was not '
+                 'resized.'.format(ny, nx))
+        return data
+
+    ny, nx = data.shape
     if (float(ny) / nx) >= 1.5:
         warnings.warn('The image is >= 1.5x taller than wide.  For 3D '
                       'printing, it should be rotated such that the longest '
@@ -111,7 +118,10 @@ def normalize_data(data, max_value=1.):
 
     data = np.asanyarray(data)
     minval, maxval = np.min(data), np.max(data)
-    return (data - minval) / (maxval - minval) * max_value
+    if (maxval - minval) == 0:
+        return (data / maxval) * max_value
+    else:
+        return (data - minval) / (maxval - minval) * max_value
 
 
 def crop_below_threshold(data, threshold=0):
