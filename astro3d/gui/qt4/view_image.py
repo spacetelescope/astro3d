@@ -1,4 +1,4 @@
-from ginga.qtw.ImageViewCanvasQt import ImageViewCanvas
+from ginga.gw.Viewers import ImageViewCanvas
 
 from ...util.logger import make_logger
 from .overlay import OverlayView
@@ -11,7 +11,6 @@ class ViewImage(ImageViewCanvas):
     def __init__(self, logger=None, model=None):
         if logger is None:
             logger = make_logger('astro3d ViewImage')
-
         self.logger = logger
 
         super(ViewImage, self).__init__(self.logger, render='widget')
@@ -30,7 +29,9 @@ class ViewImage(ImageViewCanvas):
         bd.enable_cuts(True)
         bd.enable_flip(True)
 
+        self.logger.debug('Creating overlay.')
         self.overlay = OverlayView(parent=self, model=model)
+        self.logger.debug('Overlay created.')
 
     @property
     def model(self):

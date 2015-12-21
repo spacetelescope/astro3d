@@ -19,7 +19,7 @@ class Application(Controller):
     def __init__(self, argv=None):
 
         self.mesh_thread = None
-        self.logger = make_logger(name='astro3d', level=logging.WARNING)
+        self.logger = make_logger(name='astro3d', level=logging.DEBUG)
         self._create_signals()
         self.model = Model(
             logger=self.logger,

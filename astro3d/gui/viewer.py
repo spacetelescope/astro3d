@@ -131,6 +131,7 @@ class MainWindow(GTK_MainWindow):
 
         # Image View
         image_viewer = ViewImage(self.logger, model=self.model)
+        image_viewer.set_desired_size(512, 512)
         self.image_viewer = image_viewer
         image_viewer_widget = image_viewer.get_widget()
         self.setCentralWidget(image_viewer_widget)
