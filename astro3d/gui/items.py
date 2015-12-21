@@ -17,17 +17,17 @@ __all__ = [
     'Textures',
     'TypeItem',
     'Action',
-    'Action_Separator'
+    'ActionSeparator'
 ]
 
 Action = namedtuple('Action', ('text', 'func', 'args'))
 
 
-class Action_Separator(QAction):
+class ActionSeparator(QAction):
     """Indicate a separator"""
     def __init__(self):
         self.obj = QObject()
-        super(Action_Separator, self).__init__(self.obj)
+        super(ActionSeparator, self).__init__(self.obj)
         self.setSeparator(True)
 
 
@@ -42,13 +42,23 @@ class InstanceDefaultDict(defaultdict):
 
 
 class LayerItem(QStandardItem):
-    """Layers"""
+    """Layers
+
+    Parameters
+    ----------
+    All `QStandardItem` parameters plus:
+
+    value: type
+        Specific value this item is associated with
+
+    view: ginga shape or overlay
+        How this item is viewed. This is either the overlay or the ginga shape
+    """
     def __init__(self, *args, **kwargs):
-        value = kwargs.pop('value', None)
+        self.value = kwargs.pop('value', None)
+        self.view = kwargs.pop('view', None)
         super(LayerItem, self).__init__(*args, **kwargs)
         self._currentrow = None
-        self.value = value
-        self.view = None
 
     def __iter__(self):
         self._currentrow = None
@@ -99,7 +109,7 @@ class CheckableItem(LayerItem):
     def _actions(self):
         actions = super(CheckableItem, self)._actions
         actions.extend([
-            Action_Separator(),
+            ActionSeparator(),
             Action(text='Hide' if self.checkState() else 'Show',
                    func=self.toggle_available,
                    args=()
@@ -139,13 +149,13 @@ class TypeItem(CheckableItem):
         base_actions = super(TypeItem, self)._actions
         actions = [
             Action(text='Add Region',
-                   func=self.add_type,
+                   func=self.add_region,
                    args=()
             ),
         ] + base_actions
         return actions
 
-    def add_type(self):
+    def add_region(self):
         """Add a new region."""
 
 
@@ -188,21 +198,25 @@ class Regions(CheckableItem):
     def _actions(self):
         base_actions = super(Regions, self)._actions
         actions = [
-            Action(text='Add Bulge',
-                   func=self.add_type,
-                   args=('bulge')
+            Action(
+                text='Add Bulge',
+                func=self.add_type,
+                args=('bulge')
             ),
-            Action(text='Add Gas',
-                   func=self.add_type,
-                   args=('gas')
+            Action(
+                text='Add Gas',
+                func=self.add_type,
+                args=('gas')
             ),
-            Action(text='Add Spiral',
-                   func=self.add_type,
-                   args=('spiral')
+            Action(
+                text='Add Spiral',
+                func=self.add_type,
+                args=('spiral')
             ),
-            Action(text='Add Remove Star',
-                   func=self.add_type,
-                   args=('remove_star')
+            Action(
+                text='Add Remove Star',
+                func=self.add_type,
+                args=('remove_star')
             )
         ] + base_actions
         return actions

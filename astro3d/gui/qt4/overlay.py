@@ -100,8 +100,8 @@ class Overlay(BaseOverlay):
     @parent.setter
     def parent(self, parent):
         if parent is not None:
-            self.canvas.set_surface(parent.canvas)
-            self.canvas.register_for_cursor_drawing(parent.canvas)
+            #self.canvas.set_surface(parent.canvas)
+            #self.canvas.register_for_cursor_drawing(parent.canvas)
             self.view = parent.canvas.add(self.canvas)
         self._parent = parent
 
