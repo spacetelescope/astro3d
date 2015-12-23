@@ -67,5 +67,9 @@ class StageChange(Signal):
 
 
 # GUI events
+class NewRegion(Signal):
+    """New region being created"""
+
+
 class UpdateMesh(Signal):
     """Update Mesh view"""

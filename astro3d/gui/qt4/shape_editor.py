@@ -2,6 +2,8 @@
 
 from ...external.qt import (QtGui, QtCore)
 from ...util.logger import make_logger
+from .. import signaldb
+
 
 __all__ = ['ShapeEditor']
 
@@ -17,9 +19,6 @@ class ShapeEditor(QtGui.QWidget):
     canvas: `ginga.canvas`
         The canvas to draw on.
     """
-
-    newRegion = QtCore.pyqtSignal(dict, name='newRegion')
-
     def __init__(self, *args, **kwargs):
         logger = kwargs.pop('logger', None)
         if logger is None:
@@ -33,7 +32,7 @@ class ShapeEditor(QtGui.QWidget):
         self.enabled = False
         self._build_gui()
 
-        self.newRegion.connect(self.new_region)
+        signaldb.NewRegion.connect(self.new_region)
 
     @property
     def canvas(self):

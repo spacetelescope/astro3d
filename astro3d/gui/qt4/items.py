@@ -6,7 +6,7 @@ from collections import (defaultdict, namedtuple)
 from ...external.qt.QtGui import (QAction, QStandardItem)
 from ...external.qt.QtCore import (QObject, Qt)
 
-from .shape_editor import ShapeEditor
+from .. import signaldb
 
 __all__ = [
     'ClusterItem',
@@ -161,7 +161,7 @@ class TypeItem(CheckableItem):
 
     def add_region(self):
         """Add a new region."""
-        ShapeEditor.newRegion.emit(self)
+        signaldb.NewRegion(self)
 
 
 class Regions(CheckableItem):
