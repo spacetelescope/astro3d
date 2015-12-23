@@ -161,7 +161,7 @@ class TypeItem(CheckableItem):
 
     def add_region(self):
         """Add a new region."""
-        signaldb.NewRegion(self)
+        signaldb.NewRegion(self.view)
 
 
 class Regions(CheckableItem):

@@ -13,17 +13,17 @@ class ShapeEditor(QtGui.QWidget):
 
     Paremeters
     ----------
-    color: str
-        Color to draw in.
+    surface: `ginga.Canvas`
+        The canvas to interact on.
 
-    canvas: `ginga.canvas`
-        The canvas to draw on.
+    logger: logging.Logger
+        The common logger.
     """
     def __init__(self, *args, **kwargs):
-        logger = kwargs.pop('logger', None)
-        if logger is None:
-            logger = make_logger('astro3d Shape Editor')
-        self.logger = logger
+        self.logger = kwargs.pop(
+            'logger',
+            make_logger('astro3d Shape Editor')
+        )
         self.surface = kwargs.pop('surface', None)
 
         super(ShapeEditor, self).__init__(*args, **kwargs)
@@ -36,6 +36,7 @@ class ShapeEditor(QtGui.QWidget):
 
     @property
     def canvas(self):
+        """The canvas the draw object will appear"""
         return self._canvas
 
     @canvas.setter
@@ -43,6 +44,11 @@ class ShapeEditor(QtGui.QWidget):
         if canvas is None or \
            self._canvas == canvas:
             return
+        try:
+            self._canvas.ui_setActive(False)
+        except AttributeError:
+            pass
+
         self._canvas = canvas
         self.drawtypes = self.canvas.get_drawtypes()
         self.drawtypes.sort()
@@ -57,6 +63,8 @@ class ShapeEditor(QtGui.QWidget):
         canvas.set_callback('edit-select', self.edit_select_cb)
         canvas.set_surface(self.surface)
         canvas.register_for_cursor_drawing(self.surface)
+        canvas.set_draw_mode('draw')
+        canvas.ui_setActive(True)
 
         # Let the user at it
         self.enabled = True
@@ -73,17 +81,43 @@ class ShapeEditor(QtGui.QWidget):
         except AttributeError:
             pass
 
-    def new_region(self, region_item):
-        self.logger.debug('Called with region_item="{}"'.format(region_item))
+    def new_region(self, overlay):
+        self.logger.debug('Called with overaly="{}"'.format(overlay))
+        self.overlay = overlay
+        self.canvas = overlay.canvas
+        self._build_gui()
 
     def set_drawparams(self):
         self.logger.debug('Called.')
+        kind = self.drawtypes[self.drawtype_widget.currentIndex()]
+        params = {
+            'color': 'red',
+            'alpha': 0.0,
+            'fill': True
+        }
+        self.canvas.set_drawtype(kind, **params)
+
+    def draw_cb(self, *args, **kwargs):
+        """Draw callback"""
+        self.logger.debug('Called with args="{}" kwargs="{}".'.format(args, kwargs))
+
+    def edit_cb(self, *args, **kwargs):
+        """Edit callback"""
+        self.logger.debug('Called with args="{}" kwargs="{}".'.format(args, kwargs))
+
+    def edit_select_cb(self, *args, **kwargs):
+        """Edit selected object callback"""
+        self.logger.debug('Called with args="{}" kwargs="{}".'.format(args, kwargs))
 
     def _build_gui(self):
         """Build out the GUI"""
+        # Remove old layout
+        if self.layout() is not None:
+            QtGui.QWidget().setLayout(self.layout())
 
         # Select drawing types
         drawtype_widget = QtGui.QComboBox()
+        self.drawtype_widget = drawtype_widget
         for name in self.drawtypes:
             drawtype_widget.addItem(name)
         try:
@@ -93,7 +127,6 @@ class ShapeEditor(QtGui.QWidget):
         else:
             drawtype_widget.setCurrentIndex(index)
         drawtype_widget.activated.connect(self.set_drawparams)
-        self.drawtype_widget = drawtype_widget
 
         # Put it together
         layout = QtGui.QVBoxLayout()
