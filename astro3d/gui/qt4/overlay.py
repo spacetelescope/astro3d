@@ -13,7 +13,7 @@ from ginga.canvas.CanvasObject import get_canvas_types
 from ...external.qt import (QtGui, QtCore)
 from ...core.region_mask import RegionMask
 from ...util.logger import make_logger
-from ..items import *
+from .items import *
 
 from .util import EventDeferred
 
@@ -100,8 +100,6 @@ class Overlay(BaseOverlay):
     @parent.setter
     def parent(self, parent):
         if parent is not None:
-            #self.canvas.set_surface(parent.canvas)
-            #self.canvas.register_for_cursor_drawing(parent.canvas)
             self.view = parent.canvas.add(self.canvas)
         self._parent = parent
 
@@ -130,6 +128,8 @@ class Overlay(BaseOverlay):
             Overlay: For non-leaf layers
             ginga shape: For leaf layers.
         """
+        print('Overlay.add: layer="{}"'.format(layer))
+
         if not layer.is_available:
             return None
         if isinstance(layer, (RegionItem,)):

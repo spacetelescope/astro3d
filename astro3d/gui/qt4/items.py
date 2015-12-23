@@ -3,9 +3,10 @@ from __future__ import absolute_import, print_function
 
 from collections import (defaultdict, namedtuple)
 
-from ..external.qt.QtGui import (QAction, QStandardItem)
-from ..external.qt.QtCore import (QObject, Qt)
+from ...external.qt.QtGui import (QAction, QStandardItem)
+from ...external.qt.QtCore import (QObject, Qt)
 
+from .shape_editor import ShapeEditor
 
 __all__ = [
     'ClusterItem',
@@ -110,9 +111,10 @@ class CheckableItem(LayerItem):
         actions = super(CheckableItem, self)._actions
         actions.extend([
             ActionSeparator(),
-            Action(text='Hide' if self.checkState() else 'Show',
-                   func=self.toggle_available,
-                   args=()
+            Action(
+                text='Hide' if self.checkState() else 'Show',
+                func=self.toggle_available,
+                args=()
             )
         ])
         return actions
@@ -127,9 +129,10 @@ class RegionItem(CheckableItem):
     def _actions(self):
         base_actions = super(RegionItem, self)._actions
         actions = [
-            Action(text='Remove',
-                   func=self.remove,
-                   args=()
+            Action(
+                text='Remove',
+                func=self.remove,
+                args=()
             )
         ] + base_actions
         return actions
@@ -148,15 +151,17 @@ class TypeItem(CheckableItem):
     def _actions(self):
         base_actions = super(TypeItem, self)._actions
         actions = [
-            Action(text='Add Region',
-                   func=self.add_region,
-                   args=()
+            Action(
+                text='Add Region',
+                func=self.add_region,
+                args=()
             ),
         ] + base_actions
         return actions
 
     def add_region(self):
         """Add a new region."""
+        ShapeEditor.newRegion.emit(self)
 
 
 class Regions(CheckableItem):
@@ -168,10 +173,9 @@ class Regions(CheckableItem):
 
         self.types = InstanceDefaultDict(TypeItem)
 
-    # Regions iterate over all the leaf nodes.
-    # These would be the masks themselves.
     @property
     def regions(self):
+        """Iterate over all the region masks"""
         regions = (
             self.child(type_id).child(region_id).value
             for type_id in range(self.rowCount())

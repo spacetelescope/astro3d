@@ -18,17 +18,22 @@ class ShapeEditor(QtGui.QWidget):
         The canvas to draw on.
     """
 
+    newRegion = QtCore.pyqtSignal(dict, name='newRegion')
+
     def __init__(self, *args, **kwargs):
         logger = kwargs.pop('logger', None)
         if logger is None:
             logger = make_logger('astro3d Shape Editor')
         self.logger = logger
-        self.canvas = kwargs.pop('canvas', None)
-        self.color = kwargs.pop('color', 'red')
+        self.surface = kwargs.pop('surface', None)
 
         super(ShapeEditor, self).__init__(*args, **kwargs)
-
+        self._canvas = None
+        self.drawtypes = []
+        self.enabled = False
         self._build_gui()
+
+        self.newRegion.connect(self.new_region)
 
     @property
     def canvas(self):
@@ -39,12 +44,23 @@ class ShapeEditor(QtGui.QWidget):
         if canvas is None or \
            self._canvas == canvas:
             return
-        self.enabled = False
         self._canvas = canvas
-        self.enabled = True
         self.drawtypes = self.canvas.get_drawtypes()
         self.drawtypes.sort()
         self._build_gui()
+
+        # Setup for actual drawing
+        canvas.enable_draw(True)
+        canvas.enable_edit(True)
+        canvas.set_drawtype('point', color='cyan')
+        canvas.set_callback('draw-event', self.draw_cb)
+        canvas.set_callback('edit-event', self.edit_cb)
+        canvas.set_callback('edit-select', self.edit_select_cb)
+        canvas.set_surface(self.surface)
+        canvas.register_for_cursor_drawing(self.surface)
+
+        # Let the user at it
+        self.enabled = True
 
     @property
     def enabled(self):
@@ -53,31 +69,36 @@ class ShapeEditor(QtGui.QWidget):
     @enabled.setter
     def enabled(self, state):
         self._enabled = state
-        self._canvas.enable_draw(state)
-
-    def set_drawparams(self, kind):
-        index = self.wdrawtype.currentIndex()
-        kind = self.drawtypes[index]
-
-        params = {'color': self.color,
-                  'alpha': 0.5,
-                  'fill': True,
-                  'fillalpha': 0.5
-        }
-
-        self.canvas.set_drawtype(kind, **params)
-
-    def _build_gui(self):
-
-        if getattr(self, 'wdrawtype', None) is not None:
-            self.wdrawtype.hide()
-        wdrawtype = QtGui.QComboBox(self)
         try:
-            for name in self.drawtypes:
-                wdrawtype.addItem(name)
-            index = self.drawtypes.index('rectangle')
-            wdrawtype.setCurrentIndex(index)
-            wdrawtype.activated.connect(self.set_drawparams)
+            self._canvas.enable_draw(state)
         except AttributeError:
             pass
-        self.wdrawtype = wdrawtype
+
+    def new_region(self, region_item):
+        self.logger.debug('Called with region_item="{}"'.format(region_item))
+
+    def set_drawparams(self):
+        self.logger.debug('Called.')
+
+    def _build_gui(self):
+        """Build out the GUI"""
+
+        # Select drawing types
+        drawtype_widget = QtGui.QComboBox()
+        for name in self.drawtypes:
+            drawtype_widget.addItem(name)
+        try:
+            index = self.drawtypes.index('circle')
+        except ValueError:
+            pass
+        else:
+            drawtype_widget.setCurrentIndex(index)
+        drawtype_widget.activated.connect(self.set_drawparams)
+        self.drawtype_widget = drawtype_widget
+
+        # Put it together
+        layout = QtGui.QVBoxLayout()
+        layout.setContentsMargins(QtCore.QMargins(2, 2, 2, 2))
+        layout.setSpacing(1)
+        layout.addWidget(drawtype_widget)
+        self.setLayout(layout)

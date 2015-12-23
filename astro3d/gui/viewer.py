@@ -151,7 +151,10 @@ class MainWindow(GTK_MainWindow):
         self.layer_dock = layer_dock
 
         # The Shape Editor
-        self.shape_editor = ShapeEditor(logger=self.logger)
+        self.shape_editor = ShapeEditor(
+            surface=image_viewer,
+            logger=self.logger
+        )
         shape_editor_dock = QtGui.QDockWidget('Shape Editor', self)
         shape_editor_dock.setAllowedAreas(
             Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea

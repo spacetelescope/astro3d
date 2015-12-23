@@ -14,7 +14,7 @@ from ..core.model3d import Model3D
 from ..core.region_mask import RegionMask
 from ..core.meshes import (make_triangles, reflect_triangles)
 from ..util.logger import make_logger
-from .items import (Regions, Textures, Clusters, Stars)
+from .qt4.items import (Regions, Textures, Clusters, Stars)
 
 
 __all__ = ['Model']

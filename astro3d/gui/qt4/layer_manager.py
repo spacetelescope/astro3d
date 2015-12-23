@@ -2,7 +2,7 @@
 
 from ...external.qt import (QtGui, QtCore)
 from ...util.logger import make_logger
-from ..items import LayerItem, Action
+from .items import LayerItem, Action
 
 
 __all__ = ['LayerManager']

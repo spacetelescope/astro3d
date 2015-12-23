@@ -21,7 +21,6 @@ class ViewImage(ImageViewCanvas):
         self.enable_autozoom('on')
         self.set_bg(0.2, 0.2, 0.2)
         self.ui_setActive(True)
-        self.enable_draw(False)
 
         bd = self.get_bindings()
         bd.enable_pan(True)
