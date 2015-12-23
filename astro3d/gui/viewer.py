@@ -10,6 +10,7 @@ from ..util.logger import make_logger
 from ..external.qt import (QtGui, QtCore)
 from ..external.qt.QtCore import Qt
 from ..external.qt.QtGui import QMainWindow as GTK_MainWindow
+from . import signaldb
 from qt4 import (LayerManager, ViewImage, ViewMesh, ShapeEditor)
 
 
@@ -30,13 +31,12 @@ class Image(AstroImage, LayerImage):
 
 class MainWindow(GTK_MainWindow):
     """Main Viewer"""
-    def __init__(self, model, signals, logger=None, parent=None):
+    def __init__(self, model, logger=None, parent=None):
         super(MainWindow, self).__init__(parent)
         if logger is None:
             logger = make_logger('astro3d viewer')
         self.logger = logger
         self.model = model
-        self.signals = signals
         self._build_gui()
         self._create_signals()
 
@@ -59,7 +59,7 @@ class MainWindow(GTK_MainWindow):
         if len(res) > 0:
             self.model.read_regionpathlist(res)
             self.actions.textures.setChecked(True)
-            self.signals.ModelUpdate()
+            signaldb.ModelUpdate()
 
     def starpath_from_dialog(self):
         res = QtGui.QFileDialog.getOpenFileName(self, "Open Stellar Catalog",
@@ -70,7 +70,7 @@ class MainWindow(GTK_MainWindow):
             pathname = str(res)
         if len(pathname) != 0:
             self.model.read_star_catalog(pathname)
-            self.signals.ModelUpdate()
+            signaldb.ModelUpdate()
 
     def clusterpath_from_dialog(self):
         res = QtGui.QFileDialog.getOpenFileName(
@@ -84,7 +84,7 @@ class MainWindow(GTK_MainWindow):
             pathname = str(res)
         if len(pathname) != 0:
             self.model.read_cluster_catalog(pathname)
-            self.signals.ModelUpdate()
+            signaldb.ModelUpdate()
 
     def path_by_drop(self, viewer, paths):
         pathname = paths[0]
@@ -107,7 +107,7 @@ class MainWindow(GTK_MainWindow):
         self.image_viewer.set_image(image)
         self.model.image = image.get_data()
         self.setWindowTitle(image.get('name'))
-        self.signals.ModelUpdate()
+        signaldb.ModelUpdate()
 
     def stagechange(self, *args, **kwargs):
         """Act on a Stage toggle form the UI"""
@@ -115,7 +115,7 @@ class MainWindow(GTK_MainWindow):
 
         stage = STAGES[self.sender().text()]
         self.model.stages[stage] = args[0]
-        self.signals.ModelUpdate()
+        signaldb.ModelUpdate()
 
     def quit(self, *args, **kwargs):
         """Shutdown"""
@@ -175,7 +175,7 @@ class MainWindow(GTK_MainWindow):
 
         quit = QtGui.QAction('&Quit', self)
         quit.setStatusTip('Quit application')
-        quit.triggered.connect(self.signals.Quit)
+        quit.triggered.connect(signaldb.Quit)
         self.actions.quit = quit
 
         open = QtGui.QAction('&Open', self)
@@ -222,7 +222,7 @@ class MainWindow(GTK_MainWindow):
         reprocess = QtGui.QAction('Reprocess', self)
         reprocess.setShortcut('Shift+Ctrl+R')
         reprocess.setStatusTip('Reprocess the model')
-        reprocess.triggered.connect(self.signals.ModelUpdate)
+        reprocess.triggered.connect(signaldb.ModelUpdate)
         self.actions.reprocess = reprocess
 
     def _create_menus(self):
@@ -255,9 +255,10 @@ class MainWindow(GTK_MainWindow):
     def _create_signals(self):
         """Setup the overall signal structure"""
         self.image_viewer.set_callback('drag-drop', self.path_by_drop)
-        self.signals.Quit.connect(self.quit)
-        self.signals.NewImage.connect(self.image_update)
-        self.signals.UpdateMesh.connect(self.mesh_viewer.update_mesh)
-        self.signals.ProcessStart.connect(self.mesh_viewer.process)
-        self.signals.StageChange.connect(self.stagechange)
-        self.signals.ModelUpdate.connect(self.image_viewer.update)
+        self.logger.debug('signals="{}"'.format(signaldb))
+        signaldb.Quit.connect(self.quit)
+        signaldb.NewImage.connect(self.image_update)
+        signaldb.UpdateMesh.connect(self.mesh_viewer.update_mesh)
+        signaldb.ProcessStart.connect(self.mesh_viewer.process)
+        signaldb.StageChange.connect(self.stagechange)
+        signaldb.ModelUpdate.connect(self.image_viewer.update)

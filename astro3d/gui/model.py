@@ -14,6 +14,7 @@ from ..core.model3d import Model3D
 from ..core.region_mask import RegionMask
 from ..core.meshes import (make_triangles, reflect_triangles)
 from ..util.logger import make_logger
+from . import signaldb
 from .qt4.items import (Regions, Textures, Clusters, Stars)
 
 
@@ -28,7 +29,6 @@ class Model(QStandardItemModel):
         if logger is None:
             logger = make_logger('astro3d Layer Manager')
         self.logger = logger
-        self.signals = kwargs.pop('signals')
 
         super(Model, self).__init__(*args, **kwargs)
 
@@ -56,12 +56,12 @@ class Model(QStandardItemModel):
         # Signals
         self.itemChanged.connect(self._update)
 
-        self.columnsInserted.connect(self.signals.ModelUpdate)
-        self.columnsMoved.connect(self.signals.ModelUpdate)
-        self.columnsRemoved.connect(self.signals.ModelUpdate)
-        self.rowsInserted.connect(self.signals.ModelUpdate)
-        self.rowsMoved.connect(self.signals.ModelUpdate)
-        self.rowsRemoved.connect(self.signals.ModelUpdate)
+        self.columnsInserted.connect(signaldb.ModelUpdate)
+        self.columnsMoved.connect(signaldb.ModelUpdate)
+        self.columnsRemoved.connect(signaldb.ModelUpdate)
+        self.rowsInserted.connect(signaldb.ModelUpdate)
+        self.rowsMoved.connect(signaldb.ModelUpdate)
+        self.rowsRemoved.connect(signaldb.ModelUpdate)
 
     def __iter__(self):
         self._currentrow = None
@@ -93,14 +93,14 @@ class Model(QStandardItemModel):
 
     def read_regionpathlist(self, pathlist):
         """Read a list of mask files"""
-        self.signals.ModelUpdate.disable()
+        signaldb.ModelUpdate.disable()
         try:
             for path in pathlist:
                 region = RegionMask.from_fits(path)
                 id = basename(path)
                 self.regions.add(region=region, id=id)
         finally:
-            self.signals.ModelUpdate.enable()
+            signaldb.ModelUpdate.enable()
 
     def read_star_catalog(self, pathname):
         """Read in a star catalog"""
@@ -174,4 +174,4 @@ class Model(QStandardItemModel):
         self.itemChanged.disconnect(self._update)
         item.fix_family()
         self.itemChanged.connect(self._update)
-        self.signals.ModelUpdate()
+        signaldb.ModelUpdate()

@@ -3,6 +3,8 @@ from Queue import Empty as QueueEmpty
 import threading
 from time import sleep
 
+from ..gui import signaldb
+
 
 class MeshThread(threading.Thread):
     """Wait for mesh process data."""
@@ -28,7 +30,7 @@ class MeshThread(threading.Thread):
         while not self.stopped:
             try:
                 triset = que.get(False)
-                self.controller.signals.ProcessFinish(triset)
+                signaldb.ProcessFinish(triset)
                 return
             except QueueEmpty:
                 sleep(0.5)
