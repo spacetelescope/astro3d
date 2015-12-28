@@ -77,10 +77,10 @@ class ShapeEditor(QtGui.QWidget):
         except AttributeError:
             pass
 
-    def new_region(self, type_overlay):
-        self.logger.debug('Called with type_overlay="{}"'.format(type_overlay))
-        self.type_overlay = type_overlay
-        self.canvas = type_overlay.canvas
+    def new_region(self, type_item):
+        self.logger.debug('Called with type_item="{}"'.format(type_item))
+        self.type_item = type_item
+        self.canvas = type_item.view.canvas
         self.enabled = True
 
     def set_drawparams(self):
@@ -92,9 +92,12 @@ class ShapeEditor(QtGui.QWidget):
         }
         self.canvas.set_drawtype(kind, **params)
 
-    def draw_cb(self, *args, **kwargs):
+    def draw_cb(self, canvas, tag):
         """Draw callback"""
-        self.logger.debug('Called with args="{}" kwargs="{}".'.format(args, kwargs))
+        self.logger.debug('Called: canvas="{}" shape_id="{}"'.format(canvas, tag))
+        shape = canvas.get_object_by_tag(tag)
+        self.type_item.add_shape(shape, tag)
+        self.enabled = False
 
     def edit_cb(self, *args, **kwargs):
         """Edit callback"""
