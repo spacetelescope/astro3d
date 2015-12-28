@@ -40,7 +40,14 @@ class BaseOverlay(object):
     ----------
     parent: `Overlay`
     """
-    def __init__(self, parent=None):
+
+    logger = None
+
+    def __init__(self, parent=None, logger=None):
+        if logger is not None:
+            self.__class__.logger = logger
+        if self.__class__.logger is None:
+            self.__class__.logger = make_logger('Overlay')
         self.canvas = None
         if parent is not None:
             self.parent = parent
@@ -86,8 +93,8 @@ class Overlay(BaseOverlay):
         The shape id on the ginga canvas.
     """
 
-    def __init__(self, parent=None, color='red'):
-        super(Overlay, self).__init__()
+    def __init__(self, parent=None, color='red', logger=None):
+        super(Overlay, self).__init__(logger=logger)
         self.canvas = None
         self.parent = parent
         self.color = color
@@ -129,13 +136,15 @@ class Overlay(BaseOverlay):
             Overlay: For non-leaf layers
             ginga shape: For leaf layers.
         """
+        self.logger.debug('Called: layer="{}"'.format(layer))
 
-        if not layer.is_available:
-            return None
-        if isinstance(layer, (RegionItem,)):
-            view = self.add_region(layer)
-        elif isinstance(layer, (Regions, Textures, Clusters, Stars, TypeItem)):
-            view = self.add_overlay(layer)
+        view = None
+        if layer.is_available:
+            if isinstance(layer, (RegionItem,)):
+                view = self.add_region(layer)
+            elif isinstance(layer, (Regions, Textures, Clusters, Stars, TypeItem)):
+                view = self.add_overlay(layer)
+        self.logger.debug('Returned view="{}"'.format(view))
         return view
 
     def add_child(self, overlay):
@@ -188,7 +197,6 @@ class Overlay(BaseOverlay):
             return None
         if layer_item.view is not None:
             overlay = layer_item.view
-            overlay.delete_all_objects()
             overlay.parent = self
         else:
             overlay = Overlay(parent=self)
@@ -255,7 +263,7 @@ class OverlayView(QtCore.QObject):
         canvas.register_for_cursor_drawing(parent)
         self.canvas = canvas
         parent.add(self.canvas)
-        self._root = Overlay(self)
+        self._root = Overlay(self, logger=self.logger)
         self.paint()
 
     @property
