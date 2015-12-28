@@ -52,8 +52,8 @@ class LayerItem(QStandardItem):
     value: type
         Specific value this item is associated with
 
-    view: ginga shape or overlay
-        How this item is viewed. This is either the overlay or the ginga shape
+    view: `ginga shape`
+        How this item is viewed.
     """
     def __init__(self, *args, **kwargs):
         self.value = kwargs.pop('value', None)
@@ -185,10 +185,10 @@ class Regions(CheckableItem):
         )
         return regions
 
-    def add(self, region, id):
-        """Add a new region"""
-        type_item = self.types[region.mask_type]
-        region_item = RegionItem(id, value=region)
+    def add_mask(self, mask, id):
+        """Add a new region from a RegionMask"""
+        type_item = self.types[mask.mask_type]
+        region_item = RegionItem(id, value=mask)
         region_item.setCheckState(Qt.Checked)
         type_item.appendRow(region_item)
         if not type_item.index().isValid():

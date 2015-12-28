@@ -30,6 +30,7 @@ class ShapeEditor(QtGui.QWidget):
         self._canvas = None
         self.drawtypes = []
         self.enabled = False
+        self.canvas = self.surface.canvas
         self._build_gui()
 
         signaldb.NewRegion.connect(self.new_region)
@@ -55,19 +56,12 @@ class ShapeEditor(QtGui.QWidget):
         self._build_gui()
 
         # Setup for actual drawing
-        canvas.enable_draw(True)
-        canvas.enable_edit(True)
         canvas.set_drawtype('point', color='cyan')
         canvas.set_callback('draw-event', self.draw_cb)
         canvas.set_callback('edit-event', self.edit_cb)
         canvas.set_callback('edit-select', self.edit_select_cb)
-        canvas.set_surface(self.surface)
         canvas.register_for_cursor_drawing(self.surface)
         canvas.set_draw_mode('draw')
-        canvas.ui_setActive(True)
-
-        # Let the user at it
-        self.enabled = True
 
     @property
     def enabled(self):
@@ -77,15 +71,18 @@ class ShapeEditor(QtGui.QWidget):
     def enabled(self, state):
         self._enabled = state
         try:
-            self._canvas.enable_draw(state)
+            self.canvas.enable_draw(state)
+            self.canvas.enable_edit(state)
+            self.surface.ui_setActive(not state)
+            self.canvas.ui_setActive(state)
         except AttributeError:
             pass
 
-    def new_region(self, overlay):
-        self.logger.debug('Called with overaly="{}"'.format(overlay))
-        self.overlay = overlay
-        self.canvas = overlay.canvas
+    def new_region(self, region_type):
+        self.logger.debug('Called with region_type="{}"'.format(region_type))
+        self.region_type = region_type
         self._build_gui()
+        self.enabled = True
 
     def set_drawparams(self):
         self.logger.debug('Called.')

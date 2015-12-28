@@ -91,14 +91,14 @@ class Model(QStandardItemModel):
         """
         self._image = image
 
-    def read_regionpathlist(self, pathlist):
+    def read_maskpathlist(self, pathlist):
         """Read a list of mask files"""
         signaldb.ModelUpdate.disable()
         try:
             for path in pathlist:
-                region = RegionMask.from_fits(path)
+                mask = RegionMask.from_fits(path)
                 id = basename(path)
-                self.regions.add(region=region, id=id)
+                self.regions.add_mask(mask=mask, id=id)
         finally:
             signaldb.ModelUpdate.enable()
 

@@ -57,7 +57,7 @@ class MainWindow(GTK_MainWindow):
         )
         self.logger.debug('res="{}"'.format(res))
         if len(res) > 0:
-            self.model.read_regionpathlist(res)
+            self.model.read_maskpathlist(res)
             self.actions.textures.setChecked(True)
             signaldb.ModelUpdate()
 
