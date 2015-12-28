@@ -11,7 +11,13 @@ from ..external.qt import (QtGui, QtCore)
 from ..external.qt.QtCore import Qt
 from ..external.qt.QtGui import QMainWindow as GTK_MainWindow
 from . import signaldb
-from qt4 import (LayerManager, ViewImage, ViewMesh, ShapeEditor)
+from qt4 import (
+    LayerManager,
+    ViewImage,
+    ViewMesh,
+    ShapeEditor,
+    OverlayView
+)
 
 
 __all__ = ['MainWindow']
@@ -130,11 +136,18 @@ class MainWindow(GTK_MainWindow):
         ####
 
         # Image View
-        image_viewer = ViewImage(self.logger, model=self.model)
-        image_viewer.set_desired_size(512, 512)
+        image_viewer = ViewImage(self.logger)
         self.image_viewer = image_viewer
+        image_viewer.set_desired_size(512, 512)
         image_viewer_widget = image_viewer.get_widget()
         self.setCentralWidget(image_viewer_widget)
+
+        # Region overlays
+        self.overlay = OverlayView(
+            parent=image_viewer.canvas,
+            model=self.model,
+            logger=self.logger
+        )
 
         # 3D mesh preview
         self.mesh_viewer = ViewMesh()
@@ -261,4 +274,3 @@ class MainWindow(GTK_MainWindow):
         signaldb.UpdateMesh.connect(self.mesh_viewer.update_mesh)
         signaldb.ProcessStart.connect(self.mesh_viewer.process)
         signaldb.StageChange.connect(self.stagechange)
-        signaldb.ModelUpdate.connect(self.image_viewer.update)

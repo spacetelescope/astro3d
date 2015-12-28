@@ -1,7 +1,6 @@
 from ginga.gw.Viewers import ImageViewCanvas
 
 from ...util.logger import make_logger
-from .overlay import OverlayView
 
 __all__ = ['ViewImage']
 
@@ -27,22 +26,3 @@ class ViewImage(ImageViewCanvas):
         bd.enable_zoom(True)
         bd.enable_cuts(True)
         bd.enable_flip(True)
-
-        self.logger.debug('Creating overlay.')
-        self.overlay = OverlayView(parent=self, model=model)
-        self.logger.debug('Overlay created.')
-
-    @property
-    def model(self):
-        return self._model
-
-    @model.setter
-    def model(self, model):
-        self._model = model
-        self.overlay.model = model
-
-    def update(self, *args, **kwargs):
-        """Update the image display"""
-        self.logger.debug(
-            'Updating args="{}" kwargs="{}"'.format(args, kwargs)
-        )
