@@ -58,7 +58,7 @@ class Application(Controller):
     def _create_signals(self):
         signaldb.logger = self.logger
         signaldb.Quit.connect(self.quit)
-        signaldb.ModelUpdate.connect(self.process)
+        #signaldb.ModelUpdate.connect(self.process)
         signaldb.ProcessFinish.connect(self.process_finish)
 
 

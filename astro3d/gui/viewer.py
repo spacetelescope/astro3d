@@ -144,7 +144,7 @@ class MainWindow(GTK_MainWindow):
 
         # Region overlays
         self.overlay = OverlayView(
-            parent=image_viewer.canvas,
+            parent=image_viewer,
             model=self.model,
             logger=self.logger
         )

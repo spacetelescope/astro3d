@@ -41,8 +41,7 @@ class BaseOverlay(object):
     parent: `Overlay`
     """
     def __init__(self, parent=None):
-        self._dc = get_canvas_types()
-        self.canvas = self._dc.Canvas()
+        self.canvas = None
         if parent is not None:
             self.parent = parent
 
@@ -52,8 +51,9 @@ class BaseOverlay(object):
 
     @parent.setter
     def parent(self, parent):
-        parent.canvas.add(self.canvas)
         self._parent = parent
+        self.canvas = parent.canvas
+        self._dc = parent._dc
 
     def delete_all_objects(self):
         """Remove the immediate children"""
@@ -88,7 +88,7 @@ class Overlay(BaseOverlay):
 
     def __init__(self, parent=None, color='red'):
         super(Overlay, self).__init__()
-        self.canvas = self._dc.DrawingCanvas()
+        self.canvas = None
         self.parent = parent
         self.color = color
         self.children = []
@@ -99,9 +99,10 @@ class Overlay(BaseOverlay):
 
     @parent.setter
     def parent(self, parent):
-        if parent is not None:
-            self.view = parent.canvas.add(self.canvas)
         self._parent = parent
+        if parent is not None:
+            self.canvas = parent.canvas
+            self._dc = parent._dc
 
     def add_tree(self, layer):
         """Add layer's children to overlay"""
@@ -128,7 +129,6 @@ class Overlay(BaseOverlay):
             Overlay: For non-leaf layers
             ginga shape: For leaf layers.
         """
-        print('Overlay.add: layer="{}"'.format(layer))
 
         if not layer.is_available:
             return None
@@ -155,6 +155,7 @@ class Overlay(BaseOverlay):
         The ginga object identifier, or None if the item
         is not available.
         """
+
         if not region_item.is_available:
             return None
         if region_item.view is None:
@@ -213,7 +214,7 @@ class OverlayView(QtCore.QObject):
 
     Parameters
     ----------
-    parent: `ginga.CanvasObject`
+    parent: `ginga.ImageViewCanvas`
         The ginga canvas on which the view will render
 
     model: `astro3d.gui.Model`
@@ -242,7 +243,19 @@ class OverlayView(QtCore.QObject):
 
     @parent.setter
     def parent(self, parent):
-        self._root = Overlay(parent=parent)
+        self._dc = get_canvas_types()
+        canvas = self._dc.DrawingCanvas()
+        canvas.enable_draw(True)
+        canvas.enable_edit(True)
+        canvas.set_drawtype('point', color='cyan')
+        #canvas.set_callback('draw-event', self.draw_cb)
+        #canvas.set_callback('edit-event', self.edit_cb)
+        #canvas.set_callback('edit-select', self.edit_select_cb)
+        canvas.setSurface(parent)
+        canvas.register_for_cursor_drawing(parent)
+        self.canvas = canvas
+        parent.add(self.canvas)
+        self._root = Overlay(self)
         self.paint()
 
     @property
