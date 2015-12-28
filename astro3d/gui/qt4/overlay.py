@@ -253,16 +253,9 @@ class OverlayView(QtCore.QObject):
     def parent(self, parent):
         self._dc = get_canvas_types()
         canvas = self._dc.DrawingCanvas()
-        canvas.enable_draw(True)
-        canvas.enable_edit(True)
-        canvas.set_drawtype('point', color='cyan')
-        #canvas.set_callback('draw-event', self.draw_cb)
-        #canvas.set_callback('edit-event', self.edit_cb)
-        #canvas.set_callback('edit-select', self.edit_select_cb)
-        canvas.setSurface(parent)
-        canvas.register_for_cursor_drawing(parent)
         self.canvas = canvas
-        parent.add(self.canvas)
+        p_canvas = parent.get_canvas()
+        p_canvas.add(self.canvas)
         self._root = Overlay(self, logger=self.logger)
         self.paint()
 

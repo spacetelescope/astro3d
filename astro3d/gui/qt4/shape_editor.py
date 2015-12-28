@@ -30,7 +30,6 @@ class ShapeEditor(QtGui.QWidget):
         self._canvas = None
         self.drawtypes = []
         self.enabled = False
-        self.canvas = self.surface.canvas
         self._build_gui()
 
         signaldb.NewRegion.connect(self.new_region)
@@ -43,10 +42,10 @@ class ShapeEditor(QtGui.QWidget):
     @canvas.setter
     def canvas(self, canvas):
         if canvas is None or \
-           self._canvas == canvas:
+           self._canvas is canvas:
             return
         try:
-            self._canvas.ui_setActive(False)
+            self.enabled = False
         except AttributeError:
             pass
 
@@ -56,10 +55,12 @@ class ShapeEditor(QtGui.QWidget):
         self._build_gui()
 
         # Setup for actual drawing
-        canvas.set_drawtype('point', color='cyan')
+        canvas.enable_draw(True)
+        canvas.enable_edit(True)
         canvas.set_callback('draw-event', self.draw_cb)
         canvas.set_callback('edit-event', self.edit_cb)
         canvas.set_callback('edit-select', self.edit_select_cb)
+        canvas.setSurface(self.surface)
         canvas.register_for_cursor_drawing(self.surface)
         canvas.set_draw_mode('draw')
 
@@ -69,23 +70,20 @@ class ShapeEditor(QtGui.QWidget):
 
     @enabled.setter
     def enabled(self, state):
+        self.logger.debug('Called: state="{}"'.format(state))
         self._enabled = state
         try:
-            self.canvas.enable_draw(state)
-            self.canvas.enable_edit(state)
-            self.surface.ui_setActive(not state)
-            self.canvas.ui_setActive(state)
+            self._canvas.ui_setActive(state)
         except AttributeError:
             pass
 
-    def new_region(self, region_type):
-        self.logger.debug('Called with region_type="{}"'.format(region_type))
-        self.region_type = region_type
-        self._build_gui()
+    def new_region(self, type_overlay):
+        self.logger.debug('Called with type_overlay="{}"'.format(type_overlay))
+        self.type_overlay = type_overlay
+        self.canvas = type_overlay.canvas
         self.enabled = True
 
     def set_drawparams(self):
-        self.logger.debug('Called.')
         kind = self.drawtypes[self.drawtype_widget.currentIndex()]
         params = {
             'color': 'red',
@@ -109,6 +107,7 @@ class ShapeEditor(QtGui.QWidget):
     def _build_gui(self):
         """Build out the GUI"""
         # Remove old layout
+        self.logger.debug('Called.')
         if self.layout() is not None:
             QtGui.QWidget().setLayout(self.layout())
 
@@ -117,13 +116,13 @@ class ShapeEditor(QtGui.QWidget):
         self.drawtype_widget = drawtype_widget
         for name in self.drawtypes:
             drawtype_widget.addItem(name)
+        drawtype_widget.currentIndexChanged.connect(self.set_drawparams)
         try:
             index = self.drawtypes.index('circle')
         except ValueError:
             pass
         else:
             drawtype_widget.setCurrentIndex(index)
-        drawtype_widget.activated.connect(self.set_drawparams)
 
         # Put it together
         layout = QtGui.QVBoxLayout()
