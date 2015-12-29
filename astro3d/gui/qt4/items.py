@@ -163,8 +163,8 @@ class TypeItem(CheckableItem):
         """Add a new region."""
         signaldb.NewRegion(self)
 
-    def add_shape(self, shape, id):
-        region_item = RegionItem(id, view=shape)
+    def add_shape(self, shape, mask, id):
+        region_item = RegionItem(id, value=mask, view=shape)
         region_item.setCheckState(Qt.Checked)
         self.appendRow(region_item)
         region_item.fix_family()

@@ -1,6 +1,7 @@
 from ginga.gw.Viewers import ImageViewCanvas
 
 from ...util.logger import make_logger
+from ...core.region_mask import RegionMask
 
 __all__ = ['ViewImage']
 
@@ -26,3 +27,10 @@ class ViewImage(ImageViewCanvas):
         bd.enable_zoom(True)
         bd.enable_cuts(True)
         bd.enable_flip(True)
+
+    def get_shape_mask(self, mask_type, shape):
+        """Return the RegionMask representing the shape"""
+        data = self.get_image()
+        shape_mask = data.get_shape_mask(shape)
+        region_mask = RegionMask(shape_mask, mask_type)
+        return region_mask

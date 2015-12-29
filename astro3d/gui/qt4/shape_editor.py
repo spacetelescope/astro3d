@@ -96,7 +96,11 @@ class ShapeEditor(QtGui.QWidget):
         """Draw callback"""
         self.logger.debug('Called: canvas="{}" shape_id="{}"'.format(canvas, tag))
         shape = canvas.get_object_by_tag(tag)
-        self.type_item.add_shape(shape, tag)
+        region_mask = self.surface.get_shape_mask(
+            self.type_item.text(),
+            shape
+        )
+        self.type_item.add_shape(shape=shape, mask=region_mask, id=tag)
         self.enabled = False
 
     def edit_cb(self, *args, **kwargs):

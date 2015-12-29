@@ -123,7 +123,11 @@ class Model(QStandardItemModel):
         m = Model3D(self.image)
 
         for region in self.regions.regions:
-            m.add_mask(region)
+            try:
+                m.add_mask(region)
+            except AttributeError:
+                """Not a RegionMask, ignore"""
+                pass
 
         for (catalog, id) in self.cluster_catalogs:
             m.read_star_clusters(catalog)
