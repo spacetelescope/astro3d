@@ -22,16 +22,40 @@ __all__ = [
     'OverlayView'
 ]
 
-COLORS = defaultdict(
-    lambda: 'red',
+def _merge_dicts(*dictionaries):
+    result = {}
+    for dictionary in dictionaries:
+        result.update(dictionary)
+    return result
+
+DRAW_PARAMS_DEFAULT = {
+    'color': 'red',
+    'alpha': 0.3,
+    'fill': True,
+    'fillalpha': 0.3
+}
+
+DRAW_PARAMS = defaultdict(
+    lambda: DRAW_PARAMS_DEFAULT,
     {
-        'bulge': 'blue',
-        'gas': 'green',
-        'remove_star': 'red',
-        'spiral': 'orange',
+        'bulge': _merge_dicts(
+            DRAW_PARAMS_DEFAULT,
+            {'color': 'blue'}
+        ),
+        'gas': _merge_dicts(
+            DRAW_PARAMS_DEFAULT,
+            {'color': 'green'}
+        ),
+        'remove_star': _merge_dicts(
+            DRAW_PARAMS_DEFAULT,
+            {'color': 'red'}
+        ),
+        'spiral': _merge_dicts(
+            DRAW_PARAMS_DEFAULT,
+            {'color': 'orange'}
+        )
     }
 )
-
 
 class BaseOverlay(object):
     """Base class for Overlays
@@ -171,7 +195,10 @@ class Overlay(BaseOverlay):
             region = region_item.value
             if isinstance(region, RegionMask):
                 mask = AstroImage(data_np=region.mask)
-                maskrgb = masktorgb(mask, color=self.color, opacity=0.3)
+                maskrgb = masktorgb(
+                    mask,
+                    color=self.draw_params['color'],
+                    opacity=self.draw_params['fillalpha'])
                 maskrgb_obj = self._dc.Image(0, 0, maskrgb)
                 region_item.view = maskrgb_obj
             else:
@@ -201,7 +228,7 @@ class Overlay(BaseOverlay):
         else:
             overlay = Overlay(parent=self)
             layer_item.view = overlay
-            overlay.color = COLORS[layer_item.text()]
+            overlay.draw_params = DRAW_PARAMS[layer_item.text()]
         self.add_child(overlay)
         return overlay
 
@@ -337,7 +364,7 @@ class OverlayView(QtCore.QObject):
 
 
 # Utilities
-def masktorgb(mask, color='blue', opacity=0.3):
+def masktorgb(mask, color='red', opacity=0.3):
     wd, ht = mask.get_size()
     r, g, b = colors.lookup_color(color)
     rgbarr = np.zeros((ht, wd, 4), dtype=np.uint8)

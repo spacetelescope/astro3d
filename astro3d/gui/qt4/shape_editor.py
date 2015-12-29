@@ -84,13 +84,13 @@ class ShapeEditor(QtGui.QWidget):
         self.enabled = True
 
     def set_drawparams(self):
+        self.logger.debug('Called.')
         kind = self.drawtypes[self.drawtype_widget.currentIndex()]
-        params = {
-            'color': 'red',
-            'alpha': 0.0,
-            'fill': True
-        }
+        params = self.type_item.view.draw_params
+        self.logger.debug('kind="{}"'.format(kind))
+        self.logger.debug('params="{}"'.format(params))
         self.canvas.set_drawtype(kind, **params)
+        self.logger.debug('drawparams set.')
 
     def draw_cb(self, canvas, tag):
         """Draw callback"""
