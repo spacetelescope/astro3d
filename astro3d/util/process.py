@@ -29,8 +29,8 @@ class MeshThread(threading.Thread):
 
         while not self.stopped:
             try:
-                triset = que.get(False)
-                signaldb.ProcessFinish(triset)
+                triset, model3d = que.get(False)
+                signaldb.ProcessFinish(triset, model3d)
                 return
             except QueueEmpty:
                 sleep(0.5)

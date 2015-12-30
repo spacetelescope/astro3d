@@ -50,9 +50,11 @@ class Application(Controller):
             t.stop()
             t.join()
 
-    def process_finish(self, mesh):
+    def process_finish(self, mesh, model3d):
         self.logger.debug('3D generation completed.')
         if mesh is not None:
+            self.model.model3d = model3d
+            self.model.mesh = mesh
             signaldb.UpdateMesh(mesh)
 
     def _create_signals(self):

@@ -358,7 +358,18 @@ class Model3D(object):
                 else:
                     filename = '{0}_{1}.fits'.format(filename_prefix,
                                                      mask_type)
-                mask.write(filename, shape=self.data_original.shape)
+                mask.write(filename)
+        for texture_type, masks in self.texture_masks_original.iteritems():
+            nmasks = len(masks)
+            for i, mask in enumerate(masks, 1):
+                mask_type = mask.mask_type
+                if nmasks > 1:
+                    filename = '{0}_{1}_{2}.fits'.format(filename_prefix,
+                                                         mask_type, i)
+                else:
+                    filename = '{0}_{1}.fits'.format(filename_prefix,
+                                                     mask_type)
+                mask.write(filename)
 
     def read_stellar_table(self, filename, stellar_type):
         """
@@ -441,7 +452,10 @@ class Model3D(object):
         """
 
         for stellar_type in self.allowed_stellar_types:
-            self.write_stellar_table(filename_prefix, stellar_type)
+            try:
+                self.write_stellar_table(filename_prefix, stellar_type)
+            except KeyError:
+                pass
 
     def write_stl(self, filename_prefix, split_model=True,
                   stl_format='binary', clobber=False):

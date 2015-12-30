@@ -96,6 +96,20 @@ class MainWindow(GTK_MainWindow):
         pathname = paths[0]
         self.open_path(pathname)
 
+    def save_all_from_dialog(self):
+        """Specify folder to save all info"""
+        result = QtGui.QFileDialog.getSaveFileName(
+            self,
+            'Specify prefix to save all as'
+        )
+        self.logger.debug('result="{}"'.format(result))
+        try:
+            prefix = result[0]
+        except IndexError:
+            prefix = str(result)
+        if len(prefix) > 0:
+            self.model.save_all(prefix)
+
     def open_path(self, pathname):
         """Open the image from pathname"""
         self.image = Image(logger=self.logger)
@@ -203,8 +217,8 @@ class MainWindow(GTK_MainWindow):
         regions.triggered.connect(self.regionpath_from_dialog)
         self.actions.regions = regions
 
-        stars = QtGui.QAction('&Stars', self)
-        stars.setShortcut('Ctrl+S')
+        stars = QtGui.QAction('Stars', self)
+        stars.setShortcut('Shift+Ctrl+S')
         stars.setStatusTip('Open a stellar table')
         stars.triggered.connect(self.starpath_from_dialog)
         self.actions.stars = stars
@@ -214,6 +228,11 @@ class MainWindow(GTK_MainWindow):
         clusters.setStatusTip('Open a stellar clusters table')
         clusters.triggered.connect(self.clusterpath_from_dialog)
         self.actions.clusters = clusters
+
+        save_all = QtGui.QAction('&Save', self)
+        save_all.setShortcut(QtGui.QKeySequence.Save)
+        save_all.triggered.connect(self.save_all_from_dialog)
+        self.actions.save_all = save_all
 
         preview_toggle = QtGui.QAction('Mesh View', self)
         preview_toggle.setShortcut('Ctrl+V')
@@ -247,6 +266,8 @@ class MainWindow(GTK_MainWindow):
         file_menu.addAction(self.actions.regions)
         file_menu.addAction(self.actions.clusters)
         file_menu.addAction(self.actions.stars)
+        file_menu.addSeparator()
+        file_menu.addAction(self.actions.save_all)
         file_menu.addAction(self.actions.quit)
 
         view_menu = menubar.addMenu('View')

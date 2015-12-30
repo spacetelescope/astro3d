@@ -145,7 +145,18 @@ class Model(QStandardItemModel):
         triset = make_triangles(m.data)
         if m.double_sided:
             triset = concatenate((triset, reflect_triangles(triset)))
-        return triset
+        self.triset = triset
+        return (triset, m)
+
+    def save_all(self, prefix):
+        """Save all info to the prefix"""
+        try:
+            model3d = self.model3d
+        except AttributeError:
+            return
+        model3d.write_all_masks(prefix)
+        model3d.write_all_stellar_tables(prefix)
+        model3d.write_stl(prefix)
 
     def _update_from_index(self, index_ul, index_br):
         """Update model due to an item change
