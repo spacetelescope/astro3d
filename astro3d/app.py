@@ -7,7 +7,7 @@ import logging
 
 from .util.logger import make_logger
 from .util.process import MeshThread
-from .gui import (Controller, MainWindow, Model, signals as sig)
+from .gui import (Controller, MainWindow, Model, signaldb)
 from .gui.start_ui_app import start_ui_app
 
 
@@ -22,15 +22,13 @@ class Application(Controller):
         self.logger = make_logger(name='astro3d', level=logging.DEBUG)
         self._create_signals()
         self.model = Model(
-            logger=self.logger,
-            signals=self.signals
+            logger=self.logger
         )
 
         if self.__class__.ui_app is None:
             self.__class__.ui_app = start_ui_app(argv)
         self.viewer = MainWindow(
             model=self.model,
-            signals=self.signals,
             logger=self.logger
         )
         self.viewer.show()
@@ -52,19 +50,18 @@ class Application(Controller):
             t.stop()
             t.join()
 
-    def process_finish(self, mesh):
+    def process_finish(self, mesh, model3d):
         self.logger.debug('3D generation completed.')
         if mesh is not None:
-            self.signals.UpdateMesh(mesh)
+            self.model.model3d = model3d
+            self.model.mesh = mesh
+            signaldb.UpdateMesh(mesh)
 
     def _create_signals(self):
-        self.signals = sig.Signals(
-            signal_class=sig.Signal,
-            logger=self.logger
-        )
-        self.signals.Quit.connect(self.quit)
-        self.signals.ModelUpdate.connect(self.process)
-        self.signals.ProcessFinish.connect(self.process_finish)
+        signaldb.logger = self.logger
+        signaldb.Quit.connect(self.quit)
+        signaldb.ModelUpdate.connect(self.process)
+        signaldb.ProcessFinish.connect(self.process_finish)
 
 
 def main():

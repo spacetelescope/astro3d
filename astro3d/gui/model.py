@@ -14,7 +14,8 @@ from ..core.model3d import Model3D
 from ..core.region_mask import RegionMask
 from ..core.meshes import (make_triangles, reflect_triangles)
 from ..util.logger import make_logger
-from .items import (Regions, Textures, Clusters, Stars)
+from . import signaldb
+from .qt4.items import (Regions, Textures, Clusters, Stars)
 
 
 __all__ = ['Model']
@@ -28,7 +29,6 @@ class Model(QStandardItemModel):
         if logger is None:
             logger = make_logger('astro3d Layer Manager')
         self.logger = logger
-        self.signals = kwargs.pop('signals')
 
         super(Model, self).__init__(*args, **kwargs)
 
@@ -56,12 +56,12 @@ class Model(QStandardItemModel):
         # Signals
         self.itemChanged.connect(self._update)
 
-        self.columnsInserted.connect(self.signals.ModelUpdate)
-        self.columnsMoved.connect(self.signals.ModelUpdate)
-        self.columnsRemoved.connect(self.signals.ModelUpdate)
-        self.rowsInserted.connect(self.signals.ModelUpdate)
-        self.rowsMoved.connect(self.signals.ModelUpdate)
-        self.rowsRemoved.connect(self.signals.ModelUpdate)
+        self.columnsInserted.connect(signaldb.ModelUpdate)
+        self.columnsMoved.connect(signaldb.ModelUpdate)
+        self.columnsRemoved.connect(signaldb.ModelUpdate)
+        self.rowsInserted.connect(signaldb.ModelUpdate)
+        self.rowsMoved.connect(signaldb.ModelUpdate)
+        self.rowsRemoved.connect(signaldb.ModelUpdate)
 
     def __iter__(self):
         self._currentrow = None
@@ -91,16 +91,16 @@ class Model(QStandardItemModel):
         """
         self._image = image
 
-    def read_regionpathlist(self, pathlist):
+    def read_maskpathlist(self, pathlist):
         """Read a list of mask files"""
-        self.signals.ModelUpdate.disable()
+        signaldb.ModelUpdate.disable()
         try:
             for path in pathlist:
-                region = RegionMask.from_fits(path)
+                mask = RegionMask.from_fits(path)
                 id = basename(path)
-                self.regions.add(region=region, id=id)
+                self.regions.add_mask(mask=mask, id=id)
         finally:
-            self.signals.ModelUpdate.enable()
+            signaldb.ModelUpdate.enable()
 
     def read_star_catalog(self, pathname):
         """Read in a star catalog"""
@@ -123,7 +123,11 @@ class Model(QStandardItemModel):
         m = Model3D(self.image)
 
         for region in self.regions.regions:
-            m.add_mask(region)
+            try:
+                m.add_mask(region)
+            except AttributeError:
+                """Not a RegionMask, ignore"""
+                pass
 
         for (catalog, id) in self.cluster_catalogs:
             m.read_star_clusters(catalog)
@@ -141,7 +145,18 @@ class Model(QStandardItemModel):
         triset = make_triangles(m.data)
         if m.double_sided:
             triset = concatenate((triset, reflect_triangles(triset)))
-        return triset
+        self.triset = triset
+        return (triset, m)
+
+    def save_all(self, prefix):
+        """Save all info to the prefix"""
+        try:
+            model3d = self.model3d
+        except AttributeError:
+            return
+        model3d.write_all_masks(prefix)
+        model3d.write_all_stellar_tables(prefix)
+        model3d.write_stl(prefix)
 
     def _update_from_index(self, index_ul, index_br):
         """Update model due to an item change
@@ -174,4 +189,4 @@ class Model(QStandardItemModel):
         self.itemChanged.disconnect(self._update)
         item.fix_family()
         self.itemChanged.connect(self._update)
-        self.signals.ModelUpdate()
+        signaldb.ModelUpdate()

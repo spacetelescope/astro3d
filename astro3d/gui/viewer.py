@@ -10,7 +10,14 @@ from ..util.logger import make_logger
 from ..external.qt import (QtGui, QtCore)
 from ..external.qt.QtCore import Qt
 from ..external.qt.QtGui import QMainWindow as GTK_MainWindow
-from qt4 import (LayerManager, ViewImage, ViewMesh, ShapeEditor)
+from . import signaldb
+from qt4 import (
+    LayerManager,
+    ViewImage,
+    ViewMesh,
+    ShapeEditor,
+    OverlayView
+)
 
 
 __all__ = ['MainWindow']
@@ -30,13 +37,12 @@ class Image(AstroImage, LayerImage):
 
 class MainWindow(GTK_MainWindow):
     """Main Viewer"""
-    def __init__(self, model, signals, logger=None, parent=None):
+    def __init__(self, model, logger=None, parent=None):
         super(MainWindow, self).__init__(parent)
         if logger is None:
             logger = make_logger('astro3d viewer')
         self.logger = logger
         self.model = model
-        self.signals = signals
         self._build_gui()
         self._create_signals()
 
@@ -57,9 +63,9 @@ class MainWindow(GTK_MainWindow):
         )
         self.logger.debug('res="{}"'.format(res))
         if len(res) > 0:
-            self.model.read_regionpathlist(res)
+            self.model.read_maskpathlist(res)
             self.actions.textures.setChecked(True)
-            self.signals.ModelUpdate()
+            signaldb.ModelUpdate()
 
     def starpath_from_dialog(self):
         res = QtGui.QFileDialog.getOpenFileName(self, "Open Stellar Catalog",
@@ -70,7 +76,7 @@ class MainWindow(GTK_MainWindow):
             pathname = str(res)
         if len(pathname) != 0:
             self.model.read_star_catalog(pathname)
-            self.signals.ModelUpdate()
+            signaldb.ModelUpdate()
 
     def clusterpath_from_dialog(self):
         res = QtGui.QFileDialog.getOpenFileName(
@@ -84,11 +90,25 @@ class MainWindow(GTK_MainWindow):
             pathname = str(res)
         if len(pathname) != 0:
             self.model.read_cluster_catalog(pathname)
-            self.signals.ModelUpdate()
+            signaldb.ModelUpdate()
 
     def path_by_drop(self, viewer, paths):
         pathname = paths[0]
         self.open_path(pathname)
+
+    def save_all_from_dialog(self):
+        """Specify folder to save all info"""
+        result = QtGui.QFileDialog.getSaveFileName(
+            self,
+            'Specify prefix to save all as'
+        )
+        self.logger.debug('result="{}"'.format(result))
+        try:
+            prefix = result[0]
+        except IndexError:
+            prefix = str(result)
+        if len(prefix) > 0:
+            self.model.save_all(prefix)
 
     def open_path(self, pathname):
         """Open the image from pathname"""
@@ -107,7 +127,7 @@ class MainWindow(GTK_MainWindow):
         self.image_viewer.set_image(image)
         self.model.image = image.get_data()
         self.setWindowTitle(image.get('name'))
-        self.signals.ModelUpdate()
+        signaldb.ModelUpdate()
 
     def stagechange(self, *args, **kwargs):
         """Act on a Stage toggle form the UI"""
@@ -115,7 +135,7 @@ class MainWindow(GTK_MainWindow):
 
         stage = STAGES[self.sender().text()]
         self.model.stages[stage] = args[0]
-        self.signals.ModelUpdate()
+        signaldb.ModelUpdate()
 
     def quit(self, *args, **kwargs):
         """Shutdown"""
@@ -130,10 +150,18 @@ class MainWindow(GTK_MainWindow):
         ####
 
         # Image View
-        image_viewer = ViewImage(self.logger, model=self.model)
+        image_viewer = ViewImage(self.logger)
         self.image_viewer = image_viewer
+        image_viewer.set_desired_size(512, 512)
         image_viewer_widget = image_viewer.get_widget()
         self.setCentralWidget(image_viewer_widget)
+
+        # Region overlays
+        self.overlay = OverlayView(
+            parent=image_viewer,
+            model=self.model,
+            logger=self.logger
+        )
 
         # 3D mesh preview
         self.mesh_viewer = ViewMesh()
@@ -150,7 +178,10 @@ class MainWindow(GTK_MainWindow):
         self.layer_dock = layer_dock
 
         # The Shape Editor
-        self.shape_editor = ShapeEditor(logger=self.logger)
+        self.shape_editor = ShapeEditor(
+            surface=image_viewer,
+            logger=self.logger
+        )
         shape_editor_dock = QtGui.QDockWidget('Shape Editor', self)
         shape_editor_dock.setAllowedAreas(
             Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea
@@ -171,7 +202,7 @@ class MainWindow(GTK_MainWindow):
 
         quit = QtGui.QAction('&Quit', self)
         quit.setStatusTip('Quit application')
-        quit.triggered.connect(self.signals.Quit)
+        quit.triggered.connect(signaldb.Quit)
         self.actions.quit = quit
 
         open = QtGui.QAction('&Open', self)
@@ -186,8 +217,8 @@ class MainWindow(GTK_MainWindow):
         regions.triggered.connect(self.regionpath_from_dialog)
         self.actions.regions = regions
 
-        stars = QtGui.QAction('&Stars', self)
-        stars.setShortcut('Ctrl+S')
+        stars = QtGui.QAction('Stars', self)
+        stars.setShortcut('Shift+Ctrl+S')
         stars.setStatusTip('Open a stellar table')
         stars.triggered.connect(self.starpath_from_dialog)
         self.actions.stars = stars
@@ -197,6 +228,11 @@ class MainWindow(GTK_MainWindow):
         clusters.setStatusTip('Open a stellar clusters table')
         clusters.triggered.connect(self.clusterpath_from_dialog)
         self.actions.clusters = clusters
+
+        save_all = QtGui.QAction('&Save', self)
+        save_all.setShortcut(QtGui.QKeySequence.Save)
+        save_all.triggered.connect(self.save_all_from_dialog)
+        self.actions.save_all = save_all
 
         preview_toggle = QtGui.QAction('Mesh View', self)
         preview_toggle.setShortcut('Ctrl+V')
@@ -218,7 +254,7 @@ class MainWindow(GTK_MainWindow):
         reprocess = QtGui.QAction('Reprocess', self)
         reprocess.setShortcut('Shift+Ctrl+R')
         reprocess.setStatusTip('Reprocess the model')
-        reprocess.triggered.connect(self.signals.ModelUpdate)
+        reprocess.triggered.connect(signaldb.ModelUpdate)
         self.actions.reprocess = reprocess
 
     def _create_menus(self):
@@ -230,6 +266,8 @@ class MainWindow(GTK_MainWindow):
         file_menu.addAction(self.actions.regions)
         file_menu.addAction(self.actions.clusters)
         file_menu.addAction(self.actions.stars)
+        file_menu.addSeparator()
+        file_menu.addAction(self.actions.save_all)
         file_menu.addAction(self.actions.quit)
 
         view_menu = menubar.addMenu('View')
@@ -251,9 +289,9 @@ class MainWindow(GTK_MainWindow):
     def _create_signals(self):
         """Setup the overall signal structure"""
         self.image_viewer.set_callback('drag-drop', self.path_by_drop)
-        self.signals.Quit.connect(self.quit)
-        self.signals.NewImage.connect(self.image_update)
-        self.signals.UpdateMesh.connect(self.mesh_viewer.update_mesh)
-        self.signals.ProcessStart.connect(self.mesh_viewer.process)
-        self.signals.StageChange.connect(self.stagechange)
-        self.signals.ModelUpdate.connect(self.image_viewer.update)
+        self.logger.debug('signals="{}"'.format(signaldb))
+        signaldb.Quit.connect(self.quit)
+        signaldb.NewImage.connect(self.image_update)
+        signaldb.UpdateMesh.connect(self.mesh_viewer.update_mesh)
+        signaldb.ProcessStart.connect(self.mesh_viewer.process)
+        signaldb.StageChange.connect(self.stagechange)

@@ -2,6 +2,8 @@
 
 from ...external.qt import (QtGui, QtCore)
 from ...util.logger import make_logger
+from .. import signaldb
+
 
 __all__ = ['ShapeEditor']
 
@@ -11,40 +13,56 @@ class ShapeEditor(QtGui.QWidget):
 
     Paremeters
     ----------
-    color: str
-        Color to draw in.
+    surface: `ginga.Canvas`
+        The canvas to interact on.
 
-    canvas: `ginga.canvas`
-        The canvas to draw on.
+    logger: logging.Logger
+        The common logger.
     """
-
     def __init__(self, *args, **kwargs):
-        logger = kwargs.pop('logger', None)
-        if logger is None:
-            logger = make_logger('astro3d Shape Editor')
-        self.logger = logger
-        self.canvas = kwargs.pop('canvas', None)
-        self.color = kwargs.pop('color', 'red')
+        self.logger = kwargs.pop(
+            'logger',
+            make_logger('astro3d Shape Editor')
+        )
+        self.surface = kwargs.pop('surface', None)
 
         super(ShapeEditor, self).__init__(*args, **kwargs)
-
+        self._canvas = None
+        self.drawtypes = []
+        self.enabled = False
         self._build_gui()
+
+        signaldb.NewRegion.connect(self.new_region)
 
     @property
     def canvas(self):
+        """The canvas the draw object will appear"""
         return self._canvas
 
     @canvas.setter
     def canvas(self, canvas):
         if canvas is None or \
-           self._canvas == canvas:
+           self._canvas is canvas:
             return
-        self.enabled = False
+        try:
+            self.enabled = False
+        except AttributeError:
+            pass
+
         self._canvas = canvas
-        self.enabled = True
         self.drawtypes = self.canvas.get_drawtypes()
         self.drawtypes.sort()
         self._build_gui()
+
+        # Setup for actual drawing
+        canvas.enable_draw(True)
+        canvas.enable_edit(True)
+        canvas.set_callback('draw-event', self.draw_cb)
+        canvas.set_callback('edit-event', self.edit_cb)
+        canvas.set_callback('edit-select', self.edit_select_cb)
+        canvas.setSurface(self.surface)
+        canvas.register_for_cursor_drawing(self.surface)
+        canvas.set_draw_mode('draw')
 
     @property
     def enabled(self):
@@ -52,32 +70,70 @@ class ShapeEditor(QtGui.QWidget):
 
     @enabled.setter
     def enabled(self, state):
+        self.logger.debug('Called: state="{}"'.format(state))
         self._enabled = state
-        self._canvas.enable_draw(state)
-
-    def set_drawparams(self, kind):
-        index = self.wdrawtype.currentIndex()
-        kind = self.drawtypes[index]
-
-        params = {'color': self.color,
-                  'alpha': 0.5,
-                  'fill': True,
-                  'fillalpha': 0.5
-        }
-
-        self.canvas.set_drawtype(kind, **params)
-
-    def _build_gui(self):
-
-        if getattr(self, 'wdrawtype', None) is not None:
-            self.wdrawtype.hide()
-        wdrawtype = QtGui.QComboBox(self)
         try:
-            for name in self.drawtypes:
-                wdrawtype.addItem(name)
-            index = self.drawtypes.index('rectangle')
-            wdrawtype.setCurrentIndex(index)
-            wdrawtype.activated.connect(self.set_drawparams)
+            self._canvas.ui_setActive(state)
         except AttributeError:
             pass
-        self.wdrawtype = wdrawtype
+
+    def new_region(self, type_item):
+        self.logger.debug('Called with type_item="{}"'.format(type_item))
+        self.type_item = type_item
+        self.canvas = type_item.view.canvas
+        self.enabled = True
+
+    def set_drawparams(self):
+        self.logger.debug('Called.')
+        kind = self.drawtypes[self.drawtype_widget.currentIndex()]
+        params = self.type_item.view.draw_params
+        self.logger.debug('kind="{}"'.format(kind))
+        self.logger.debug('params="{}"'.format(params))
+        self.canvas.set_drawtype(kind, **params)
+        self.logger.debug('drawparams set.')
+
+    def draw_cb(self, canvas, tag):
+        """Draw callback"""
+        self.logger.debug('Called: canvas="{}" shape_id="{}"'.format(canvas, tag))
+        shape = canvas.get_object_by_tag(tag)
+        region_mask = self.surface.get_shape_mask(
+            self.type_item.text(),
+            shape
+        )
+        self.type_item.add_shape(shape=shape, mask=region_mask, id=tag)
+        self.enabled = False
+
+    def edit_cb(self, *args, **kwargs):
+        """Edit callback"""
+        self.logger.debug('Called with args="{}" kwargs="{}".'.format(args, kwargs))
+
+    def edit_select_cb(self, *args, **kwargs):
+        """Edit selected object callback"""
+        self.logger.debug('Called with args="{}" kwargs="{}".'.format(args, kwargs))
+
+    def _build_gui(self):
+        """Build out the GUI"""
+        # Remove old layout
+        self.logger.debug('Called.')
+        if self.layout() is not None:
+            QtGui.QWidget().setLayout(self.layout())
+
+        # Select drawing types
+        drawtype_widget = QtGui.QComboBox()
+        self.drawtype_widget = drawtype_widget
+        for name in self.drawtypes:
+            drawtype_widget.addItem(name)
+        drawtype_widget.currentIndexChanged.connect(self.set_drawparams)
+        try:
+            index = self.drawtypes.index('circle')
+        except ValueError:
+            pass
+        else:
+            drawtype_widget.setCurrentIndex(index)
+
+        # Put it together
+        layout = QtGui.QVBoxLayout()
+        layout.setContentsMargins(QtCore.QMargins(2, 2, 2, 2))
+        layout.setSpacing(1)
+        layout.addWidget(drawtype_widget)
+        self.setLayout(layout)

@@ -2,7 +2,6 @@
 from __future__ import absolute_import, print_function
 
 from collections import defaultdict
-from functools import partial
 
 import numpy as np
 
@@ -14,7 +13,7 @@ from ginga.canvas.CanvasObject import get_canvas_types
 from ...external.qt import (QtGui, QtCore)
 from ...core.region_mask import RegionMask
 from ...util.logger import make_logger
-from ..items import *
+from .items import *
 
 from .util import EventDeferred
 
@@ -23,16 +22,40 @@ __all__ = [
     'OverlayView'
 ]
 
-COLORS = defaultdict(
-    lambda: 'red',
+def _merge_dicts(*dictionaries):
+    result = {}
+    for dictionary in dictionaries:
+        result.update(dictionary)
+    return result
+
+DRAW_PARAMS_DEFAULT = {
+    'color': 'red',
+    'alpha': 0.3,
+    'fill': True,
+    'fillalpha': 0.3
+}
+
+DRAW_PARAMS = defaultdict(
+    lambda: DRAW_PARAMS_DEFAULT,
     {
-        'bulge': 'blue',
-        'gas': 'green',
-        'remove_star': 'red',
-        'spiral': 'orange',
+        'bulge': _merge_dicts(
+            DRAW_PARAMS_DEFAULT,
+            {'color': 'blue'}
+        ),
+        'gas': _merge_dicts(
+            DRAW_PARAMS_DEFAULT,
+            {'color': 'green'}
+        ),
+        'remove_star': _merge_dicts(
+            DRAW_PARAMS_DEFAULT,
+            {'color': 'red'}
+        ),
+        'spiral': _merge_dicts(
+            DRAW_PARAMS_DEFAULT,
+            {'color': 'orange'}
+        )
     }
 )
-
 
 class BaseOverlay(object):
     """Base class for Overlays
@@ -41,9 +64,15 @@ class BaseOverlay(object):
     ----------
     parent: `Overlay`
     """
-    def __init__(self, parent=None):
-        self._dc = get_canvas_types()
-        self.canvas = self._dc.Canvas()
+
+    logger = None
+
+    def __init__(self, parent=None, logger=None):
+        if logger is not None:
+            self.__class__.logger = logger
+        if self.__class__.logger is None:
+            self.__class__.logger = make_logger('Overlay')
+        self.canvas = None
         if parent is not None:
             self.parent = parent
 
@@ -53,8 +82,14 @@ class BaseOverlay(object):
 
     @parent.setter
     def parent(self, parent):
-        parent.canvas.add(self.canvas)
         self._parent = parent
+        self.canvas = parent.canvas
+        self._dc = parent._dc
+
+    def delete_all_objects(self):
+        """Remove the immediate children"""
+        self.canvas.delete_all_objects()
+        self.children = []
 
 
 class Overlay(BaseOverlay):
@@ -82,14 +117,12 @@ class Overlay(BaseOverlay):
         The shape id on the ginga canvas.
     """
 
-    def __init__(self, parent=None, color='red'):
-        super(Overlay, self).__init__()
-        self.canvas = self._dc.DrawingCanvas()
+    def __init__(self, parent=None, color='red', logger=None):
+        super(Overlay, self).__init__(logger=logger)
+        self.canvas = None
         self.parent = parent
         self.color = color
         self.children = []
-
-        self._known_shapes = {}
 
     @property
     def parent(self):
@@ -97,11 +130,10 @@ class Overlay(BaseOverlay):
 
     @parent.setter
     def parent(self, parent):
-        if parent is not None:
-            self.canvas.set_surface(parent.canvas)
-            self.canvas.register_for_cursor_drawing(parent.canvas)
-            self.view = parent.canvas.add(self.canvas)
         self._parent = parent
+        if parent is not None:
+            self.canvas = parent.canvas
+            self._dc = parent._dc
 
     def add_tree(self, layer):
         """Add layer's children to overlay"""
@@ -128,12 +160,15 @@ class Overlay(BaseOverlay):
             Overlay: For non-leaf layers
             ginga shape: For leaf layers.
         """
-        if not layer.is_available:
-            return None
-        if isinstance(layer, (RegionItem,)):
-            view = self.add_region(layer)
-        elif isinstance(layer, (Regions, Textures, Clusters, Stars, TypeItem)):
-            view = self.add_overlay(layer)
+        self.logger.debug('Called: layer="{}"'.format(layer))
+
+        view = None
+        if layer.is_available:
+            if isinstance(layer, (RegionItem,)):
+                view = self.add_region(layer)
+            elif isinstance(layer, (Regions, Textures, Clusters, Stars, TypeItem)):
+                view = self.add_overlay(layer)
+        self.logger.debug('Returned view="{}"'.format(view))
         return view
 
     def add_child(self, overlay):
@@ -153,19 +188,25 @@ class Overlay(BaseOverlay):
         The ginga object identifier, or None if the item
         is not available.
         """
+
         if not region_item.is_available:
             return None
-        region = region_item.value
-        if isinstance(region, RegionMask):
-            try:
-                maskrgb_obj = self._known_shapes[region]
-            except KeyError:
+        if region_item.view is None:
+            region = region_item.value
+            if isinstance(region, RegionMask):
                 mask = AstroImage(data_np=region.mask)
-                maskrgb = masktorgb(mask, color=self.color, opacity=0.3)
+                maskrgb = masktorgb(
+                    mask,
+                    color=self.draw_params['color'],
+                    opacity=self.draw_params['fillalpha'])
                 maskrgb_obj = self._dc.Image(0, 0, maskrgb)
-                self._known_shapes[region] = maskrgb_obj
-            region_item.view = self.canvas.add(maskrgb_obj)
-            return region_item.view
+                region_item.view = maskrgb_obj
+            else:
+                raise NotImplementedError(
+                    'Cannot create view of region "{}"'.format(region_item)
+                )
+        self.canvas.add(region_item.view)
+        return region_item.view
 
     def add_overlay(self, layer_item):
         """Add another overlay
@@ -181,8 +222,13 @@ class Overlay(BaseOverlay):
         """
         if not layer_item.is_available:
             return None
-        overlay = Overlay(parent=self)
-        overlay.color = COLORS[layer_item.text()]
+        if layer_item.view is not None:
+            overlay = layer_item.view
+            overlay.parent = self
+        else:
+            overlay = Overlay(parent=self)
+            layer_item.view = overlay
+            overlay.draw_params = DRAW_PARAMS[layer_item.text()]
         self.add_child(overlay)
         return overlay
 
@@ -203,7 +249,7 @@ class OverlayView(QtCore.QObject):
 
     Parameters
     ----------
-    parent: `ginga.CanvasObject`
+    parent: `ginga.ImageViewCanvas`
         The ginga canvas on which the view will render
 
     model: `astro3d.gui.Model`
@@ -232,7 +278,12 @@ class OverlayView(QtCore.QObject):
 
     @parent.setter
     def parent(self, parent):
-        self._root = Overlay(parent=parent)
+        self._dc = get_canvas_types()
+        canvas = self._dc.DrawingCanvas()
+        self.canvas = canvas
+        p_canvas = parent.get_canvas()
+        p_canvas.add(self.canvas)
+        self._root = Overlay(self, logger=self.logger)
         self.paint()
 
     @property
@@ -260,19 +311,16 @@ class OverlayView(QtCore.QObject):
 
     @EventDeferred
     def paint(self, *args, **kwargs):
-        self.logger.debug('Called: args="{}" kwargs="{}".'.format(args, kwargs))
+        self.logger.debug(
+            'Called: args="{}" kwargs="{}".'.format(args, kwargs)
+        )
         self._paint(*args, **kwargs)
-
-    def paint_explicit(self, *args, **kwargs):
-        self.logger.debug('Called: args="{}" kwargs="{}".'.format(args, kwargs))
-        self._defer_paint.stop()
-        part = partial(self._paint, *args, **kwargs)
-        self._defer_paint.timeout.connect(part)
-        self._defer_paint.start(0)
 
     def _paint(self, *args, **kwargs):
         """Show all overlays"""
-        self.logger.debug('Called: args="{}" kwargs="{}".'.format(args, kwargs))
+        self.logger.debug(
+            'Called: args="{}" kwargs="{}".'.format(args, kwargs)
+        )
         try:
             self.logger.debug('sender="{}"'.format(self.sender()))
         except AttributeError:
@@ -282,8 +330,7 @@ class OverlayView(QtCore.QObject):
         if self.model is None or self.parent is None:
             return
         root = self._root
-        root.canvas.delete_all_objects()
-        root.children = []
+        root.delete_all_objects()
         root.add_tree(self.model)
         root.canvas.redraw(whence=2)
 
@@ -291,6 +338,12 @@ class OverlayView(QtCore.QObject):
         """Connect model signals"""
         try:
             self.model.itemChanged.connect(self.paint)
+            self.model.columnsInserted.connect(self.paint)
+            self.model.columnsMoved.connect(self.paint)
+            self.model.columnsRemoved.connect(self.paint)
+            self.model.rowsInserted.connect(self.paint)
+            self.model.rowsMoved.connect(self.paint)
+            self.model.rowsRemoved.connect(self.paint)
         except AttributeError:
             """Model is probably not defined. Ignore"""
             pass
@@ -299,13 +352,19 @@ class OverlayView(QtCore.QObject):
         """Disconnect signals"""
         try:
             self.model.itemChanged.disconnect(self.paint)
+            self.model.columnsInserted.disconnect(self.paint)
+            self.model.columnsMoved.disconnect(self.paint)
+            self.model.columnsRemoved.disconnect(self.paint)
+            self.model.rowsInserted.disconnect(self.paint)
+            self.model.rowsMoved.disconnect(self.paint)
+            self.model.rowsRemoved.disconnect(self.paint)
         except AttributeError:
             """Model is probably not defined. Ignore"""
             pass
 
 
 # Utilities
-def masktorgb(mask, color='blue', opacity=0.3):
+def masktorgb(mask, color='red', opacity=0.3):
     wd, ht = mask.get_size()
     r, g, b = colors.lookup_color(color)
     rgbarr = np.zeros((ht, wd, 4), dtype=np.uint8)

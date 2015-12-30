@@ -3,9 +3,10 @@ from __future__ import absolute_import, print_function
 
 from collections import (defaultdict, namedtuple)
 
-from ..external.qt.QtGui import QStandardItem
-from ..external.qt.QtCore import Qt
+from ...external.qt.QtGui import (QAction, QStandardItem)
+from ...external.qt.QtCore import (QObject, Qt)
 
+from .. import signaldb
 
 __all__ = [
     'ClusterItem',
@@ -16,9 +17,19 @@ __all__ = [
     'Stars',
     'Textures',
     'TypeItem',
+    'Action',
+    'ActionSeparator'
 ]
 
 Action = namedtuple('Action', ('text', 'func', 'args'))
+
+
+class ActionSeparator(QAction):
+    """Indicate a separator"""
+    def __init__(self):
+        self.obj = QObject()
+        super(ActionSeparator, self).__init__(self.obj)
+        self.setSeparator(True)
 
 
 class InstanceDefaultDict(defaultdict):
@@ -32,13 +43,23 @@ class InstanceDefaultDict(defaultdict):
 
 
 class LayerItem(QStandardItem):
-    """Layers"""
+    """Layers
+
+    Parameters
+    ----------
+    All `QStandardItem` parameters plus:
+
+    value: type
+        Specific value this item is associated with
+
+    view: `ginga shape`
+        How this item is viewed.
+    """
     def __init__(self, *args, **kwargs):
-        value = kwargs.pop('value', None)
+        self.value = kwargs.pop('value', None)
+        self.view = kwargs.pop('view', None)
         super(LayerItem, self).__init__(*args, **kwargs)
         self._currentrow = None
-        self.value = value
-        self.view = None
 
     def __iter__(self):
         self._currentrow = None
@@ -68,7 +89,7 @@ class LayerItem(QStandardItem):
 
     @property
     def _actions(self):
-        actions = ()
+        actions = []
         return actions
 
     def fix_family(self):
@@ -85,17 +106,35 @@ class CheckableItem(LayerItem):
         self.setCheckable(True)
         self.setCheckState(Qt.Unchecked)
 
+    @property
+    def _actions(self):
+        actions = super(CheckableItem, self)._actions
+        actions.extend([
+            ActionSeparator(),
+            Action(
+                text='Hide' if self.checkState() else 'Show',
+                func=self.toggle_available,
+                args=()
+            )
+        ])
+        return actions
+
+    def toggle_available(self):
+        self.setCheckState(Qt.Unchecked if self.checkState() else Qt.Checked)
+
 
 class RegionItem(CheckableItem):
     """The regions"""
     @property
     def _actions(self):
-        actions = (
-            Action(text='Remove',
-                   func=self.remove,
-                   args=()
-            ),
-        )
+        base_actions = super(RegionItem, self)._actions
+        actions = [
+            Action(
+                text='Remove',
+                func=self.remove,
+                args=()
+            )
+        ] + base_actions
         return actions
 
     def remove(self):
@@ -110,16 +149,25 @@ class TypeItem(CheckableItem):
     """Types of regions"""
     @property
     def _actions(self):
-        actions = (
-            Action(text='Add Region',
-                   func=self.add_type,
-                   args=()
+        base_actions = super(TypeItem, self)._actions
+        actions = [
+            Action(
+                text='Add Region',
+                func=self.add_region,
+                args=()
             ),
-        )
+        ] + base_actions
         return actions
 
-    def add_type(self):
+    def add_region(self):
         """Add a new region."""
+        signaldb.NewRegion(self)
+
+    def add_shape(self, shape, mask, id):
+        region_item = RegionItem(id, value=mask, view=shape)
+        region_item.setCheckState(Qt.Checked)
+        self.appendRow(region_item)
+        region_item.fix_family()
 
 
 class Regions(CheckableItem):
@@ -131,10 +179,9 @@ class Regions(CheckableItem):
 
         self.types = InstanceDefaultDict(TypeItem)
 
-    # Regions iterate over all the leaf nodes.
-    # These would be the masks themselves.
     @property
     def regions(self):
+        """Iterate over all the region masks"""
         regions = (
             self.child(type_id).child(region_id).value
             for type_id in range(self.rowCount())
@@ -144,10 +191,10 @@ class Regions(CheckableItem):
         )
         return regions
 
-    def add(self, region, id):
-        """Add a new region"""
-        type_item = self.types[region.mask_type]
-        region_item = RegionItem(id, value=region)
+    def add_mask(self, mask, id):
+        """Add a new region from a RegionMask"""
+        type_item = self.types[mask.mask_type]
+        region_item = RegionItem(id, value=mask)
         region_item.setCheckState(Qt.Checked)
         type_item.appendRow(region_item)
         if not type_item.index().isValid():
@@ -159,24 +206,29 @@ class Regions(CheckableItem):
 
     @property
     def _actions(self):
-        actions = (
-            Action(text='Add Bulge',
-                   func=self.add_type,
-                   args=('bulge')
+        base_actions = super(Regions, self)._actions
+        actions = [
+            Action(
+                text='Add Bulge',
+                func=self.add_type,
+                args=('bulge')
             ),
-            Action(text='Add Gas',
-                   func=self.add_type,
-                   args=('gas')
+            Action(
+                text='Add Gas',
+                func=self.add_type,
+                args=('gas')
             ),
-            Action(text='Add Spiral',
-                   func=self.add_type,
-                   args=('spiral')
+            Action(
+                text='Add Spiral',
+                func=self.add_type,
+                args=('spiral')
             ),
-            Action(text='Add Remove Star',
-                   func=self.add_type,
-                   args=('remove_star')
+            Action(
+                text='Add Remove Star',
+                func=self.add_type,
+                args=('remove_star')
             )
-        )
+        ] + base_actions
         return actions
 
 
@@ -230,6 +282,7 @@ def fix_tristate(item):
             state = Qt.PartiallyChecked
         item.setCheckState(state)
         fix_tristate(item.parent())
+
 
 def fix_children_availabilty(item):
     """Enable/disable children based on current state"""
