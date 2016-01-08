@@ -34,7 +34,7 @@ class Model(QStandardItemModel):
 
         # Setup the basic structure
         self.image = None
-        self.regions = Regions()
+        self.regions = Regions(logger=self.logger)
         self.textures = Textures()
         self.cluster_catalogs = Clusters()
         self.stars_catalogs = Stars()

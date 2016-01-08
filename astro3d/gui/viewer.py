@@ -180,6 +180,7 @@ class MainWindow(GTK_MainWindow):
         # The Shape Editor
         self.shape_editor = ShapeEditor(
             surface=image_viewer,
+            canvas=self.overlay.canvas,
             logger=self.logger
         )
         shape_editor_dock = QtGui.QDockWidget('Shape Editor', self)
