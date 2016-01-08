@@ -200,12 +200,12 @@ def combine_region_masks(region_masks):
     nmasks = len(region_masks)
     if nmasks == 0:
         return region_masks
-    elif nmasks == 1:
-        return region_masks[0].mask
     else:
         return reduce(
-            lambda regm1, regm2: np.logical_or(regm1.mask, regm2.mask),
-            region_masks)
+            lambda mask, regm2: np.logical_or(mask, regm2.mask),
+            region_masks[1:],
+            region_masks[0].mask
+        )
 
 
 def radial_distance(shape, position):
