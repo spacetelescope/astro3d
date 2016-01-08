@@ -13,7 +13,7 @@ from ..external.qt.QtGui import QMainWindow as GTK_MainWindow
 from . import signaldb
 from qt4 import (
     LayerManager,
-    ViewImage,
+    ImageView,
     ViewMesh,
     ShapeEditor,
     OverlayView
@@ -150,7 +150,7 @@ class MainWindow(GTK_MainWindow):
         ####
 
         # Image View
-        image_viewer = ViewImage(self.logger)
+        image_viewer = ImageView(self.logger)
         self.image_viewer = image_viewer
         image_viewer.set_desired_size(512, 512)
         image_viewer_widget = image_viewer.get_widget()
