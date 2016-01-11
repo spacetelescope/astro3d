@@ -137,6 +137,17 @@ class MainWindow(GTK_MainWindow):
         self.model.stages[stage] = args[0]
         signaldb.ModelUpdate()
 
+    def force_update(self):
+        is_enabled = signaldb.ModelUpdate.enabled
+        signaldb.ModelUpdate.enable()
+        try:
+            signaldb.ModelUpdate()
+        except Exception as e:
+            self.logger.warn('Processing error: "{}"'.format(e))
+        finally:
+            if not is_enabled:
+                signaldb.ModelUpdate.disable()
+
     def quit(self, *args, **kwargs):
         """Shutdown"""
         self.logger.debug('GUI shutting down...')
@@ -255,7 +266,7 @@ class MainWindow(GTK_MainWindow):
         reprocess = QtGui.QAction('Reprocess', self)
         reprocess.setShortcut('Shift+Ctrl+R')
         reprocess.setStatusTip('Reprocess the model')
-        reprocess.triggered.connect(signaldb.ModelUpdate)
+        reprocess.triggered.connect(self.force_update)
         self.actions.reprocess = reprocess
 
     def _create_menus(self):
