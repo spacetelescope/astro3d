@@ -138,15 +138,13 @@ class MainWindow(GTK_MainWindow):
         signaldb.ModelUpdate()
 
     def force_update(self):
-        is_enabled = signaldb.ModelUpdate.enabled
-        signaldb.ModelUpdate.enable()
+        signaldb.ModelUpdate.set_enabled(True, push=True)
         try:
             signaldb.ModelUpdate()
         except Exception as e:
             self.logger.warn('Processing error: "{}"'.format(e))
         finally:
-            if not is_enabled:
-                signaldb.ModelUpdate.disable()
+            signaldb.ModelUpdate.reset_enabled()
 
     def quit(self, *args, **kwargs):
         """Shutdown"""

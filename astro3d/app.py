@@ -68,9 +68,7 @@ class Application(Controller):
             action='store_true'
         )
         args = parser.parse_args(argv)
-        self.auto_process = not args.disable_autoprocessing
-        if not self.auto_process:
-            signaldb.ModelUpdate.disable()
+        signaldb.ModelUpdate.set_enabled(not args.disable_autoprocessing)
 
     def _create_signals(self):
         signaldb.logger = self.logger

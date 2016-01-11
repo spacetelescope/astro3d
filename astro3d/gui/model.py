@@ -93,14 +93,14 @@ class Model(QStandardItemModel):
 
     def read_maskpathlist(self, pathlist):
         """Read a list of mask files"""
-        signaldb.ModelUpdate.disable()
+        signaldb.ModelUpdate.set_enabled(False, push=True)
         try:
             for path in pathlist:
                 mask = RegionMask.from_fits(path)
                 id = basename(path)
                 self.regions.add_mask(mask=mask, id=id)
         finally:
-            signaldb.ModelUpdate.enable()
+            signaldb.ModelUpdate.reset_enabled()
 
     def read_star_catalog(self, pathname):
         """Read in a star catalog"""
