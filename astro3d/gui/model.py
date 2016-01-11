@@ -48,7 +48,7 @@ class Model(QStandardItemModel):
 
         self.stages = AttrDict({
             'intensity': True,
-            'textures': False,
+            'textures': True,
             'spiral_galaxy': False,
             'double_sided': False
         })
