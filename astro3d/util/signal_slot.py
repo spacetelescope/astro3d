@@ -39,6 +39,7 @@ class Signal(object):
         self._functions = WeakSet()
         self._methods = WeakKeyDictionary()
         self._enabled = True
+        self._states = []
         if logger is None:
             logger = make_logger('Signal')
         self.logger = logger
@@ -56,7 +57,7 @@ class Signal(object):
             )
         )
 
-        if not self._enabled:
+        if not self.enabled:
             self.logger.debug(
                 'Signal {}: Disabled, exiting...'.format(
                     self.__class__.__name__
@@ -65,7 +66,7 @@ class Signal(object):
             return
 
         # No recursive signalling
-        self.disable()
+        self.set_enabled(False)
 
         # Call the slots.
         try:
@@ -105,17 +106,29 @@ class Signal(object):
             for obj, func in to_be_removed:
                 self._methods[obj].discard(func)
         finally:
-            self.enable()
+            self.set_enabled(True)
 
     @property
     def enabled(self):
         return self._enabled
 
-    def enable(self):
-        self._enabled = True
+    def set_enabled(self, state, push=False):
+        """Set whether signal is active or not
 
-    def disable(self):
-        self._enabled = False
+        Parameters
+        ----------
+        state: boolean
+            New state of signal
+
+        push: boolean
+            If True, current state is saved.
+        """
+        if push:
+            self._states.append(self._enabled)
+        self._enabled = state
+
+    def reset_enabled(self):
+            self._enabled = self._states.pop()
 
     def connect(self, slot):
         self.logger.debug(

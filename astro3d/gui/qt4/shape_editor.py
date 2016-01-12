@@ -25,12 +25,14 @@ class ShapeEditor(QtGui.QWidget):
             make_logger('astro3d Shape Editor')
         )
         self.surface = kwargs.pop('surface', None)
+        canvas = kwargs.pop('canvas', None)
 
         super(ShapeEditor, self).__init__(*args, **kwargs)
+
         self._canvas = None
         self.drawtypes = []
         self.enabled = False
-        self._build_gui()
+        self.canvas = canvas
 
         signaldb.NewRegion.connect(self.new_region)
 
@@ -52,7 +54,6 @@ class ShapeEditor(QtGui.QWidget):
         self._canvas = canvas
         self.drawtypes = self.canvas.get_drawtypes()
         self.drawtypes.sort()
-        self._build_gui()
 
         # Setup for actual drawing
         canvas.enable_draw(True)
@@ -78,15 +79,20 @@ class ShapeEditor(QtGui.QWidget):
             pass
 
     def new_region(self, type_item):
-        self.logger.debug('Called with type_item="{}"'.format(type_item))
         self.type_item = type_item
-        self.canvas = type_item.view.canvas
+        try:
+            self.canvas = type_item.view.canvas
+        except AttributeError:
+            pass
+        if self.canvas is None:
+            raise RuntimeError('Internal error: no canvas to draw on.')
+        self._build_gui()
         self.enabled = True
 
     def set_drawparams(self):
         self.logger.debug('Called.')
         kind = self.drawtypes[self.drawtype_widget.currentIndex()]
-        params = self.type_item.view.draw_params
+        params = self.type_item.draw_params
         self.logger.debug('kind="{}"'.format(kind))
         self.logger.debug('params="{}"'.format(params))
         self.canvas.set_drawtype(kind, **params)
@@ -119,6 +125,7 @@ class ShapeEditor(QtGui.QWidget):
             QtGui.QWidget().setLayout(self.layout())
 
         # Select drawing types
+        self.logger.debug('Creating combobox.')
         drawtype_widget = QtGui.QComboBox()
         self.drawtype_widget = drawtype_widget
         for name in self.drawtypes:
@@ -132,8 +139,11 @@ class ShapeEditor(QtGui.QWidget):
             drawtype_widget.setCurrentIndex(index)
 
         # Put it together
+        self.logger.debug('Creating layout.')
         layout = QtGui.QVBoxLayout()
         layout.setContentsMargins(QtCore.QMargins(2, 2, 2, 2))
         layout.setSpacing(1)
         layout.addWidget(drawtype_widget)
         self.setLayout(layout)
+
+        self.logger.debug('Done.')

@@ -22,40 +22,6 @@ __all__ = [
     'OverlayView'
 ]
 
-def _merge_dicts(*dictionaries):
-    result = {}
-    for dictionary in dictionaries:
-        result.update(dictionary)
-    return result
-
-DRAW_PARAMS_DEFAULT = {
-    'color': 'red',
-    'alpha': 0.3,
-    'fill': True,
-    'fillalpha': 0.3
-}
-
-DRAW_PARAMS = defaultdict(
-    lambda: DRAW_PARAMS_DEFAULT,
-    {
-        'bulge': _merge_dicts(
-            DRAW_PARAMS_DEFAULT,
-            {'color': 'blue'}
-        ),
-        'gas': _merge_dicts(
-            DRAW_PARAMS_DEFAULT,
-            {'color': 'green'}
-        ),
-        'remove_star': _merge_dicts(
-            DRAW_PARAMS_DEFAULT,
-            {'color': 'red'}
-        ),
-        'spiral': _merge_dicts(
-            DRAW_PARAMS_DEFAULT,
-            {'color': 'orange'}
-        )
-    }
-)
 
 class BaseOverlay(object):
     """Base class for Overlays
@@ -228,7 +194,11 @@ class Overlay(BaseOverlay):
         else:
             overlay = Overlay(parent=self)
             layer_item.view = overlay
-            overlay.draw_params = DRAW_PARAMS[layer_item.text()]
+            try:
+                overlay.draw_params = layer_item.draw_params
+            except AttributeError:
+                """Layer does not have any, ignore."""
+                pass
         self.add_child(overlay)
         return overlay
 

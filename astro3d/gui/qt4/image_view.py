@@ -1,19 +1,19 @@
-from ginga.gw.Viewers import ImageViewCanvas
+from ginga.gw.Viewers import CanvasView
 
 from ...util.logger import make_logger
 from ...core.region_mask import RegionMask
 
-__all__ = ['ViewImage']
+__all__ = ['ImageView']
 
 
-class ViewImage(ImageViewCanvas):
+class ImageView(CanvasView):
 
     def __init__(self, logger=None, model=None):
         if logger is None:
-            logger = make_logger('astro3d ViewImage')
+            logger = make_logger('astro3d ImageView')
         self.logger = logger
 
-        super(ViewImage, self).__init__(self.logger, render='widget')
+        super(ImageView, self).__init__(self.logger, render='widget')
 
         # Enable the image viewing functions.
         self.enable_autocuts('on')

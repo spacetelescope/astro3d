@@ -13,7 +13,7 @@ from ..external.qt.QtGui import QMainWindow as GTK_MainWindow
 from . import signaldb
 from qt4 import (
     LayerManager,
-    ViewImage,
+    ImageView,
     ViewMesh,
     ShapeEditor,
     OverlayView
@@ -64,7 +64,6 @@ class MainWindow(GTK_MainWindow):
         self.logger.debug('res="{}"'.format(res))
         if len(res) > 0:
             self.model.read_maskpathlist(res)
-            self.actions.textures.setChecked(True)
             signaldb.ModelUpdate()
 
     def starpath_from_dialog(self):
@@ -137,10 +136,26 @@ class MainWindow(GTK_MainWindow):
         self.model.stages[stage] = args[0]
         signaldb.ModelUpdate()
 
+    def force_update(self):
+        signaldb.ModelUpdate.set_enabled(True, push=True)
+        try:
+            signaldb.ModelUpdate()
+        except Exception as e:
+            self.logger.warn('Processing error: "{}"'.format(e))
+        finally:
+            signaldb.ModelUpdate.reset_enabled()
+
     def quit(self, *args, **kwargs):
         """Shutdown"""
         self.logger.debug('GUI shutting down...')
         self.deleteLater()
+
+    def auto_reprocessing_state(self):
+        return signaldb.ModelUpdate.enabled
+
+    def toggle_auto_reprocessing(self):
+        state = signaldb.ModelUpdate.enabled
+        signaldb.ModelUpdate.set_enabled(not state)
 
     def _build_gui(self):
         """Construct the app's GUI"""
@@ -150,7 +165,7 @@ class MainWindow(GTK_MainWindow):
         ####
 
         # Image View
-        image_viewer = ViewImage(self.logger)
+        image_viewer = ImageView(self.logger)
         self.image_viewer = image_viewer
         image_viewer.set_desired_size(512, 512)
         image_viewer_widget = image_viewer.get_widget()
@@ -180,6 +195,7 @@ class MainWindow(GTK_MainWindow):
         # The Shape Editor
         self.shape_editor = ShapeEditor(
             surface=image_viewer,
+            canvas=self.overlay.canvas,
             logger=self.logger
         )
         shape_editor_dock = QtGui.QDockWidget('Shape Editor', self)
@@ -199,6 +215,14 @@ class MainWindow(GTK_MainWindow):
     def _create_actions(self):
         """Setup the main actions"""
         self.actions = AttrDict()
+
+        # Preferences
+        auto_reprocess = QtGui.QAction('Auto Reprocess', self)
+        auto_reprocess.setStatusTip('Enable/disable automatic 3D processing')
+        auto_reprocess.setCheckable(True)
+        auto_reprocess.setChecked(self.auto_reprocessing_state())
+        auto_reprocess.toggled.connect(self.toggle_auto_reprocessing)
+        self.actions.auto_reprocess = auto_reprocess
 
         quit = QtGui.QAction('&Quit', self)
         quit.setStatusTip('Quit application')
@@ -254,13 +278,14 @@ class MainWindow(GTK_MainWindow):
         reprocess = QtGui.QAction('Reprocess', self)
         reprocess.setShortcut('Shift+Ctrl+R')
         reprocess.setStatusTip('Reprocess the model')
-        reprocess.triggered.connect(signaldb.ModelUpdate)
+        reprocess.triggered.connect(self.force_update)
         self.actions.reprocess = reprocess
 
     def _create_menus(self):
         """Setup the main menus"""
-        menubar = self.menuBar()
+        self.menubar = menubar = QtGui.QMenuBar()
 
+        # File menu
         file_menu = menubar.addMenu('&File')
         file_menu.addAction(self.actions.open)
         file_menu.addAction(self.actions.regions)
@@ -279,6 +304,10 @@ class MainWindow(GTK_MainWindow):
             stage_menu.addAction(self.actions[STAGES[name]])
         stage_menu.addSeparator()
         stage_menu.addAction(self.actions.reprocess)
+
+        # Preferences
+        prefs_menu = menubar.addMenu('Preferences')
+        prefs_menu.addAction(self.actions.auto_reprocess)
 
     def _create_toolbars(self):
         """Setup the main toolbars"""

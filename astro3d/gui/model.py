@@ -34,7 +34,7 @@ class Model(QStandardItemModel):
 
         # Setup the basic structure
         self.image = None
-        self.regions = Regions()
+        self.regions = Regions(logger=self.logger)
         self.textures = Textures()
         self.cluster_catalogs = Clusters()
         self.stars_catalogs = Stars()
@@ -48,7 +48,7 @@ class Model(QStandardItemModel):
 
         self.stages = AttrDict({
             'intensity': True,
-            'textures': False,
+            'textures': True,
             'spiral_galaxy': False,
             'double_sided': False
         })
@@ -93,14 +93,14 @@ class Model(QStandardItemModel):
 
     def read_maskpathlist(self, pathlist):
         """Read a list of mask files"""
-        signaldb.ModelUpdate.disable()
+        signaldb.ModelUpdate.set_enabled(False, push=True)
         try:
             for path in pathlist:
                 mask = RegionMask.from_fits(path)
                 id = basename(path)
                 self.regions.add_mask(mask=mask, id=id)
         finally:
-            signaldb.ModelUpdate.enable()
+            signaldb.ModelUpdate.reset_enabled()
 
     def read_star_catalog(self, pathname):
         """Read in a star catalog"""

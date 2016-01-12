@@ -3,6 +3,7 @@ from __future__ import absolute_import, print_function
 
 from collections import (defaultdict, namedtuple)
 
+from ...util.logger import make_logger
 from ...external.qt.QtGui import (QAction, QStandardItem)
 from ...external.qt.QtCore import (QObject, Qt)
 
@@ -20,6 +21,42 @@ __all__ = [
     'Action',
     'ActionSeparator'
 ]
+
+
+def _merge_dicts(*dictionaries):
+    result = {}
+    for dictionary in dictionaries:
+        result.update(dictionary)
+    return result
+
+DRAW_PARAMS_DEFAULT = {
+    'color': 'red',
+    'alpha': 0.3,
+    'fill': True,
+    'fillalpha': 0.3
+}
+
+DRAW_PARAMS = defaultdict(
+    lambda: DRAW_PARAMS_DEFAULT,
+    {
+        'bulge': _merge_dicts(
+            DRAW_PARAMS_DEFAULT,
+            {'color': 'blue'}
+        ),
+        'gas': _merge_dicts(
+            DRAW_PARAMS_DEFAULT,
+            {'color': 'green'}
+        ),
+        'remove_star': _merge_dicts(
+            DRAW_PARAMS_DEFAULT,
+            {'color': 'red'}
+        ),
+        'spiral': _merge_dicts(
+            DRAW_PARAMS_DEFAULT,
+            {'color': 'orange'}
+        )
+    }
+)
 
 Action = namedtuple('Action', ('text', 'func', 'args'))
 
@@ -55,10 +92,16 @@ class LayerItem(QStandardItem):
     view: `ginga shape`
         How this item is viewed.
     """
+
+    logger = None
+
     def __init__(self, *args, **kwargs):
         self.value = kwargs.pop('value', None)
         self.view = kwargs.pop('view', None)
+        logger = kwargs.pop('logger', make_logger('LayerItem'))
         super(LayerItem, self).__init__(*args, **kwargs)
+        if self.__class__.logger is None:
+            self.__class__.logger = logger
         self._currentrow = None
 
     def __iter__(self):
@@ -104,7 +147,7 @@ class CheckableItem(LayerItem):
     def __init__(self, *args, **kwargs):
         super(CheckableItem, self).__init__(*args, **kwargs)
         self.setCheckable(True)
-        self.setCheckState(Qt.Unchecked)
+        self.setCheckState(Qt.Checked)
 
     @property
     def _actions(self):
@@ -147,19 +190,24 @@ class ClusterItem(CheckableItem):
 
 class TypeItem(CheckableItem):
     """Types of regions"""
+    def __init__(self, *args, **kwargs):
+        super(TypeItem, self).__init__(*args, **kwargs)
+
+        self.draw_params = DRAW_PARAMS[self.text()]
+
     @property
     def _actions(self):
         base_actions = super(TypeItem, self)._actions
         actions = [
             Action(
                 text='Add Region',
-                func=self.add_region,
+                func=self.add_region_interactive,
                 args=()
             ),
         ] + base_actions
         return actions
 
-    def add_region(self):
+    def add_region_interactive(self):
         """Add a new region."""
         signaldb.NewRegion(self)
 
@@ -201,8 +249,13 @@ class Regions(CheckableItem):
             self.appendRow(type_item)
         region_item.fix_family()
 
-    def add_type(self):
+    def add_region_interactive(self, mask_type):
         """Add a type"""
+        self.logger.debug('Called mask_type="{}"'.format(mask_type))
+        type_item = self.types[mask_type]
+        if not type_item.index().isValid():
+            self.appendRow(type_item)
+        signaldb.NewRegion(type_item)
 
     @property
     def _actions(self):
@@ -210,23 +263,23 @@ class Regions(CheckableItem):
         actions = [
             Action(
                 text='Add Bulge',
-                func=self.add_type,
-                args=('bulge')
+                func=self.add_region_interactive,
+                args=('bulge',)
             ),
             Action(
                 text='Add Gas',
-                func=self.add_type,
-                args=('gas')
+                func=self.add_region_interactive,
+                args=('gas',)
             ),
             Action(
                 text='Add Spiral',
-                func=self.add_type,
-                args=('spiral')
+                func=self.add_region_interactive,
+                args=('spiral',)
             ),
             Action(
                 text='Add Remove Star',
-                func=self.add_type,
-                args=('remove_star')
+                func=self.add_region_interactive,
+                args=('remove_star',)
             )
         ] + base_actions
         return actions

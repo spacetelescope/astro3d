@@ -4,6 +4,7 @@ from __future__ import absolute_import
 
 import sys
 import logging
+from argparse import ArgumentParser
 
 from .util.logger import make_logger
 from .util.process import MeshThread
@@ -24,6 +25,8 @@ class Application(Controller):
         self.model = Model(
             logger=self.logger
         )
+
+        self._argparse(argv)
 
         if self.__class__.ui_app is None:
             self.__class__.ui_app = start_ui_app(argv)
@@ -56,6 +59,16 @@ class Application(Controller):
             self.model.model3d = model3d
             self.model.mesh = mesh
             signaldb.UpdateMesh(mesh)
+
+    def _argparse(self, argv):
+        parser = ArgumentParser()
+        parser.add_argument(
+            '-D', '--disable_autoprocessing',
+            help='Disable automatic 3D generation',
+            action='store_true'
+        )
+        args = parser.parse_args(argv)
+        signaldb.ModelUpdate.set_enabled(not args.disable_autoprocessing)
 
     def _create_signals(self):
         signaldb.logger = self.logger
