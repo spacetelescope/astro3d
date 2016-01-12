@@ -150,6 +150,13 @@ class MainWindow(GTK_MainWindow):
         self.logger.debug('GUI shutting down...')
         self.deleteLater()
 
+    def auto_reprocessing_state(self):
+        return signaldb.ModelUpdate.enabled
+
+    def toggle_auto_reprocessing(self):
+        state = signaldb.ModelUpdate.enabled
+        signaldb.ModelUpdate.set_enabled(not state)
+
     def _build_gui(self):
         """Construct the app's GUI"""
 
@@ -208,6 +215,14 @@ class MainWindow(GTK_MainWindow):
     def _create_actions(self):
         """Setup the main actions"""
         self.actions = AttrDict()
+
+        # Preferences
+        auto_reprocess = QtGui.QAction('Auto Reprocess', self)
+        auto_reprocess.setStatusTip('Enable/disable automatic 3D processing')
+        auto_reprocess.setCheckable(True)
+        auto_reprocess.setChecked(self.auto_reprocessing_state())
+        auto_reprocess.toggled.connect(self.toggle_auto_reprocessing)
+        self.actions.auto_reprocess = auto_reprocess
 
         quit = QtGui.QAction('&Quit', self)
         quit.setStatusTip('Quit application')
@@ -268,8 +283,9 @@ class MainWindow(GTK_MainWindow):
 
     def _create_menus(self):
         """Setup the main menus"""
-        self.menubar = menubar = QtGui.QMenuBar(None)
+        self.menubar = menubar = QtGui.QMenuBar()
 
+        # File menu
         file_menu = menubar.addMenu('&File')
         file_menu.addAction(self.actions.open)
         file_menu.addAction(self.actions.regions)
@@ -288,6 +304,10 @@ class MainWindow(GTK_MainWindow):
             stage_menu.addAction(self.actions[STAGES[name]])
         stage_menu.addSeparator()
         stage_menu.addAction(self.actions.reprocess)
+
+        # Preferences
+        prefs_menu = menubar.addMenu('Preferences')
+        prefs_menu.addAction(self.actions.auto_reprocess)
 
     def _create_toolbars(self):
         """Setup the main toolbars"""
