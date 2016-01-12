@@ -268,7 +268,7 @@ class MainWindow(GTK_MainWindow):
 
     def _create_menus(self):
         """Setup the main menus"""
-        menubar = self.menuBar()
+        self.menubar = menubar = QtGui.QMenuBar(None)
 
         file_menu = menubar.addMenu('&File')
         file_menu.addAction(self.actions.open)
