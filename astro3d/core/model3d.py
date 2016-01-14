@@ -133,7 +133,7 @@ class Model3D(object):
             height=4.0, grid_func=textures.hexagonal_grid, grid_spacing=7.0)
         self.textures['dots'] = partial(
             textures.dots_texture_map, profile='spherical', diameter=9.0,
-            height=8.0, grid_func=textures.hexagonal_grid, grid_spacing=11.0)
+            height=4.0, grid_func=textures.hexagonal_grid, grid_spacing=11.0)
         self.textures['lines'] = partial(
             textures.lines_texture_map, profile='linear', thickness=13,
             height=7.8, spacing=20, orientation=0)
