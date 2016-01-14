@@ -429,8 +429,8 @@ class StarTexture(Fittable2DModel):
     """
     A 2D star texture model.
 
-    The star texture is a parabolic "bowl" with a circular base
-    of given ``radius``, bowl ``depth``, and ``base_height`.
+    The star texture is a parabolic "bowl" with a circular base of given
+    ``radius``, bowl ``depth``, ``base_height``, and ``slope``.
 
     Parameters
     ----------
@@ -449,6 +449,9 @@ class StarTexture(Fittable2DModel):
     base_height : float
         The base height of the star texture.  This is the texture height
         at the "bowl" minimum.
+
+    slope : float
+        The slope of the sides.
     """
 
     x_0 = Parameter()
@@ -456,9 +459,10 @@ class StarTexture(Fittable2DModel):
     radius = Parameter()
     depth = Parameter()
     base_height = Parameter()
+    slope = Parameter()
 
     @staticmethod
-    def evaluate(x, y, x_0, y_0, radius, depth, base_height):
+    def evaluate(x, y, x_0, y_0, radius, depth, base_height, slope):
         """Star model function."""
 
         # NOTE: min_height is added to keep the star texture values > 0 at
@@ -469,8 +473,14 @@ class StarTexture(Fittable2DModel):
         yy = y - y_0
         r = np.sqrt(xx**2 + yy**2)
         star = depth * (r / radius)**2 + base_height + min_height
-        star[r > radius] = 0.
-        return star
+
+        amplitude = depth + base_height
+        bowl_region = (r <= radius)
+        sides_region = np.logical_and(r > radius,
+                                      r <= (radius + (amplitude / slope)))
+        sides = amplitude + (slope * (radius - r))
+
+        return np.select([bowl_region, sides_region], [star, sides])
 
 
 class StarClusterTexture(Fittable2DModel):
@@ -480,7 +490,7 @@ class StarClusterTexture(Fittable2DModel):
     The star cluster texture is comprised of three touching star
     textures (`StarTexture`) arranged in an equilateral triangle
     pattern.  Each individual star texture has the same ``radius``,
-    ``depth``, and ``base_height``.
+    ``depth``, ``base_height``, and ``slope``.
 
     Parameters
     ----------
@@ -499,6 +509,9 @@ class StarClusterTexture(Fittable2DModel):
     base_height : float
         The base height of the star texture.  This is the texture height
         at the "bowl" minimum.
+
+    slope : float
+        The slope of the sides.
     """
 
     x_0 = Parameter()
@@ -506,18 +519,19 @@ class StarClusterTexture(Fittable2DModel):
     radius = Parameter()
     depth = Parameter()
     base_height = Parameter()
+    slope = Parameter()
 
     @staticmethod
-    def evaluate(x, y, x_0, y_0, radius, depth, base_height):
+    def evaluate(x, y, x_0, y_0, radius, depth, base_height, slope):
         """Star cluster model function."""
         h1 = radius / np.sqrt(3.)
         h2 = 2. * radius / np.sqrt(3.)
         y1, x1 = (y_0 - h1, x_0 - radius)
         y2, x2 = (y_0 - h1, x_0 + radius)
         y3, x3 = (y_0 + h2, x_0)
-        star1 = StarTexture(x1, y1, radius, depth, base_height)(x, y)
-        star2 = StarTexture(x2, y2, radius, depth, base_height)(x, y)
-        star3 = StarTexture(x3, y3, radius, depth, base_height)(x, y)
+        star1 = StarTexture(x1, y1, radius, depth, base_height, slope)(x, y)
+        star2 = StarTexture(x2, y2, radius, depth, base_height, slope)(x, y)
+        star3 = StarTexture(x3, y3, radius, depth, base_height, slope)(x, y)
         # Disk2D is used to fill the central "hole", which needs to be
         # nonzero to prevent a possible central spike when applied to the
         # image.  ``min_height`` is added to keep the texture values > 0
