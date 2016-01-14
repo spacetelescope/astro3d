@@ -722,7 +722,8 @@ class Model3D(object):
             then ``size`` will be used for both dimensions.
         """
 
-        log.info('Smoothing the image.')
+        log.info('Smoothing the image with a 2D median filter of size '
+                 '{0}.'.format(size))
         self.data = ndimage.filters.median_filter(self.data, size=size)
 
     def _normalize_image(self, max_value=1.0):
