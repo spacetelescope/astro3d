@@ -1110,7 +1110,7 @@ class Model3D(object):
         # TODO: add a step here to remove "islands" using segmentation?
 
         # smoothing the image again (to prevent printing issues)
-        self._smooth_image2(size=smooth_size2)
+        self._smooth_image(size=smooth_size2)
 
         self._crop_data(threshold=0., resize=True)
         self._make_model_height()
