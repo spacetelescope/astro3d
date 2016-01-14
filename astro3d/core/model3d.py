@@ -850,7 +850,7 @@ class Model3D(object):
             self._texture_layer[mask] = texture_data[mask]
         self.data += self._texture_layer
 
-    def _apply_stellar_textures(self, radius_a=10., radius_b=5.):
+    def _apply_stellar_textures(self, radius_a=10., radius_b=5., slope=0.5):
         """
         Apply stellar textures (stars and star clusters) to the image.
 
@@ -870,6 +870,9 @@ class Model3D(object):
 
         radius_b : float, optional
             The slope term in calculating the star radius (see above).
+
+        slope : float, optional
+            The slope of the star texture sides.
         """
 
         if self.has_intensity:
@@ -889,7 +892,7 @@ class Model3D(object):
             log.info('Adding stellar-like textures.')
             self._stellar_texture_layer = textures.make_starlike_textures(
                 data, self.stellar_tables, radius_a=radius_a,
-                radius_b=radius_b, depth=depth,
+                radius_b=radius_b, depth=depth, slope=slope,
                 base_percentile=base_percentile)
 
             if self.has_intensity:
@@ -931,7 +934,7 @@ class Model3D(object):
                  'y={1}.'.format(x_center, y_center))
         return x_center, y_center
 
-    def _apply_spiral_central_cusp(self, radius=25., depth=8.,
+    def _apply_spiral_central_cusp(self, radius=25., depth=8., slope=0.5,
                                    base_height_only=False):
         """
         Add a central cusp for spiral galaxies.
@@ -949,6 +952,9 @@ class Model3D(object):
 
         depth : float, optional
             The maximum depth of the crater-like bowl of the star texture.
+
+        slope : float, optional
+            The slope of the star texture sides.
 
         base_height_only : bool, optional
             If `True`, then simply return the base height of the texture
@@ -973,12 +979,12 @@ class Model3D(object):
 
                 if base_height_only:
                     base_height = textures.starlike_model_base_height(
-                        self.data, 'stars', x, y, radius, depth,
+                        self.data, 'stars', x, y, radius, depth, slope,
                         base_percentile=base_percentile)
                 else:
                     cusp_model = textures.make_cusp_model(
                         self.data, x, y, radius=radius, depth=depth,
-                        base_percentile=base_percentile)
+                        slope=slope, base_percentile=base_percentile)
                     base_height = cusp_model.base_height
 
                     yy, xx = np.indices(self.data.shape)

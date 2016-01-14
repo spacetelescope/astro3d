@@ -451,7 +451,7 @@ class StarTexture(Fittable2DModel):
         at the "bowl" minimum.
 
     slope : float
-        The slope of the sides.
+        The slope of the star texture sides.
     """
 
     x_0 = Parameter()
@@ -511,7 +511,7 @@ class StarClusterTexture(Fittable2DModel):
         at the "bowl" minimum.
 
     slope : float
-        The slope of the sides.
+        The slope of the star texture sides.
     """
 
     x_0 = Parameter()
@@ -541,7 +541,7 @@ class StarClusterTexture(Fittable2DModel):
         return np.maximum(np.maximum(np.maximum(star1, star2), star3), disk)
 
 
-def starlike_model_base_height(image, model_type, x, y, radius, depth,
+def starlike_model_base_height(image, model_type, x, y, radius, depth, slope,
                                base_percentile=75, image_indices=None):
     """
     Calculate the model base height for a star-like (star or star
@@ -566,6 +566,9 @@ def starlike_model_base_height(image, model_type, x, y, radius, depth,
 
     depth : float
         The maximum depth of the crater-like bowl of the star texture.
+
+    slope : float
+        The slope of the star_texture sides.
 
     base_percentile : float in the range of [0, 100], optional
         The percentile of the image data values within the source
@@ -606,7 +609,7 @@ def starlike_model_base_height(image, model_type, x, y, radius, depth,
             raise ValueError('x and y image_indices must have the same '
                              'shape as the input image.')
 
-    texture = Texture(x, y, radius, depth, 1.0)(xx, yy)
+    texture = Texture(x, y, radius, depth, 1.0, slope)(xx, yy)
     mask = (texture != 0)
     if not np.any(mask):
         # texture contains only zeros (e.g. bad position)
@@ -624,7 +627,7 @@ def starlike_model_base_height(image, model_type, x, y, radius, depth,
 
 
 def make_starlike_models(image, model_type, sources, radius_a=10, radius_b=5,
-                         depth=5, base_percentile=75):
+                         depth=5, slope=0.5, base_percentile=75):
     """
     Create the star-like (star or star cluster) texture models to be
     applied to an image.
@@ -659,6 +662,9 @@ def make_starlike_models(image, model_type, sources, radius_a=10, radius_b=5,
 
     depth : float, optional
         The maximum depth of the crater-like bowl of the star texture.
+
+    slope : float
+        The slope of the star texture sides.
 
     base_percentile : float in the range of [0, 100], optional
         The percentile of the image data values within the source
@@ -700,7 +706,7 @@ def make_starlike_models(image, model_type, sources, radius_a=10, radius_b=5,
         base_height = starlike_model_base_height(
             image, model_type, xcen, ycen, radius, depth,
             base_percentile=base_percentile, image_indices=(yy, xx))
-        model = Texture(xcen, ycen, radius, depth, base_height)
+        model = Texture(xcen, ycen, radius, depth, base_height, slope)
 
         if model is not None:
             models.append(model)
@@ -728,8 +734,8 @@ def sort_starlike_models(models):
     return sorted(models, key=attrgetter('base_height'))
 
 
-def make_starlike_textures(image, stellar_tables, radius_a=10,
-                           radius_b=5, depth=5, base_percentile=75):
+def make_starlike_textures(image, stellar_tables, radius_a=10, radius_b=5,
+                           depth=5, slope=0.5, base_percentile=75):
     """
     Make an image containing star-like textures (stars and star clusters).
 
@@ -752,6 +758,9 @@ def make_starlike_textures(image, stellar_tables, radius_a=10,
 
     depth : float, optional
         The maximum depth of the crater-like bowl of the star texture.
+
+    slope : float
+        The slope of the star texture sides.
 
     base_percentile : float in the range of [0, 100], optional
         The percentile of the image data values within the source
@@ -776,7 +785,7 @@ def make_starlike_textures(image, stellar_tables, radius_a=10,
         starlike_models.extend(
             make_starlike_models(image, stellar_type, table,
                                  radius_a=radius_a, radius_b=radius_b,
-                                 depth=depth,
+                                 depth=depth, slope=slope,
                                  base_percentile=base_percentile))
 
     # create a texture map from the list of models
@@ -787,7 +796,8 @@ def make_starlike_textures(image, stellar_tables, radius_a=10,
     return data
 
 
-def make_cusp_model(image, x, y, radius=25, depth=40, base_percentile=None):
+def make_cusp_model(image, x, y, radius=25, depth=40, slope=0.5,
+                    base_percentile=None):
     """
     Make an image containing a star-like cusp texture.
 
@@ -808,6 +818,9 @@ def make_cusp_model(image, x, y, radius=25, depth=40, base_percentile=None):
     depth : float, optional
         The maximum depth of the crater-like bowl of the star texture.
 
+    slope : float
+        The slope of the star texture sides.
+
     base_percentile : float in the range of [0, 100], optional
         The percentile of the image data values within the source
         texture (where the texture is non-zero) used to define the base
@@ -822,7 +835,7 @@ def make_cusp_model(image, x, y, radius=25, depth=40, base_percentile=None):
 
     base_height = starlike_model_base_height(
         image, 'stars', x, y, radius, depth, base_percentile=base_percentile)
-    return StarTexture(x, y, radius, depth, base_height)
+    return StarTexture(x, y, radius, depth, base_height, slope)
 
 
 def apply_textures(image, texture_image):
