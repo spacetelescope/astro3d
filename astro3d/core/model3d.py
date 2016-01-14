@@ -1034,8 +1034,8 @@ class Model3D(object):
 
     def make(self, compress_bulge_percentile=0., compress_bulge_factor=0.05,
              suppress_background_percentile=90.,
-             suppress_background_factor=0.2, smooth_size=11,
-             minvalue_to_zero=0.02, crop_data_threshold=0.,
+             suppress_background_factor=0.2, smooth_size1=11,
+             smooth_size2=15, minvalue_to_zero=0.02, crop_data_threshold=0.,
              model_base_filter_size=75, model_base_min_value=1.83):
         """
         Make the model.
@@ -1065,10 +1065,15 @@ class Model3D(object):
             level in the suppress background step.  See
             `_suppress_background`.
 
-        smooth_size : float or tuple optional
-            The shape of filter window for the image smoothing step.  If
-            ``size`` is an `int`, then then ``size`` will be used for
-            both dimensions.  See `_smooth_image`.
+        smooth_size1 : float or tuple optional
+            The shape of filter window for the first image smoothing
+            step.  If ``size`` is an `int`, then then ``size`` will be
+            used for both dimensions.  See `_smooth_image`.
+
+        smooth_size2 : float or tuple optional
+            The shape of filter window for the second image smoothing
+            step.  If ``size`` is an `int`, then then ``size`` will be
+            used for both dimensions.  See `_smooth_image`.
 
         minvalue_to_zero : float, optional
             The image threshold value below which pixels are set to
@@ -1099,10 +1104,14 @@ class Model3D(object):
             factor=compress_bulge_factor)
         self._suppress_background(percentile=suppress_background_percentile,
                                   factor=suppress_background_factor)
-        self._smooth_image(size=smooth_size)
+        self._smooth_image(size=smooth_size1)
         self._normalize_image()
         self._minvalue_to_zero(min_value=minvalue_to_zero)
         # TODO: add a step here to remove "islands" using segmentation?
+
+        # smoothing the image again (to prevent printing issues)
+        self._smooth_image2(size=smooth_size2)
+
         self._crop_data(threshold=0., resize=True)
         self._make_model_height()
         self.data_intensity = deepcopy(self.data)
