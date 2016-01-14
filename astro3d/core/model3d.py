@@ -873,8 +873,8 @@ class Model3D(object):
         """
 
         if self.has_intensity:
-            base_percentile = 75.
-            depth = 5.
+            base_percentile = 25.
+            depth = 3.
             data = self.data
         else:
             base_percentile = None
