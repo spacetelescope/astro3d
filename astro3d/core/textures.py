@@ -704,7 +704,7 @@ def make_starlike_models(image, model_type, sources, radius_a=10, radius_b=5,
         ycen = source['ycentroid']
         radius = radius_a + (radius_b * source['flux'] / max_flux)
         base_height = starlike_model_base_height(
-            image, model_type, xcen, ycen, radius, depth,
+            image, model_type, xcen, ycen, radius, depth, slope,
             base_percentile=base_percentile, image_indices=(yy, xx))
         model = Texture(xcen, ycen, radius, depth, base_height, slope)
 
@@ -834,7 +834,8 @@ def make_cusp_model(image, x, y, radius=25, depth=40, slope=0.5,
     """
 
     base_height = starlike_model_base_height(
-        image, 'stars', x, y, radius, depth, base_percentile=base_percentile)
+        image, 'stars', x, y, radius, depth, slope,
+        base_percentile=base_percentile)
     return StarTexture(x, y, radius, depth, base_height, slope)
 
 

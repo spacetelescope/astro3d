@@ -850,7 +850,7 @@ class Model3D(object):
             self._texture_layer[mask] = texture_data[mask]
         self.data += self._texture_layer
 
-    def _apply_stellar_textures(self, radius_a=10., radius_b=5., slope=0.5):
+    def _apply_stellar_textures(self, radius_a=10., radius_b=5., slope=3.0):
         """
         Apply stellar textures (stars and star clusters) to the image.
 
@@ -934,7 +934,7 @@ class Model3D(object):
                  'y={1}.'.format(x_center, y_center))
         return x_center, y_center
 
-    def _apply_spiral_central_cusp(self, radius=25., depth=8., slope=0.5,
+    def _apply_spiral_central_cusp(self, radius=25., depth=8., slope=3.0,
                                    base_height_only=False):
         """
         Add a central cusp for spiral galaxies.
