@@ -8,6 +8,11 @@ from .. import signaldb
 __all__ = ['ShapeEditor']
 
 
+VALID_KINDS = set(('circle', 'rectangle', 'polygon',
+                   'triangle', 'righttriangle',
+                   'square', 'ellipse', 'box'))
+
+
 class ShapeEditor(QtGui.QWidget):
     """Shape Editor
 
@@ -19,6 +24,7 @@ class ShapeEditor(QtGui.QWidget):
     logger: logging.Logger
         The common logger.
     """
+
     def __init__(self, *args, **kwargs):
         self.logger = kwargs.pop(
             'logger',
@@ -30,7 +36,7 @@ class ShapeEditor(QtGui.QWidget):
         super(ShapeEditor, self).__init__(*args, **kwargs)
 
         self._canvas = None
-        self.drawtypes = []
+        self.drawkinds = []
         self.enabled = False
         self.canvas = canvas
 
@@ -46,14 +52,12 @@ class ShapeEditor(QtGui.QWidget):
         if canvas is None or \
            self._canvas is canvas:
             return
-        try:
-            self.enabled = False
-        except AttributeError:
-            pass
 
         self._canvas = canvas
-        self.drawtypes = self.canvas.get_drawtypes()
-        self.drawtypes.sort()
+
+        # Setup parameters
+        self.drawkinds = list(VALID_KINDS.intersection(self.canvas.get_drawtypes()))
+        self.drawkinds.sort()
 
         # Setup for actual drawing
         canvas.enable_draw(True)
@@ -63,7 +67,7 @@ class ShapeEditor(QtGui.QWidget):
         canvas.set_callback('edit-select', self.edit_select_cb)
         canvas.setSurface(self.surface)
         canvas.register_for_cursor_drawing(self.surface)
-        canvas.set_draw_mode('draw')
+        canvas.set_draw_mode('edit')
 
     @property
     def enabled(self):
@@ -91,7 +95,7 @@ class ShapeEditor(QtGui.QWidget):
 
     def set_drawparams(self):
         self.logger.debug('Called.')
-        kind = self.drawtypes[self.drawtype_widget.currentIndex()]
+        kind = self.drawkinds[self.drawtype_widget.currentIndex()]
         params = self.type_item.draw_params
         self.logger.debug('kind="{}"'.format(kind))
         self.logger.debug('params="{}"'.format(params))
@@ -128,11 +132,11 @@ class ShapeEditor(QtGui.QWidget):
         self.logger.debug('Creating combobox.')
         drawtype_widget = QtGui.QComboBox()
         self.drawtype_widget = drawtype_widget
-        for name in self.drawtypes:
+        for name in self.drawkinds:
             drawtype_widget.addItem(name)
         drawtype_widget.currentIndexChanged.connect(self.set_drawparams)
         try:
-            index = self.drawtypes.index('circle')
+            index = self.drawkinds.index('circle')
         except ValueError:
             pass
         else:
