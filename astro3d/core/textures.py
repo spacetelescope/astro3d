@@ -576,7 +576,7 @@ def starlike_model_base_height(image, model_type, x, y, radius, depth, slope,
         height of the model texture.  If `None`, then the model
         base_height will be zero.
 
-    image_indices : tuple of 2D `~numpy.ndarray`s, optional
+    image_indices : tuple of 2D `~numpy.ndarray`, optional
         A ``(yy, xx)`` tuple where ``yy`` and ``xx`` are 2D images with
         the same shape of the input ``image`` and represent the ``y``
         and ``x`` image indices (i.e. the tuple returned from

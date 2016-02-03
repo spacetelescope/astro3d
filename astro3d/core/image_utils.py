@@ -184,7 +184,8 @@ def combine_masks(masks):
 
 def combine_region_masks(region_masks):
     """
-    Combine `~astro3d.region_mask.RegionMask`s into a single mask.
+    Combine a list of `~astro3d.region_mask.RegionMask` into a single
+    mask.
 
     Parameters
     ----------

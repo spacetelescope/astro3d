@@ -25,7 +25,7 @@ Astro3d requires:
 
 * `matplotlib <http://matplotlib.org/>`_
 
-* `Astropy <http://www.astropy.org/>`_ 1.0 or later
+* `Astropy`_ 1.0 or later
 
 * `Pillow <https://python-pillow.github.io/>`_ or `PIL <http://www.pythonware.com/products/pil/>`_
 
@@ -69,11 +69,3 @@ Using ``astro3d``
    :maxdepth: 2
 
    high-level_API
-
-
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`

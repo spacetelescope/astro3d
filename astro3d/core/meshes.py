@@ -199,7 +199,7 @@ def scale_triangles(triangles, x_size=275):
         ``z``: 150 mm
 
     Parameters
-    ---------
+    ----------
     triangles : Nx4x3 `~numpy.ndarray`
         An array of normal vectors and vertices for a set of triangles.
 
