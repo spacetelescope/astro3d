@@ -23,7 +23,7 @@ class RegionMask(object):
 
         mask_type : str
             The type of mask.  Some examples include 'dots', 'small_dots',
-            'lines', 'gas', 'spiral'.
+            'lines', 'gas', and 'spiral'.
 
         required_shape : tuple, optional
             If not `None`, then the ``(ny, nx)`` shape required for the
@@ -81,7 +81,7 @@ class RegionMask(object):
         Create a `RegionMask` instance from a FITS file.
 
         The FITS file must have a 'MASKTYPE' header keyword defining the
-        mask type.  The mask must be in the primary extension.
+        mask type.  This keyword must be in the primary extension.
 
         The mask data should contain only ones or zeros, which will be
         converted to `True` and `False` values, respectively.

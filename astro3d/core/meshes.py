@@ -221,12 +221,13 @@ def scale_triangles(triangles, x_size=275):
 
 def reflect_triangles(triangles):
     """
-    Reflect a triangle mesh about the z axis.
+    Reflect a triangle mesh about the ``z`` axis.
 
-    The triangle vertices are reflected about the z axis and then
+    The triangle vertices are reflected about the ``z`` axis and then
     reordered such that the triangle normal is consistent with the
-    right-hand rule.  The triangle normal is also reflected about the z
-    axis.  All of these steps are required to properly reflect the mesh.
+    right-hand rule.  The triangle normal is also reflected about the
+    ``z`` axis.  All of these steps are required to properly reflect the
+    mesh.
 
     Parameters
     ----------

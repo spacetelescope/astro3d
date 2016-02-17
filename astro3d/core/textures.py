@@ -691,8 +691,8 @@ def make_starlike_models(image, model_type, sources, radius_a=10, radius_b=5,
     columns = ['xcentroid', 'ycentroid', 'flux']
     for column in columns:
         if column not in sources.colnames:
-            raise ValueError('sources must contain a {0} '
-                             'column'.format(column))
+            raise ValueError('sources must contain a {0} column'
+                             .format(column))
 
     # assumes that all sources in the source table are good
     max_flux = float(np.max(sources['flux']))

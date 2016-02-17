@@ -241,8 +241,9 @@ class Model3D(object):
         """
         Translate mask type into the texture or region type.
 
-        The valid texture types are defined in ``.texture_order``.  The
-        valid region types are defined in ``.region_mask_types``.
+        The valid texture types are defined in ``self.texture_order``.
+        The valid region types are defined in
+        ``self.region_mask_types``.
 
         Parameters
         ----------
@@ -265,8 +266,8 @@ class Model3D(object):
                 if mask_type in mask_types:
                     return tx_type
             if tx_type is None:
-                warnings.warn('"{0}" is not a valid mask '
-                              'type.'.format(mask_type), AstropyUserWarning)
+                warnings.warn('"{0}" is not a valid mask type.'
+                              .format(mask_type), AstropyUserWarning)
             return
 
     def add_mask(self, mask):
@@ -437,8 +438,8 @@ class Model3D(object):
             log.info('Saved "{0}" table to "{1}"'.format(stellar_type,
                                                          filename))
         else:
-            log.info('"{0}" table was empty and not '
-                     'saved.'.format(stellar_type))
+            log.info('"{0}" table was empty and not saved.'
+                     .format(stellar_type))
 
     def write_all_stellar_tables(self, filename_prefix):
         """
@@ -628,7 +629,7 @@ class Model3D(object):
         This is needed to compress the large dynamic range of
         intensities in spiral galaxy images.
 
-        A base value is first taken a the ``percentile`` of data values
+        A base value is first taken as the ``percentile`` of data values
         within the bulge mask.  Values above this are then compressed by
         ``factor``.
 
@@ -639,13 +640,13 @@ class Model3D(object):
             as the base level.
 
         factor : float, optional
-            The scale factor to apply to the region above the base
+            The scale factor to apply to the pixel values above the base
             level.
 
         Returns
         -------
         result : float
-            The base level above which values are compressed.
+            The base level above which pixel values are compressed.
         """
 
         if not self.spiral_galaxy:
@@ -673,10 +674,10 @@ class Model3D(object):
 
         This is used to suppress the "background".
 
-        A base value is first taken a the ``percentile`` of data values
+        A base value is first taken as the ``percentile`` of data values
         in regions that are not in any texture mask.  Values below this
-        are then compressed by ``factor``.  Values below ``floor`` are
-        then set to zero.
+        are then compressed by ``factor``.  Values below
+        ``floor_percentile`` are then set to zero.
 
         Parameters
         ----------
@@ -685,7 +686,7 @@ class Model3D(object):
             to use as the background level.
 
         factor : float, optional
-            The scale factor to apply to the region below the
+            The scale factor to apply to the pixel values below the
             background level.
 
         floor_percentile : float, optional
@@ -717,7 +718,7 @@ class Model3D(object):
 
         Parameters
         ----------
-        size : float or tuple, optional
+        size : int or tuple of int, optional
             The shape of filter window.  If ``size`` is an `int`, then
             then ``size`` will be used for both dimensions.
         """
@@ -736,8 +737,8 @@ class Model3D(object):
             The maximum value of the normalized array.
         """
 
-        log.info('Normalizing the image values to '
-                 '[0, {0}].'.format(max_value))
+        log.info('Normalizing the image values to [0, {0}].'
+                 .format(max_value))
         self.data = image_utils.normalize_data(self.data, max_value=max_value)
 
     def _minvalue_to_zero(self, min_value=0.02):
@@ -757,23 +758,33 @@ class Model3D(object):
         """
         Crop the image, masks, and stellar tables.
 
-        If ``resize=True`, they are then resized to have the same size
-        as ``self.data_original_resized`` to ensure a consistent 3D
-        scaling of the model in MakerBot.
+        The image(s) and table(s) are cropped to the minimal bounding
+        box containing all pixels greater than the input ``threshold``.
+
+        If ``resize=True``, they are then resized to have the same ``x``
+        size as ``self.data_original_resized`` to ensure a consistent
+        height/width ratio of the model in MakerBot.
 
         Parameters
         ----------
         threshold : float, optional
-            The values equal to and below which to crop from the data.
+            Pixels greater than the threshold define the minimal bounding box
+            of the cropped region.
 
         resize : bool, optional
             Set to `True` to resize the data, masks, and stellar tables
-            back to the original size of ``self.data_original_resized``.
+            back to the original ``x`` size of
+            ``self.data_original_resized``.
+
+        Returns
+        -------
+        result : tuple of slice objects
+            The slice tuple used to crop the images(s).
         """
 
-        log.info('Cropping the image values equal to or below a threshold of '
-                 '{0}.'.format(threshold))
-        slc = image_utils.crop_below_threshold(self.data, threshold=threshold)
+        log.info('Cropping the image using a threshold of {0} to define '
+                 'the minimal bounding box'.format(threshold))
+        slc = image_utils.bbox_threshold(self.data, threshold=threshold)
         self.data = self.data[slc]
 
         for mask_type, mask in self.texture_masks.iteritems():
@@ -808,8 +819,9 @@ class Model3D(object):
         Scale the image to the final model height prior to adding the
         textures.
 
-        To give consistent texture height (and "feel"), no scaling of
-        the image should happen after this step!
+        To give a consistent model height/width ratio and texture height
+        (and "feel"), no scaling of the image should happen after this
+        step!
         """
 
         # clip the image at the cusp base_height
@@ -834,9 +846,9 @@ class Model3D(object):
         image.
 
         The masked textures are added in order, specified by
-        ``.texture_order``.  Masked areas in subsequent textures will
-        override earlier textures for pixels masked in more than one
-        texture (i.e. a given pixel has only one texture applied).
+        ``self.texture_order``.  Masked areas in subsequent textures
+        will override earlier textures for pixels masked in more than
+        one texture (i.e. a given pixel has only one texture applied).
         """
 
         self._texture_layer = np.zeros_like(self.data)
@@ -930,8 +942,8 @@ class Model3D(object):
             y, x = np.where(data == data.max())
         y_center = y.mean()
         x_center = x.mean()
-        log.info('Found center of galaxy at x={0}, '
-                 'y={1}.'.format(x_center, y_center))
+        log.info('Found center of galaxy at x={0}, y={1}.'
+                 .format(x_center, y_center))
         return x_center, y_center
 
     def _apply_spiral_central_cusp(self, radius=25., depth=8., slope=3.0,

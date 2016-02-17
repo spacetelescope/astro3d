@@ -14,6 +14,9 @@ def remove_nonfinite(data):
     """
     Remove non-finite values (e.g. NaN, inf, etc.) from an array.
 
+    Non-finite values are replaced by a local mean if possible,
+    otherwise are set to zero.
+
     Parameters
     ----------
     data : array-like
@@ -74,8 +77,8 @@ def resize_image(data, scale_factor):
     ny, nx = data.shape
 
     if scale_factor == 1:
-        log.info('The array (ny * nx) = ({0}x{1}) was not '
-                 'resized.'.format(ny, nx))
+        log.info('The array (ny * nx) = ({0}x{1}) was not resized.'
+                 .format(ny, nx))
         return data
 
     ny, nx = data.shape
@@ -124,10 +127,12 @@ def normalize_data(data, max_value=1.):
         return (data - minval) / (maxval - minval) * max_value
 
 
-def crop_below_threshold(data, threshold=0):
+def bbox_threshold(data, threshold=0):
     """
-    Calculate a slice tuple to crop an array where its values
-    are less than ``threshold``.
+    Calculate a slice tuple representing the minimal bounding box
+    enclosing all values greater than the input ``threshold``.
+
+    The slice tuple can be used to crop the image.
 
     Parameters
     ----------
@@ -135,7 +140,7 @@ def crop_below_threshold(data, threshold=0):
         The input data array.
 
     threshold : float, optional
-        The values equal to and below which to crop from the array.
+        The values above which to define the minimal bounding box.
 
     Returns
     -------
@@ -146,7 +151,7 @@ def crop_below_threshold(data, threshold=0):
     --------
     >>> data = np.zeros((100, 100))
     >>> data[40:50, 40:50] = 100
-    >>> slc = crop_below_threshold(data, 10)
+    >>> slc = bbox_above_threshold(data, 10)
     >>> slc
     (slice(40, 50, None), slice(40, 50, None))
     >>> data_cropped = data[slc]
@@ -162,10 +167,12 @@ def combine_masks(masks):
     """
     Combine boolean masks into a single mask.
 
+    The masks are combined using `~numpy.logical_or`.
+
     Parameters
     ----------
     masks : list of boolean `~numpy.ndarray`
-        A list of boolean `~numpy.ndarray` masks.
+        A list of boolean `~numpy.ndarray` masks to combine.
 
     Returns
     -------
@@ -187,10 +194,13 @@ def combine_region_masks(region_masks):
     Combine a list of `~astro3d.region_mask.RegionMask` into a single
     mask.
 
+    The masks are combined using `~numpy.logical_or`.
+
     Parameters
     ----------
     region_masks : list of `~astro3d.region_mask.RegionMask`
-        A list of boolean `~astro3d.region_mask.RegionMask` masks.
+        A list of boolean `~astro3d.region_mask.RegionMask` masks to
+        combine.
 
     Returns
     -------
@@ -211,8 +221,8 @@ def combine_region_masks(region_masks):
 
 def radial_distance(shape, position):
     """
-    Return an array where the pixel values are the Euclidean distance of
-    the pixel from a given position.
+    Return an array where the values are the Euclidean distance of the
+    pixel from a given position.
 
     Parameters
     ----------
@@ -253,13 +263,13 @@ def radial_weight_map(shape, position, alpha=0.8, r_min=100, r_max=450,
         The power scaling factor applied to the radial distance.
 
     r_min : int, optional
-        Minimum pixel radius below which the weights are truncated.
+        The minimum pixel radius below which the weights are truncated.
 
     r_max : int, optional
-        Maximum pixel radius above which the weights are truncated.
+        The maximum pixel radius above which the weights are truncated.
 
     fill_value : float, optional
-       Value to replace weights that were calculated to be zero.
+       The value used to replace zero-valued weights.
 
     Returns
     -------
@@ -283,7 +293,7 @@ def split_image(data, axis=0):
     """
     Split an image into two (nearly-equal) halves.
 
-    If the split axis has an even number of elements, then the image
+    If the split ``axis`` has an even number of elements, then the image
     will be split into two equal halves.
 
     Parameters
@@ -296,8 +306,8 @@ def split_image(data, axis=0):
 
     Returns
     -------
-    result1, result2 : `~numpy.ndarray`
-        The split arrays.  For ``axis=0`` the returned order is
+    result : tuple of `~numpy.ndarray`
+        The two array "halfs".  For ``axis=0`` the returned order is
         ``(bottom, top)``.  For ``axis=1`` the returned order is
         ``(left, right)``.
     """
