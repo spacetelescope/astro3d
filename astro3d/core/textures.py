@@ -479,8 +479,13 @@ class StarTexture(Fittable2DModel):
         sides_region = np.logical_and(r > radius,
                                       r <= (radius + (amplitude / slope)))
         sides = amplitude + (slope * (radius - r))
+        model = np.select([bowl_region, sides_region], [star, sides])
 
-        return np.select([bowl_region, sides_region], [star, sides])
+        # make the model zero below the base_height
+        zero_region = (model < (base_height + min_height))
+        model[zero_region] = 0
+
+        return model
 
 
 class StarClusterTexture(Fittable2DModel):
