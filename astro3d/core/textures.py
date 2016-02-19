@@ -12,7 +12,34 @@ from astropy.modeling.models import Disk2D
 from astropy.utils.exceptions import AstropyUserWarning
 
 
-__doctest_skip__ = ['dots_texture', 'lines_texture_map', 'dots_texture_map']
+__doctest_skip__ = ['lines_texture_image', 'dots_texture_image']
+
+
+def apply_texture_mask(texture_image, mask):
+    """
+    Apply textures only to the masked region of an image.
+
+    Parameters
+    ----------
+    texture_image : `~numpy.ndarray`
+        An image completely filled with textures.
+
+    mask : `~numpy.ndarray` (bool)
+        A 2D boolean mask.  The texture will be removed where the
+        ``mask`` is `False` and applied only where ``mask`` is `True`.
+
+    Returns
+    -------
+    data : `~numpy.ndarray`
+        An image containing the masked textures.
+    """
+
+    if texture_image.shape != mask.shape:
+        raise ValueError('texture_image and mask must have the same shape')
+
+    data = np.zeros_like(mask, dtype=np.float)
+    data[mask] = texture_image[mask]
+    return data
 
 
 def combine_textures_max(texture1, texture2):
@@ -24,7 +51,7 @@ def combine_textures_max(texture1, texture2):
 
     When sequentially using this function to combine more than two
     texture images, one should sort the textures by their maximum values
-    and start combining from the lowest maxima.  This is necessary to
+    and start combining from the lowest maximum.  This is necessary to
     properly layer the textures on top of each other (where applicable).
 
     If both ``texture1`` and ``texture2`` contain only zeros, then
@@ -152,9 +179,13 @@ def random_points(shape, spacing):
     return np.transpose(np.vstack([x, y]))
 
 
-def lines_texture(shape, profile, thickness, height, spacing, orientation=0.):
+def lines_texture_image(shape, profile, thickness, height, spacing,
+                        orientation=0., mask=None):
     """
-    Create a texture image consisting of regularly-spaced set of lines.
+    Create a texture image consisting of a regularly-spaced set of lines.
+
+    If a ``mask`` image is input, then texture is applied only to the
+    regions where the ``mask`` is `True`.
 
     Parameters
     ----------
@@ -167,31 +198,44 @@ def lines_texture(shape, profile, thickness, height, spacing, orientation=0.):
         elliptical profile.  See ``height`` for more details.
 
     thickness : int
-        Thickness of the line over the entire profile (i.e full width at
-        zero intensity).
+        The thickness of the line spanning the entire profile (i.e full
+        width at zero intensity).
 
     height : float
         The maximum height (data value) of the line.
 
-        For a ``'spherical'`` profile, set ``height`` equal to half the
-        ``thickness`` to produce a hemispherical line profile, otherwise
-        the profile is elliptical.
+        For a true ``'spherical'`` profile, set ``height`` equal to half
+        the ``thickness`` to produce a hemispherical line profile,
+        otherwise the profile is elliptical.
 
     spacing : int
-        Perpendicular spacing between adjacent line centers.
+        The perpendicular spacing between adjacent line centers.
 
     orientation : float, optional
-        The counterclockwise rotation angle in degrees.  The default
-        ``orientation`` of 0 degrees corresponds to horizontal lines
-        in the output image.
+        The counterclockwise rotation angle (in degrees) for the lines.
+        The default ``orientation`` of 0 degrees corresponds to
+        horizontal lines (i.e. lines along rows) in the output image.
+
+    mask : `~numpy.ndarray` (bool)
+        A 2D boolean mask.  If input, the texture will be applied where
+        the ``mask`` is `True`.  ``mask`` must have the same shape as
+        the input ``shape``.
 
     Returns
     -------
     data : `~numpy.ndarray`
-        An image containing the line textures.
+        An image containing the "lines" texture.
+
+    Examples
+    --------
+    Texture image for the NGC 602 dust region:
+
+    >>> dust_tx = lines_texture_image(
+    ...     profile='linear', thickness=15, height=5.25, spacing=25,
+    ...     orientation=0, mask=dust_mask)
     """
 
-    # start in center of the image and then offset lines both ways
+    # start at the image center and then offset lines in both directions
     xc = shape[1] / 2
     yc = shape[1] / 2
     x = np.arange(shape[1]) - xc
@@ -220,16 +264,30 @@ def lines_texture(shape, profile, thickness, height, spacing, orientation=0.):
             elif profile == "linear":
                 data[idx] = ((height / h_thick) *
                              (h_thick - np.abs(y_diff[idx])))
-    return data
+
+    if mask is None:
+        return data
+    else:
+        return apply_texture_mask(data, mask)
 
 
-def dots_texture(shape, profile, diameter, height, locations):
+def dots_texture_image(shape, profile, diameter, height, locations=None,
+                       grid_func=None, grid_spacing=None, mask=None):
     """
-    Create a texture image consisting of dots at the given locations.
+    Create a texture image consisting of dots centered at the given
+    locations.
 
-    If any dots overlap (e.g. the ``locations`` separations are smaller
+    If two dots overlap (i.e. the ``locations`` separations are smaller
     than the dot size), then the greater data value of the two is taken,
-    not the sum.
+    not the sum.  This ensures the maximum ``height`` of the dot
+    textures.
+
+    Either ``locations`` or both ``grid_func`` and ``grid_spacing`` need
+    to be specified.  If all are input, then ``locations`` takes
+    precedence.
+
+    If a ``mask`` image is input, then texture is applied only to the
+    regions where the ``mask`` is `True`.
 
     Parameters
     ----------
@@ -247,14 +305,33 @@ def dots_texture(shape, profile, diameter, height, locations):
     height : float
         The maximum height (data value) of the dot.
 
-        For a ``'spherical'`` profile, set ``height`` equal to half the
-        ``diameter`` to produce a hemispherical dot, otherwise the dot
-        profile is a half ellipsoid (circular base with a stretched
+        For a true ``'spherical'`` profile, set ``height`` equal to half
+        the ``diameter`` to produce a hemispherical dot, otherwise the
+        dot profile is a half ellipsoid (circular base with a stretched
         height).
 
-    locations : `~numpy.ndarray`
+    locations : `~numpy.ndarray`, optional
         A ``Nx2`` `~numpy.ndarray` where each row contains the ``x`` and
-        ``y`` coordinate positions.
+        ``y`` coordinate positions.  Either ``locations`` or both
+        ``grid_func`` and ``grid_spacing`` need to be specified.  If all
+        are input, then ``locations`` takes precedence.
+
+    grid_func : callable, optional
+        The function used to generate the ``(x, y)`` positions of the
+        dots.  Either ``locations`` or both ``grid_func`` and
+        ``grid_spacing`` need to be specified.  If all are input, then
+        ``locations`` takes precedence.
+
+    grid_spacing : float, optional
+        The spacing in pixels between the grid points.  Either
+        ``locations`` or both ``grid_func`` and ``grid_spacing`` need to
+        be specified.  If all are input, then ``locations`` takes
+        precedence.
+
+    mask : `~numpy.ndarray` (bool)
+        A 2D boolean mask.  If input, the texture will be applied where
+        the ``mask`` is `True`.  ``mask`` must have the same shape as
+        the input ``shape``.
 
     Returns
     -------
@@ -264,12 +341,18 @@ def dots_texture(shape, profile, diameter, height, locations):
     Examples
     --------
     >>> shape = (1000, 1000)
-    >>> dots_texture(shape, 'linear', 7, 3,
-    ...              locations=hexagonal_grid(shape, 10))
+    >>> dots_texture_image(shape, 'linear', 7, 3,
+    ...                    locations=hexagonal_grid(shape, 10))
     """
 
     if int(diameter) != diameter:
         raise ValueError('diameter must be an integer')
+
+    if locations is None:
+        if grid_func is None or grid_spacing is None:
+            raise ValueError('locations or both grid_func and grid_spacing '
+                             'must be input')
+        locations = grid_func(shape, grid_spacing)
 
     dot_shape = (diameter, diameter)
     dot = np.zeros(dot_shape)
@@ -290,139 +373,19 @@ def dots_texture(shape, profile, diameter, height, locations):
         # exclude points too close to the edge
         if not (x < radius or x > (shape[1] - radius - 1) or
                 y < radius or y > (shape[0] - radius - 1)):
-            # replace pixels in the output image only if they are larger
-            # in the dot (i.e. the pixels are not summed, but are
-            # assigned the greater value of the new dot and the image)
+            # replace pixel values in the output texture image only
+            # where the values are larger in the new dot (i.e. the new dot
+            # pixels are not summed with the texture image, but are
+            # assigned the greater value of the new dot and the texture
+            # image)
             region = data[y-radius:y+radius+1, x-radius:x+radius+1]
-            mask = (dot > region)
-            region[mask] = dot[mask]
-    return data
+            dot_mask = (dot > region)
+            region[dot_mask] = dot[dot_mask]
 
-
-def lines_texture_map(mask, profile='spherical', thickness=10,
-                      height=6.0, spacing=20, orientation=0.):
-    """
-    Create a lines texture map by applying the texture to the regions
-    defined by the input ``mask``.
-
-    Parameters
-    ----------
-    mask : `~numpy.ndarray` (bool)
-        A 2D boolean mask.  The texture will be applied where the
-        ``mask`` is `True`.
-
-    profile : {'spherical', 'linear'}, optional
-        The line profile. ``'linear'`` produces a "^"-shaped line
-        profile.  ``'spherical'`` produces a rounded cylindrical or
-        elliptical profile (see ``height`` for details).
-
-    thickness : int, optional
-        Thickness of the line over the entire profile.
-
-    height : float, optional
-        The maximum height (data value) of the line.
-
-        For a ``'spherical'`` profile, set ``height`` equal to half the
-        ``thickness`` to produce a hemispherical line profile, otherwise
-        the profile is elliptical.
-
-    spacing : int, optional
-        Perpendicular spacing between adjacent line centers.
-
-    orientation : float, optional
-        The counterclockwise rotation angle in degrees.  The default
-        ``orientation`` of 0 degrees corresponds to horizontal lines
-        in the output image.
-
-    Returns
-    -------
-    data : `~numpy.ndarray`
-        An image with same shape as the input ``mask`` containing the
-        applied texture map.
-
-    Examples
-    --------
-    Texture for NGC 602 dust region:
-
-    >>> dust_tx = lines_texture_map(
-    ...     dust_mask, profile='linear', thickness=15, height=5.25,
-    ...     spacing=25, orientation=0)
-    """
-
-    texture = lines_texture(mask.shape, profile, thickness, height, spacing,
-                            orientation)
-    data = np.zeros_like(mask, dtype=np.float)
-    data[mask] = texture[mask]
-    return data
-
-
-def dots_texture_map(mask, profile='spherical', diameter=5,
-                     height=8., grid_func=hexagonal_grid, grid_spacing=7):
-    """
-    Create a dots texture map by applying the texture to the regions
-    defined by the input ``mask``.
-
-    Parameters
-    ----------
-    mask : `~numpy.ndarray` (bool)
-        A 2D boolean mask.  The texture will be applied where the
-        ``mask`` is `True`.
-
-    profile : {'spherical', 'linear'}, optional
-        The dot profile. ``'linear'`` produces a cone-shaped dot
-        profile.  ``'spherical'`` produces a hemispherical or
-        half-ellipsoid dot profile (see ``height`` for details).
-
-    diameter : int, optional
-        The dot diameter.
-
-    height : float, optional
-        The maximum height (data value) of the dot.
-
-        For a ``'spherical'`` profile, set ``height`` equal to half the
-        ``diameter`` to produce a hemispherical dot, otherwise the dot
-        profile is a half ellipsoid (circular base with a stretched
-        height).
-
-    grid_func : callable, optional
-        The function used to generate the ``(x, y)`` positions of the
-        dots.
-
-    grid_spacing : float, optional
-        The spacing in pixels between the grid points.
-
-    Returns
-    -------
-    data : `~numpy.ndarray`
-        An image with same shape as the input ``mask`` containing the
-        applied texture map.
-
-    Examples
-    --------
-    Texture for NGC 602 dust region:
-
-    >>> gas_tx = dots_texture_map(
-    ...     gas_mask, profile='linear', diameter=7, height=3.5,
-    ...     grid_func=hexagonal_grid, grid_spacing=7)
-
-    Texture for NGC 602 dust and gas combined region:
-
-    >>> dustgas_tx = dots_texture_map(
-    ...     dustgas_mask, profile='linear', diameter=7, height=10.5,
-    ...     grid_func=hexagonal_grid, grid_spacing=10)
-
-    Alternate texture for NGC 602 gas region:
-
-    >>> dust_tx = dots_texture_map(
-    ...     dust_mask, profile='linear', diameter=7, height=10.5,
-    ...     grid_func=hexagonal_grid, grid_spacing=20)
-    """
-
-    texture = dots_texture(mask.shape, profile, diameter, height,
-                           grid_func(mask.shape, grid_spacing))
-    data = np.zeros_like(mask, dtype=np.float)
-    data[mask] = texture[mask]
-    return data
+    if mask is None:
+        return data
+    else:
+        return apply_texture_mask(data, mask)
 
 
 class StarTexture(Fittable2DModel):
