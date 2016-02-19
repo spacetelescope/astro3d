@@ -129,13 +129,13 @@ class Model3D(object):
 
         self.textures = {}
         self.textures['small_dots'] = partial(
-            textures.dots_texture_map, profile='spherical', diameter=9.0,
+            textures.dots_texture_image, profile='spherical', diameter=9.0,
             height=4.0, grid_func=textures.hexagonal_grid, grid_spacing=7.0)
         self.textures['dots'] = partial(
-            textures.dots_texture_map, profile='spherical', diameter=9.0,
+            textures.dots_texture_image, profile='spherical', diameter=9.0,
             height=4.0, grid_func=textures.hexagonal_grid, grid_spacing=11.0)
         self.textures['lines'] = partial(
-            textures.lines_texture_map, profile='linear', thickness=13,
+            textures.lines_texture_image, profile='linear', thickness=13,
             height=7.8, spacing=20, orientation=0)
 
     @property
@@ -858,7 +858,7 @@ class Model3D(object):
 
             log.info('Adding "{0}" textures.'.format(texture_type))
             mask = self.texture_masks[texture_type]
-            texture_data = self.textures[texture_type](mask)
+            texture_data = self.textures[texture_type](mask.shape, mask=mask)
             self._texture_layer[mask] = texture_data[mask]
         self.data += self._texture_layer
 
