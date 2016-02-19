@@ -24,7 +24,7 @@ def combine_textures_max(texture1, texture2):
 
     When sequentially using this function to combine more than two
     texture images, one should sort the textures by their maximum values
-    and start combining from the lowest maxima.  This is necessary to
+    and start combining from the lowest maximum.  This is necessary to
     properly layer the textures on top of each other (where applicable).
 
     If both ``texture1`` and ``texture2`` contain only zeros, then
@@ -154,7 +154,7 @@ def random_points(shape, spacing):
 
 def lines_texture(shape, profile, thickness, height, spacing, orientation=0.):
     """
-    Create a texture image consisting of regularly-spaced set of lines.
+    Create a texture image consisting of a regularly-spaced set of lines.
 
     Parameters
     ----------
@@ -167,23 +167,23 @@ def lines_texture(shape, profile, thickness, height, spacing, orientation=0.):
         elliptical profile.  See ``height`` for more details.
 
     thickness : int
-        Thickness of the line over the entire profile (i.e full width at
-        zero intensity).
+        The thickness of the line spanning the entire profile (i.e full
+        width at zero intensity).
 
     height : float
         The maximum height (data value) of the line.
 
-        For a ``'spherical'`` profile, set ``height`` equal to half the
-        ``thickness`` to produce a hemispherical line profile, otherwise
-        the profile is elliptical.
+        For a true ``'spherical'`` profile, set ``height`` equal to half
+        the ``thickness`` to produce a hemispherical line profile,
+        otherwise the profile is elliptical.
 
     spacing : int
-        Perpendicular spacing between adjacent line centers.
+        The perpendicular spacing between adjacent line centers.
 
     orientation : float, optional
-        The counterclockwise rotation angle in degrees.  The default
-        ``orientation`` of 0 degrees corresponds to horizontal lines
-        in the output image.
+        The counterclockwise rotation angle (in degrees) for the lines.
+        The default ``orientation`` of 0 degrees corresponds to
+        horizontal lines (i.e. lines along rows) in the output image.
 
     Returns
     -------
@@ -191,7 +191,7 @@ def lines_texture(shape, profile, thickness, height, spacing, orientation=0.):
         An image containing the line textures.
     """
 
-    # start in center of the image and then offset lines both ways
+    # start at the image center and then offset lines in both directions
     xc = shape[1] / 2
     yc = shape[1] / 2
     x = np.arange(shape[1]) - xc
@@ -225,11 +225,13 @@ def lines_texture(shape, profile, thickness, height, spacing, orientation=0.):
 
 def dots_texture(shape, profile, diameter, height, locations):
     """
-    Create a texture image consisting of dots at the given locations.
+    Create a texture image consisting of dots centered at the given
+    locations.
 
-    If any dots overlap (e.g. the ``locations`` separations are smaller
+    If two dots overlap (i.e. the ``locations`` separations are smaller
     than the dot size), then the greater data value of the two is taken,
-    not the sum.
+    not the sum.  This ensures the maximum ``height`` of the dot
+    textures.
 
     Parameters
     ----------
@@ -247,9 +249,9 @@ def dots_texture(shape, profile, diameter, height, locations):
     height : float
         The maximum height (data value) of the dot.
 
-        For a ``'spherical'`` profile, set ``height`` equal to half the
-        ``diameter`` to produce a hemispherical dot, otherwise the dot
-        profile is a half ellipsoid (circular base with a stretched
+        For a true ``'spherical'`` profile, set ``height`` equal to half
+        the ``diameter`` to produce a hemispherical dot, otherwise the
+        dot profile is a half ellipsoid (circular base with a stretched
         height).
 
     locations : `~numpy.ndarray`
@@ -290,9 +292,11 @@ def dots_texture(shape, profile, diameter, height, locations):
         # exclude points too close to the edge
         if not (x < radius or x > (shape[1] - radius - 1) or
                 y < radius or y > (shape[0] - radius - 1)):
-            # replace pixels in the output image only if they are larger
-            # in the dot (i.e. the pixels are not summed, but are
-            # assigned the greater value of the new dot and the image)
+            # replace pixel values in the output texture image only
+            # where the values are larger in the new dot (i.e. the new dot
+            # pixels are not summed with the texture image, but are
+            # assigned the greater value of the new dot and the texture
+            # image)
             region = data[y-radius:y+radius+1, x-radius:x+radius+1]
             mask = (dot > region)
             region[mask] = dot[mask]
@@ -302,8 +306,10 @@ def dots_texture(shape, profile, diameter, height, locations):
 def lines_texture_map(mask, profile='spherical', thickness=10,
                       height=6.0, spacing=20, orientation=0.):
     """
-    Create a lines texture map by applying the texture to the regions
-    defined by the input ``mask``.
+    Create a texture map image of regularly-spaced lines.
+
+    The texture is applied only to the regions where the input ``mask``
+    is `True`.
 
     Parameters
     ----------
@@ -317,22 +323,22 @@ def lines_texture_map(mask, profile='spherical', thickness=10,
         elliptical profile (see ``height`` for details).
 
     thickness : int, optional
-        Thickness of the line over the entire profile.
+        The thickness of the line over the entire profile.
 
     height : float, optional
         The maximum height (data value) of the line.
 
-        For a ``'spherical'`` profile, set ``height`` equal to half the
-        ``thickness`` to produce a hemispherical line profile, otherwise
-        the profile is elliptical.
+        For a true ``'spherical'`` profile, set ``height`` equal to half
+        the ``thickness`` to produce a hemispherical line profile,
+        otherwise the profile is elliptical.
 
     spacing : int, optional
-        Perpendicular spacing between adjacent line centers.
+        The perpendicular spacing between adjacent line centers.
 
     orientation : float, optional
-        The counterclockwise rotation angle in degrees.  The default
-        ``orientation`` of 0 degrees corresponds to horizontal lines
-        in the output image.
+        The counterclockwise rotation angle (in degrees) for the lines.
+        The default ``orientation`` of 0 degrees corresponds to
+        horizontal lines (i.e. lines along rows) in the output image.
 
     Returns
     -------
@@ -359,8 +365,10 @@ def lines_texture_map(mask, profile='spherical', thickness=10,
 def dots_texture_map(mask, profile='spherical', diameter=5,
                      height=8., grid_func=hexagonal_grid, grid_spacing=7):
     """
-    Create a dots texture map by applying the texture to the regions
-    defined by the input ``mask``.
+    Create a texture map image of dots.
+
+    The texture is applied only to the regions where the input ``mask``
+    is `True`.
 
     Parameters
     ----------
