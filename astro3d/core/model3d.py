@@ -754,6 +754,34 @@ class Model3D(object):
         log.info('Setting image values below {0} to zero.'.format(min_value))
         self.data[self.data < min_value] = 0.0
 
+    def _extract_galaxy(self):
+        if not self.spiral_galaxy:
+            return None
+
+        log.info('Extracting the galaxy using source segmentation.')
+        segm = photutils.detect_sources(self.data, 0., 1)
+        idx = np.argmax(segm.areas[1:])
+        segm.keep_labels(idx + 1)
+        segm_mask = segm.data.astype(bool)
+        self.data *= segm_mask
+
+        for mask_type, mask in self.texture_masks.iteritems():
+            log.info('Masking the texture masks for the extracted galaxy.')
+            mask[~segm_mask] = 0
+            self.texture_masks[mask_type] = mask
+
+        log.info('Pruning the stellar tables for the extracted galaxy.')
+        for stellar_type, table in self.stellar_tables.iteritems():
+            values = []
+            for row in table:
+                x = int(round(row['xcentroid']))
+                y = int(round(row['ycentroid']))
+                values.append(self.data[y, x])
+            values = np.array(values)
+            idx = np.where(values == 0.)
+            table.remove_rows(idx)
+            self.stellar_tables[stellar_type] = table
+
     def _crop_data(self, threshold=0.0, resize=True):
         """
         Crop the image, masks, and stellar tables.
@@ -1125,9 +1153,9 @@ class Model3D(object):
         self._smooth_image(size=smooth_size1)
         self._normalize_image()
         self._minvalue_to_zero(min_value=minvalue_to_zero)
-        # TODO: add a step here to remove "islands" using segmentation?
+        self._extract_galaxy()
 
-        # smoothing the image again (to prevent printing issues)
+        # smooth the image again (to prevent printing issues)
         self._smooth_image(size=smooth_size2)
 
         self._crop_data(threshold=0., resize=True)
