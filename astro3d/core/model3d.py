@@ -782,7 +782,7 @@ class Model3D(object):
             table.remove_rows(idx)
             self.stellar_tables[stellar_type] = table
 
-    def _crop_data(self, threshold=0.0, resize=True):
+    def _crop_data(self, threshold=0.0, pad_width=20, resize=True):
         """
         Crop the image, masks, and stellar tables.
 
@@ -799,6 +799,10 @@ class Model3D(object):
             Pixels greater than the threshold define the minimal bounding box
             of the cropped region.
 
+        pad_width : int, optional
+            The number of pixels used to pad the array after cropping to
+            the minimal bounding box.
+
         resize : bool, optional
             Set to `True` to resize the data, masks, and stellar tables
             back to the original ``x`` size of
@@ -814,10 +818,18 @@ class Model3D(object):
                  'the minimal bounding box'.format(threshold))
         slc = image_utils.bbox_threshold(self.data, threshold=threshold)
         self.data = self.data[slc]
+        if pad_width != 0:
+            log.info('Padding the image by {0} pixels.'.format(pad_width))
+            self.data = np.pad(self.data, pad_width, mode=str('constant'))
 
         for mask_type, mask in self.texture_masks.iteritems():
             log.info('Cropping "{0}" mask.'.format(mask_type))
             self.texture_masks[mask_type] = mask[slc]
+            if pad_width != 0:
+                log.info('Padding the mask by {0} pixels.'.format(pad_width))
+                self.texture_masks[mask_type] = np.pad(
+                    self.texture_masks[mask_type], pad_width,
+                    mode=str('constant'))
 
         for stellar_type, table in self.stellar_tables.iteritems():
             idx = ((table['xcentroid'] > slc[1].start) &
@@ -825,8 +837,8 @@ class Model3D(object):
                    (table['ycentroid'] > slc[0].start) &
                    (table['ycentroid'] < slc[0].stop))
             table = table[idx]
-            table['xcentroid'] -= slc[1].start
-            table['ycentroid'] -= slc[0].start
+            table['xcentroid'] -= slc[1].start - pad_width
+            table['ycentroid'] -= slc[0].start - pad_width
             self.stellar_tables[stellar_type] = table
 
         if resize:
@@ -1082,7 +1094,8 @@ class Model3D(object):
              suppress_background_percentile=90.,
              suppress_background_factor=0.2, smooth_size1=11,
              smooth_size2=15, minvalue_to_zero=0.02, crop_data_threshold=0.,
-             model_base_filter_size=75, model_base_min_value=1.83):
+             crop_data_pad_width=20, model_base_filter_size=75,
+             model_base_min_value=1.83):
         """
         Make the model.
 
@@ -1129,6 +1142,10 @@ class Model3D(object):
             The values equal to and below which to crop from the data.
             See `_crop_data`.
 
+        crop_data_pad_width : int, optional
+            The number of pixels used to pad the array after cropping to
+            the minimal bounding box.  See `_crop_data`.
+
         model_base_filter_size : int, optional
             The size of the binary dilation filter used in making the
             model base.  See `_make_model_base`.
@@ -1158,7 +1175,8 @@ class Model3D(object):
         # smooth the image again (to prevent printing issues)
         self._smooth_image(size=smooth_size2)
 
-        self._crop_data(threshold=0., resize=True)
+        self._crop_data(threshold=crop_data_threshold,
+                        pad_width=crop_data_pad_width, resize=True)
         self._make_model_height()
         self.data_intensity = deepcopy(self.data)
         self._apply_textures()
