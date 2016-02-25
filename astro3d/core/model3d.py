@@ -1055,7 +1055,8 @@ class Model3D(object):
             self._apply_stellar_textures()
             self._apply_spiral_central_cusp()
 
-    def _make_model_base(self, filter_size=75, min_value=1.83):
+    def _make_model_base(self, filter_size=75, min_value=1.83,
+                         fill_holes=True):
         """
         Make a structural base for the model and replace zeros with
         ``min_value``.
@@ -1076,15 +1077,26 @@ class Model3D(object):
             prevents printing zeros.  The default value of 1.83
             corresponds to 0.5 mm (which will be doubled to 1 mm for a
             double-sided model).
+
+        fill_holes : bool, optional
+            Whether to fill interior holes (e.g. between spiral galaxy
+            arms) with the ``self.base_height``.  Otherwise a "thin"
+            region of height ``min_value`` will be placed around the
+            interior of the hole.
         """
 
         log.info('Making model base.')
-
         if self.double_sided and self.has_intensity:
+            data_mask = self.data.astype(bool)
             selem = np.ones((filter_size, filter_size))
-            img = ndimage.binary_dilation(self.data, structure=selem)
-            self._base_layer = np.where(
-                img == 0, self.base_height / 2., 0)
+            dilation_mask = ndimage.binary_dilation(data_mask,
+                                                    structure=selem)
+            self._base_layer = np.where(dilation_mask == 0,
+                                        self.base_height / 2., 0)
+            if fill_holes:
+                galaxy_mask = ndimage.binary_fill_holes(data_mask)
+                holes_mask = galaxy_mask * ~data_mask
+                self._base_layer[holes_mask] = self.base_height / 2.
         else:
             self._base_layer = self.base_height
         self.data += self._base_layer
@@ -1095,7 +1107,7 @@ class Model3D(object):
              suppress_background_factor=0.2, smooth_size1=11,
              smooth_size2=15, minvalue_to_zero=0.02, crop_data_threshold=0.,
              crop_data_pad_width=20, model_base_filter_size=75,
-             model_base_min_value=1.83):
+             model_base_min_value=1.83, model_base_fill_holes=True):
         """
         Make the model.
 
@@ -1154,7 +1166,13 @@ class Model3D(object):
             The minimum value that the final image can have, e.g.
             prevents printing zeros.  The default value of 1.83
             corresponds to 0.5 mm (which will be doubled to 1 mm for a
-            double-sided model).
+            double-sided model).  See `_make_model_base`.
+
+        model_base_fill_holes : bool, optional
+            Whether to fill interior holes (e.g. between spiral galaxy
+            arms) with the ``self.base_height``.  Otherwise a "thin"
+            region of height ``min_value`` will be placed around the
+            interior of the hole.  See `_make_model_base`.
         """
 
         self.data = deepcopy(self.data_original_resized)    # start fresh
@@ -1181,7 +1199,8 @@ class Model3D(object):
         self.data_intensity = deepcopy(self.data)
         self._apply_textures()
         self._make_model_base(filter_size=model_base_filter_size,
-                              min_value=model_base_min_value)
+                              min_value=model_base_min_value,
+                              fill_holes=model_base_fill_holes)
         self._model_complete = True
         log.info('Make complete!')
 
