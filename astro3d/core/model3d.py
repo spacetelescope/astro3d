@@ -217,7 +217,7 @@ class Model3D(object):
         self._spiral_galaxy = value
 
     @classmethod
-    def from_fits(cls, filename):
+    def from_fits(cls, filename, resize_xsize=1000):
         """
         Create a `Model3D` instance from a FITS file.
 
@@ -225,6 +225,9 @@ class Model3D(object):
         ----------
         filename : str
             The name of the FITS file.
+
+        resize_xsize : int, optional
+            The size of the x axis of the resized image.
         """
 
         data = fits.getdata(filename)
@@ -238,10 +241,10 @@ class Model3D(object):
             data = data[0] * 0.299 + data[1] * 0.587 + data[2] * 0.144
             data = image_utils.remove_nonfinite(data)
 
-        return cls(data)
+        return cls(data, resize_xsize=resize_xsize)
 
     @classmethod
-    def from_rgb(cls, filename):
+    def from_rgb(cls, filename, resize_xsize=1000):
         """
         Create a `Model3D` instance from a RGB file (e.g. JPG, PNG,
         TIFF).
@@ -250,11 +253,14 @@ class Model3D(object):
         ----------
         filename : str
             The name of the RGB file.
+
+        resize_xsize : int, optional
+            The size of the x axis of the resized image.
         """
 
         data = np.array(Image.open(filename).convert('L'),
                         dtype=np.float32)[::-1]
-        return cls(data)
+        return cls(data, resize_xsize=resize_xsize)
 
     def _translate_mask_type(self, mask_type):
         """
