@@ -1,5 +1,5 @@
 """
-This module provides tools create a 3D model from an astronomical image.
+This module provides tools to create a 3D model from an astronomical image.
 """
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
@@ -103,7 +103,8 @@ class Model3D(object):
 
         With the defaults, a ``model_base_height`` (a `make` parameter)
         of 18.18 corresponds to 5 mm.  Note that the
-        ``model_base_height`` is not doubled for two-sided models.
+        ``model_base_height`` is the base height for both single- and
+        double-sided models (it is not doubled for two-sided models).
 
         With the defaults, a ``height`` of 250 corresponds to a physical
         height of 68.75 mm.  This is the height of the intensity map
@@ -112,9 +113,9 @@ class Model3D(object):
 
         .. note::
 
-            Note that the physical model sizes above are for the output
-            model **before** any subsequent scaling in the MakerBot
-            Desktop or any other software.
+            The physical model sizes above are for the output model
+            **before** any subsequent scaling in the MakerBot Desktop or
+            any other software.
         """
 
         self.data_original = np.asanyarray(data)
@@ -267,14 +268,13 @@ class Model3D(object):
         Parameters
         ----------
         mask_type : str
-            The mask type
+            The mask type.
 
         Returns
         -------
         texture_type: str
-            The mask type translated to the texture type (e.g.
-            'small_dots', 'dots', or 'lines') or region type (e.g.
-            'smooth').
+            The texture type (e.g. 'small_dots', 'dots', or 'lines') or
+            region type (e.g. 'smooth') translated from the mask type.
         """
 
         if mask_type in self.translate_texture:
@@ -290,7 +290,21 @@ class Model3D(object):
             return
 
     def add_mask(self, mask):
-        """Add a region mask"""
+        """
+        Add a region mask to the `region_masks_original` or
+        `texture_masks_original` dictionary, keyed by the mask type.
+
+        Parameters
+        ----------
+        mask : `RegionMask`
+            A `RegionMask` object.
+
+        Returns
+        -------
+        mask_type : str
+            The mask type of the read FITS file.
+        """
+
         mask_type = mask.mask_type
         mtype = self._translate_mask_type(mask_type)
         if mtype in self.region_mask_types:
@@ -319,7 +333,8 @@ class Model3D(object):
 
         Returns
         -------
-        Type of mask read.
+        mask_type : str
+            The mask type of the read FITS file.
         """
 
         region_mask = RegionMask.from_fits(
@@ -498,7 +513,7 @@ class Model3D(object):
 
         stl_format : {'binary', 'ascii'}, optional
             Format for the output STL file.  The default is 'binary'.
-            The binary STL file is harder to debug, but takes up less
+            The binary STL file is harder to debug, but requires less
             storage space.
 
         clobber : bool, optional
