@@ -102,12 +102,12 @@ class Model3D(object):
         275/1000. = 0.275 mm/pixel.
 
         With the defaults, a ``model_base_height`` (a `make` parameter)
-        of 18.18 corresponds to 5 mm.  Note that the
+        of 18.18 corresponds to 5.0 mm.  Note that the
         ``model_base_height`` is the base height for both single- and
         double-sided models (it is not doubled for two-sided models).
 
         With the defaults, a ``model_height`` (a `make` parameter) of
-        250 corresponds to a physical height of 68.75 mm.  This is the
+        200 corresponds to a physical height of 55.0 mm.  This is the
         height of the intensity map *before* the textures, including the
         spiral galaxy central cusp, are applied.
 
@@ -890,7 +890,7 @@ class Model3D(object):
                                                 scale_factor)
         return slc
 
-    def _make_model_height(self, model_height=250):
+    def _make_model_height(self, model_height=200):
         """
         Scale the image to the final model height prior to adding the
         textures.
@@ -1151,7 +1151,7 @@ class Model3D(object):
              suppress_background_percentile=90.,
              suppress_background_factor=0.2, smooth_size1=11,
              smooth_size2=15, minvalue_to_zero=0.02, crop_data_threshold=0.,
-             crop_data_pad_width=20, model_height=250,
+             crop_data_pad_width=20, model_height=200,
              model_base_height=18.18, model_base_filter_size=10,
              model_base_min_value=1.83, model_base_fill_holes=True):
         """
