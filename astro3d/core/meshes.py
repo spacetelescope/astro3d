@@ -9,7 +9,7 @@ import numpy as np
 from astropy import log
 
 
-def make_triangles(image, center_model=True):
+def make_triangles(image, x_size_mm=275, center_model=True):
     """
     Create a 3D model of a 2D image using triangular tessellation.
 
@@ -19,6 +19,9 @@ def make_triangles(image, center_model=True):
     ----------
     image : 2D `~numpy.ndarray`
         The image from which to create the triangular mesh.
+
+    x_size_mm : int, optional
+        The x size of the model in mm.
 
     center_model : bool, optional
         Set to `True` to center the model at ``(x, y) = (0, 0)``.  This
@@ -56,7 +59,7 @@ def make_triangles(image, center_model=True):
         triangles[:, 1:, 0] -= (nx - 1) / 2.
         triangles[:, 1:, 1] -= (ny - 1) / 2.
 
-    return scale_triangles(triangles, x_size=275)
+    return scale_triangles(triangles, x_size_mm=x_size_mm)
 
 
 def make_side_triangles(side_vertices, flip_order=False):
@@ -188,23 +191,31 @@ def calculate_normals(triangles):
     return np.cross(vec1, vec2)
 
 
-def scale_triangles(triangles, x_size=275):
+def scale_triangles(triangles, x_size_mm=275):
     """
-    Uniformly xcale triangles such that the model ``x`` axis has a
-    maximum size of ``x_size`` mm.
+    Uniformly scale triangles such that the model ``x`` axis has a size
+    of ``x_size_mm`` mm.
 
-    The maximum sizes for the MakerBot 2 printer are:
+    This function defines the physical scale for the model,
+    e.g. 275 mm / 1000 pixels = 0.275 mm / pixel.
+
+    The maximum model sizes for the MakerBot 2 printer are:
         ``x``: 275 mm
         ``y``: 143 mm
         ``z``: 150 mm
+
+    The maximum model sizes for the MakerBot 5 printer are:
+        ``x``: 242 mm
+        ``y``: 189 mm
+        ``z``: 143 mm
 
     Parameters
     ----------
     triangles : Nx4x3 `~numpy.ndarray`
         An array of normal vectors and vertices for a set of triangles.
 
-    x_size : int, optional
-        The maximum x size of the model in mm.
+    x_size_mm : int, optional
+        The x size of the model in mm.
 
     Returns
     -------
@@ -213,8 +224,8 @@ def scale_triangles(triangles, x_size=275):
     """
 
     model_xsize = triangles[:, 1:, 0].ptp()
-    if model_xsize > x_size:
-        scale = float(x_size / model_xsize)
+    if model_xsize > x_size_mm:
+        scale = float(x_size_mm / model_xsize)
         triangles[:, 1:, :] *= scale
     return triangles
 
@@ -306,7 +317,7 @@ def write_ascii_stl(triangles, filename):
         f.write("endsolid model")
 
 
-def write_mesh(image, filename_prefix, double_sided=False,
+def write_mesh(image, filename_prefix, x_size_mm=275, double_sided=False,
                stl_format='binary', clobber=False):
     """
     Write an image to a STL file by splitting each pixel into two
@@ -319,6 +330,9 @@ def write_mesh(image, filename_prefix, double_sided=False,
 
     filename_prefix : str
         The prefix of output file. ``'.stl'`` is automatically appended.
+
+    x_size_mm : int, optional
+        The x size of the model in mm.
 
     double_sided : bool, optional
         Set to `True` for a double-sided model, which will be a simple
@@ -336,7 +350,8 @@ def write_mesh(image, filename_prefix, double_sided=False,
     if isinstance(image, np.ma.core.MaskedArray):
         image = deepcopy(image.data)
 
-    triangles = make_triangles(image)
+    triangles = make_triangles(image, x_size_mm=x_size_mm)
+
     if double_sided:
         triangles = np.concatenate((triangles, reflect_triangles(triangles)))
 

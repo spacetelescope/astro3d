@@ -85,16 +85,36 @@ class Model3D(object):
 
         Notes
         -----
-        A ``height`` of 250 corresponds to a physical height of 68.6 mm
-        on the MakerBot 2 printer.  This assumes 0.14 mm per pixel and a
-        uniform maximum scaling factor of 1.96 (which assumes
-        ``resize_xsize = 1000``).
+        The maximum model sizes for the MakerBot 2 printer are:
+            ``x``: 275 mm
+            ``y``: 143 mm
+            ``z``: 150 mm
 
-        The ``height`` is the height of the intensity map *before* the
-        textures, including the spiral galaxy central cusp, are applied.
+        The maximum model sizes for the MakerBot 5 printer are:
+            ``x``: 242 mm
+            ``y``: 189 mm
+            ``z``: 143 mm
 
-        A ``base_height`` of 10 corresponds to 2.74 mm.
-        A ``base_height`` of 18.25 corresponds to 5.0 mm.
+        The model physical scale (mm/pixel) depends on two numbers: the
+        input ``resize_xsize`` (default 1000) and the ``x_size_mm``
+        (default 275) parameter to `write_stl`.  The model scale is
+        simply ``x_size_mm`` / ``resize_xsize``.  The default is
+        275/1000. = 0.275 mm/pixel.
+
+        With the defaults, a ``model_base_height`` (a `make` parameter)
+        of 18.18 corresponds to 5 mm.  Note that the
+        ``model_base_height`` is not doubled for two-sided models.
+
+        With the defaults, a ``height`` of 250 corresponds to a physical
+        height of 68.75 mm.  This is the height of the intensity map
+        *before* the textures, including the spiral galaxy central cusp,
+        are applied.
+
+        .. note::
+
+            Note that the physical model sizes above are for the output
+            model **before** any subsequent scaling in the MakerBot
+            Desktop or any other software.
         """
 
         self.data_original = np.asanyarray(data)
@@ -110,7 +130,6 @@ class Model3D(object):
         self._double_sided = False
         self._spiral_galaxy = False
         self.height = 250.         # total model height of *intensity* model
-        self.base_height = 18.25    # total base height of 5 mm
 
         self.texture_order = ['small_dots', 'dots', 'lines']
         self.region_mask_types = ['smooth', 'remove_star']
@@ -458,7 +477,7 @@ class Model3D(object):
             except KeyError:
                 pass
 
-    def write_stl(self, filename_prefix, split_model=True,
+    def write_stl(self, filename_prefix, x_size_mm=275, split_model=True,
                   stl_format='binary', clobber=False):
         """
         Write the 3D model to a STL file(s).
@@ -469,6 +488,9 @@ class Model3D(object):
             The prefix for the output filenames.  The output filename
             will be '<filename_prefix>.stl'.  If ``split_image=True``,
             then the filename will be '<filename_prefix>_part[1|2].stl'.
+
+        x_size_mm : int, optional
+            The x size of the model in mm.
 
         split_model : bool, optional
             If `True`, then split the model into two halves, a bottom
@@ -492,13 +514,13 @@ class Model3D(object):
         if split_model:
             model1, model2 = image_utils.split_image(self.data, axis=0)
             write_mesh(model1, filename_prefix + '_part1',
-                       double_sided=self.double_sided, stl_format=stl_format,
-                       clobber=clobber)
+                       x_size_mm=x_size_mm, double_sided=self.double_sided,
+                       stl_format=stl_format, clobber=clobber)
             write_mesh(model2, filename_prefix + '_part2',
-                       double_sided=self.double_sided, stl_format=stl_format,
-                       clobber=clobber)
+                       x_size_mm=x_size_mm, double_sided=self.double_sided,
+                       stl_format=stl_format, clobber=clobber)
         else:
-            write_mesh(self.data, filename_prefix,
+            write_mesh(self.data, filename_prefix, x_size_mm=x_size_mm,
                        double_sided=self.double_sided, stl_format=stl_format,
                        clobber=clobber)
 
@@ -1055,8 +1077,8 @@ class Model3D(object):
             self._apply_stellar_textures()
             self._apply_spiral_central_cusp()
 
-    def _make_model_base(self, filter_size=10, min_value=1.83,
-                         fill_holes=True):
+    def _make_model_base(self, base_height=18.18, filter_size=10,
+                         min_value=1.83, fill_holes=True):
         """
         Make a structural base for the model and replace zeros with
         ``min_value``.
@@ -1069,6 +1091,9 @@ class Model3D(object):
 
         Parameters
         ----------
+        base_height : int, optional
+            The height of the model structural base.
+
         filter_size : int, optional
             The size of the binary dilation filter.
 
@@ -1080,9 +1105,9 @@ class Model3D(object):
 
         fill_holes : bool, optional
             Whether to fill interior holes (e.g. between spiral galaxy
-            arms) with the ``self.base_height``.  Otherwise a "thin"
-            region of height ``min_value`` will be placed around the
-            interior of the hole.
+            arms) with the ``base_height``.  Otherwise a "thin" region
+            of height ``min_value`` will be placed around the interior
+            of the hole.
         """
 
         log.info('Making model base.')
@@ -1092,13 +1117,13 @@ class Model3D(object):
             dilation_mask = ndimage.binary_dilation(data_mask,
                                                     structure=selem)
             self._base_layer = np.where(dilation_mask == 0,
-                                        self.base_height / 2., 0)
+                                        base_height / 2., 0)
             if fill_holes:
                 galaxy_mask = ndimage.binary_fill_holes(data_mask)
                 holes_mask = galaxy_mask * ~data_mask
-                self._base_layer[holes_mask] = self.base_height / 2.
+                self._base_layer[holes_mask] = base_height / 2.
         else:
-            self._base_layer = self.base_height
+            self._base_layer = base_height
         self.data += self._base_layer
         self.data[self.data < min_value] = min_value
 
@@ -1106,8 +1131,9 @@ class Model3D(object):
              suppress_background_percentile=90.,
              suppress_background_factor=0.2, smooth_size1=11,
              smooth_size2=15, minvalue_to_zero=0.02, crop_data_threshold=0.,
-             crop_data_pad_width=20, model_base_filter_size=10,
-             model_base_min_value=1.83, model_base_fill_holes=True):
+             crop_data_pad_width=20, model_base_height=18.18,
+             model_base_filter_size=10, model_base_min_value=1.83,
+             model_base_fill_holes=True):
         """
         Make the model.
 
@@ -1158,6 +1184,10 @@ class Model3D(object):
             The number of pixels used to pad the array after cropping to
             the minimal bounding box.  See `_crop_data`.
 
+        model_base_height : int, optional
+            The height of the model structural base.  See
+            `_make_model_base`.
+
         model_base_filter_size : int, optional
             The size of the binary dilation filter used in making the
             model base.  See `_make_model_base`.
@@ -1170,7 +1200,7 @@ class Model3D(object):
 
         model_base_fill_holes : bool, optional
             Whether to fill interior holes (e.g. between spiral galaxy
-            arms) with the ``self.base_height``.  Otherwise a "thin"
+            arms) with the ``model_base_height``.  Otherwise a "thin"
             region of height ``min_value`` will be placed around the
             interior of the hole.  See `_make_model_base`.
         """
@@ -1198,7 +1228,8 @@ class Model3D(object):
         self._make_model_height()
         self.data_intensity = deepcopy(self.data)
         self._apply_textures()
-        self._make_model_base(filter_size=model_base_filter_size,
+        self._make_model_base(base_height=model_base_height,
+                              filter_size=model_base_filter_size,
                               min_value=model_base_min_value,
                               fill_holes=model_base_fill_holes)
         self._model_complete = True
