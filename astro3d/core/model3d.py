@@ -106,10 +106,10 @@ class Model3D(object):
         ``model_base_height`` is the base height for both single- and
         double-sided models (it is not doubled for two-sided models).
 
-        With the defaults, a ``height`` of 250 corresponds to a physical
-        height of 68.75 mm.  This is the height of the intensity map
-        *before* the textures, including the spiral galaxy central cusp,
-        are applied.
+        With the defaults, a ``model_height`` (a `make` parameter) of
+        250 corresponds to a physical height of 68.75 mm.  This is the
+        height of the intensity map *before* the textures, including the
+        spiral galaxy central cusp, are applied.
 
         .. note::
 
@@ -130,7 +130,6 @@ class Model3D(object):
         self._has_intensity = True
         self._double_sided = False
         self._spiral_galaxy = False
-        self.height = 250.         # total model height of *intensity* model
 
         self.texture_order = ['small_dots', 'dots', 'lines']
         self.region_mask_types = ['smooth', 'remove_star']
@@ -891,7 +890,7 @@ class Model3D(object):
                                                 scale_factor)
         return slc
 
-    def _make_model_height(self):
+    def _make_model_height(self, model_height=250):
         """
         Scale the image to the final model height prior to adding the
         textures.
@@ -899,6 +898,14 @@ class Model3D(object):
         To give a consistent model height/width ratio and texture height
         (and "feel"), no scaling of the image should happen after this
         step!
+
+        Parameters
+        ----------
+        model_height : float, optional
+            The maximum value in the intensity image, which controls the
+            final model height.  This is the height of the intensity map
+            *before* the textures, including the spiral galaxy central
+            cusp, are applied.
         """
 
         # clip the image at the cusp base_height
@@ -912,10 +919,8 @@ class Model3D(object):
                 self.data[self.data > base_height] = base_height
 
         if self.double_sided:
-            height = self.height / 2.
-        else:
-            height = self.height
-        self._normalize_image(max_value=height)
+            model_height = model_height / 2.
+        self._normalize_image(max_value=model_height)
 
     def _add_masked_textures(self):
         """
@@ -1106,7 +1111,7 @@ class Model3D(object):
 
         Parameters
         ----------
-        base_height : int, optional
+        base_height : float, optional
             The height of the model structural base.
 
         filter_size : int, optional
@@ -1146,9 +1151,9 @@ class Model3D(object):
              suppress_background_percentile=90.,
              suppress_background_factor=0.2, smooth_size1=11,
              smooth_size2=15, minvalue_to_zero=0.02, crop_data_threshold=0.,
-             crop_data_pad_width=20, model_base_height=18.18,
-             model_base_filter_size=10, model_base_min_value=1.83,
-             model_base_fill_holes=True):
+             crop_data_pad_width=20, model_height=250,
+             model_base_height=18.18, model_base_filter_size=10,
+             model_base_min_value=1.83, model_base_fill_holes=True):
         """
         Make the model.
 
@@ -1199,7 +1204,12 @@ class Model3D(object):
             The number of pixels used to pad the array after cropping to
             the minimal bounding box.  See `_crop_data`.
 
-        model_base_height : int, optional
+        model_height : float, optional
+            The maximum value in the intensity image, which controls the
+            final model height.  This is the height of the intensity map
+            *before* the textures, including the spiral galaxy central
+
+        model_base_height : float, optional
             The height of the model structural base.  See
             `_make_model_base`.
 
@@ -1240,7 +1250,7 @@ class Model3D(object):
 
         self._crop_data(threshold=crop_data_threshold,
                         pad_width=crop_data_pad_width, resize=True)
-        self._make_model_height()
+        self._make_model_height(model_height=model_height)
         self.data_intensity = deepcopy(self.data)
         self._apply_textures()
         self._make_model_base(base_height=model_base_height,
