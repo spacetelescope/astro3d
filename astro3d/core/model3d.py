@@ -5,6 +5,7 @@ from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 from collections import defaultdict
 from copy import deepcopy
+import glob
 import warnings
 from functools import partial
 
@@ -32,11 +33,17 @@ class Model3D(object):
     """
     Class to create a 3D model from an astronomical image.
 
+    Parameters
+    ----------
+    data : array-like
+        The input 2D array from which to create a 3D model.
+
     Examples
     --------
     >>> # initialize the model
     >>> model = Model3D(data)     # from an array
-    >>> model = Model3D.from_fits('myimage.fits')    # or from FITS file
+    >>> model = Model3D.from_fits('myimage.fits')    # or from a FITS file
+    >>> model = Model3D.from_rgb('myimage.png')      # or from a bitmap image
 
     >>> # read the region/texture masks
     >>> model.read_mask('mask_file.fits')      # can read one by one
@@ -68,58 +75,8 @@ class Model3D(object):
     >>> model.write_all_stellar_tables(filename_prefix)    # all at once
     """
 
-    def __init__(self, data, resize_xsize=1000):
-        """
-        Parameters
-        ----------
-        data : array-like
-            The input 2D array from which to create a 3D model.
-
-        resize_xsize : int, optional
-            The size of the x axis of the resized image.
-
-        Notes
-        -----
-        The maximum model sizes for the MakerBot 2 printer are:
-            ``x``: 275 mm
-            ``y``: 143 mm
-            ``z``: 150 mm
-
-        The maximum model sizes for the MakerBot 5 printer are:
-            ``x``: 242 mm
-            ``y``: 189 mm
-            ``z``: 143 mm
-
-        The model physical scale (mm/pixel) depends on two numbers: the
-        input ``resize_xsize`` (default 1000) and the ``x_size_mm``
-        (default 275) parameter to `write_stl`.  The model scale is
-        simply ``x_size_mm`` / ``resize_xsize``.  The default is
-        275/1000. = 0.275 mm/pixel.
-
-        With the defaults, a ``model_base_height`` (a `make` parameter)
-        of 18.18 corresponds to 5.0 mm.  Note that the
-        ``model_base_height`` is the base height for both single- and
-        double-sided models (it is not doubled for two-sided models).
-
-        With the defaults, a ``model_height`` (a `make` parameter) of
-        200 corresponds to a physical height of 55.0 mm.  This is the
-        height of the intensity map *before* the textures, including the
-        spiral galaxy central cusp, are applied.
-
-        .. note::
-
-            The physical model sizes above are for the output model
-            **before** any subsequent scaling in the MakerBot Desktop or
-            any other software.
-        """
-
+    def __init__(self, data):
         self.data_original = np.asanyarray(data)
-        self.resize_scale_factor = float(resize_xsize /
-                                         self.data_original.shape[1])
-        self.data_original_resized = image_utils.resize_image(
-            image_utils.remove_nonfinite(self.data_original),
-            self.resize_scale_factor)
-
         self._model_complete = False
 
         self.texture_order = ['small_dots', 'dots', 'lines']
@@ -149,7 +106,7 @@ class Model3D(object):
             height=7.8, spacing=20, orientation=0)
 
     @classmethod
-    def from_fits(cls, filename, resize_xsize=1000):
+    def from_fits(cls, filename):
         """
         Create a `Model3D` instance from a FITS file.
 
@@ -157,9 +114,6 @@ class Model3D(object):
         ----------
         filename : str
             The name of the FITS file.
-
-        resize_xsize : int, optional
-            The size of the x axis of the resized image.
         """
 
         data = fits.getdata(filename)
@@ -173,10 +127,10 @@ class Model3D(object):
             data = data[0] * 0.299 + data[1] * 0.587 + data[2] * 0.144
             data = image_utils.remove_nonfinite(data)
 
-        return cls(data, resize_xsize=resize_xsize)
+        return cls(data)
 
     @classmethod
-    def from_rgb(cls, filename, resize_xsize=1000):
+    def from_rgb(cls, filename):
         """
         Create a `Model3D` instance from a RGB file (e.g. JPG, PNG,
         TIFF).
@@ -185,14 +139,11 @@ class Model3D(object):
         ----------
         filename : str
             The name of the RGB file.
-
-        resize_xsize : int, optional
-            The size of the x axis of the resized image.
         """
 
         data = np.array(Image.open(filename).convert('L'),
                         dtype=np.float32)[::-1]
-        return cls(data, resize_xsize=resize_xsize)
+        return cls(data)
 
     def _translate_mask_type(self, mask_type):
         """
@@ -299,7 +250,6 @@ class Model3D(object):
         >>> model3d.read_all_masks('masks/*.fits')
         """
 
-        import glob
         for filename in glob.iglob(pathname):
             self.read_mask(filename)
 
@@ -476,6 +426,16 @@ class Model3D(object):
                        double_sided=self._double_sided, stl_format=stl_format,
                        clobber=clobber)
 
+    def _prepare_data(self):
+        """
+        Resize the input data.
+        """
+
+        self.data_original_resized = image_utils.resize_image(
+            image_utils.remove_nonfinite(self.data_original),
+            self._resize_scale_factor)
+        self.data = deepcopy(self.data_original_resized)
+
     def _prepare_masks(self):
         """
         Prepare texture and region masks.
@@ -493,13 +453,13 @@ class Model3D(object):
         for mask_type, masks in self.texture_masks_original.iteritems():
             prepared_mask = image_utils.resize_image(
                 image_utils.combine_region_masks(masks),
-                self.resize_scale_factor)
+                self._resize_scale_factor)
             self.texture_masks[mask_type] = prepared_mask   # ndarray
 
         # resize but do not combine region_masks
         for mask_type, masks in self.region_masks_original.iteritems():
             resized_masks = [image_utils.resize_image(
-                mask.mask, self.resize_scale_factor) for mask in masks]
+                mask.mask, self._resize_scale_factor) for mask in masks]
             self.region_masks[mask_type] = resized_masks   # list of ndarrays
 
     @staticmethod
@@ -1086,7 +1046,7 @@ class Model3D(object):
         self.data[self.data < min_value] = min_value
 
     def make(self, intensity=True, textures=True, double_sided=False,
-             spiral_galaxy=False,
+             spiral_galaxy=False, model_xsize=1000,
              compress_bulge_percentile=0., compress_bulge_factor=0.05,
              suppress_background_percentile=90.,
              suppress_background_factor=0.2, smooth_size1=11,
@@ -1117,6 +1077,9 @@ class Model3D(object):
         spiral_galaxy : bool
             Whether the 3D model is a spiral galaxy, which uses special
             processing.
+
+        model_xsize : int, optional
+            The size of the x axis of the model image.
 
         compress_bulge_percentile : float in range of [0, 100], optional
             The percentile of pixel values within the bulge mask to use
@@ -1184,19 +1147,57 @@ class Model3D(object):
             arms) with the ``model_base_height``.  Otherwise a "thin"
             region of height ``min_value`` will be placed around the
             interior of the hole.  See `_make_model_base`.
+
+        Notes
+        -----
+        The maximum model sizes for the MakerBot 2 printer are:
+            ``x``: 275 mm
+            ``y``: 143 mm
+            ``z``: 150 mm
+
+        The maximum model sizes for the MakerBot 5 printer are:
+            ``x``: 242 mm
+            ``y``: 189 mm
+            ``z``: 143 mm
+
+        The model physical scale (mm/pixel) depends on two numbers: the
+        input ``model_xsize`` (default 1000) and the ``x_size_mm``
+        (default 275) parameter to `write_stl`.  The model scale is
+        simply ``x_size_mm`` / ``model_xsize``.  The default is
+        275/1000. = 0.275 mm/pixel.
+
+        With the defaults, a ``model_base_height`` of 18.18 corresponds
+        to 5.0 mm.  Note that the ``model_base_height`` is the base
+        height for both single- and double-sided models (it is not
+        doubled for two-sided models).
+
+        With the defaults, a ``model_height`` of 200 corresponds to a
+        physical height of 55.0 mm.  This is the height of the intensity
+        map *before* the textures, including the spiral galaxy central
+        cusp, are applied.
+
+        .. note::
+
+            The physical model sizes above are for the output model
+            **before** any subsequent scaling in the MakerBot Desktop or
+            any other software.
         """
 
         if not textures and not intensity:
-            raise ValueError('3D Model must have textures and/or intensity.')
+            raise ValueError('The 3D model must have textures and/or '
+                             'intensity.')
         self._has_intensity = intensity
         self._has_textures = textures
         self._double_sided = double_sided
         self._spiral_galaxy = spiral_galaxy
 
-        self.data = deepcopy(self.data_original_resized)    # start fresh
+        self._resize_scale_factor = float(model_xsize /
+                                          self.data_original.shape[1])
+
+        self._prepare_data()
         self._prepare_masks()
         self._scale_stellar_table_positions(
-            self.stellar_tables_original, self.resize_scale_factor)
+            self.stellar_tables_original, self._resize_scale_factor)
         self._remove_stars()
         self._spiralgalaxy_compress_bulge(
             percentile=compress_bulge_percentile,
@@ -1315,7 +1316,7 @@ class Model3D(object):
         tbl.rename_column('segment_sum', 'flux')
 
         scaled_tbl = self._scale_table_positions(
-            tbl, 1. / self.resize_scale_factor)
+            tbl, 1. / self._resize_scale_factor)
         self.stellar_tables_original[stellar_type] = scaled_tbl
 
         self.stellar_tables = deepcopy(self.stellar_tables_original)
@@ -1383,7 +1384,7 @@ class Model3D(object):
                               AstropyUserWarning)
 
             mask = image_utils.resize_image(mask,
-                                            1. / self.resize_scale_factor)
+                                            1. / self._resize_scale_factor)
             region_mask = RegionMask(mask, mask_type)
             self.texture_masks_original[texture_type] = [region_mask]
 
