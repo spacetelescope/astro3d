@@ -135,12 +135,9 @@ class Model(QStandardItemModel):
         for (catalog, id) in self.stars_catalogs:
             m.read_stars(catalog)
 
-        m.has_textures = self.stages.textures
-        m.has_intensity = self.stages.intensity
-        m.spiral_galaxy = self.stages.spiral_galaxy
-        m.double_sided = self.stages.double_sided
-
-        m.make()
+        m.make(intensity=self.stages.intensity, textures=self.stages.textures,
+               double_sided=self.stages.double_sided,
+               spiral_galaxy=self.stages.spiral_galaxy)
 
         triset = make_triangles(m.data)
         if m.double_sided:
