@@ -38,12 +38,6 @@ class Model3D(object):
     >>> model = Model3D(data)     # from an array
     >>> model = Model3D.from_fits('myimage.fits')    # or from FITS file
 
-    >>> # define the type of 3D model
-    >>> model.has_textures = True
-    >>> model.has_intensity = True
-    >>> model.double_sided = True
-    >>> model.spiral_galaxy = True
-
     >>> # read the region/texture masks
     >>> model.read_mask('mask_file.fits')      # can read one by one
     >>> model.read_all_masks('*.fits')         # or several at once
@@ -57,7 +51,8 @@ class Model3D(object):
     >>> model.read_star_clusters('object_star_clusters.txt')   # same as above
 
     >>> # make the model
-    >>> model.make()
+    >>> model.make(intensity=True, textures=True, double_sided=True,
+    ...            spiral_galaxy=True)
 
     >>> # write the model to a STL file
     >>> filename_prefix = 'myobject'
@@ -126,10 +121,6 @@ class Model3D(object):
             self.resize_scale_factor)
 
         self._model_complete = False
-        self._has_textures = True
-        self._has_intensity = True
-        self._double_sided = False
-        self._spiral_galaxy = False
 
         self.texture_order = ['small_dots', 'dots', 'lines']
         self.region_mask_types = ['smooth', 'remove_star']
@@ -156,65 +147,6 @@ class Model3D(object):
         self.textures['lines'] = partial(
             textures.lines_texture_image, profile='linear', thickness=13,
             height=7.8, spacing=20, orientation=0)
-
-    @property
-    def has_textures(self):
-        """
-        Property to determine if the 3D model has textures.
-        `True` or `False`.
-        """
-        return self._has_textures
-
-    @has_textures.setter
-    def has_textures(self, value):
-        if not isinstance(value, bool):
-            raise ValueError('Must be a boolean.')
-        if not value and not self.has_intensity:
-            raise ValueError('3D Model must have textures and/or intensity.')
-        self._has_textures = value
-
-    @property
-    def has_intensity(self):
-        """
-        Property to determine if the 3D model has intensities.
-        """
-        return self._has_intensity
-
-    @has_intensity.setter
-    def has_intensity(self, value):
-        if not isinstance(value, bool):
-            raise ValueError('Must be a boolean.')
-        if not value and not self.has_textures:
-            raise ValueError('3D Model must have textures and/or intensity.')
-        self._has_intensity = value
-
-    @property
-    def double_sided(self):
-        """
-        Property to determine if the 3D model is double sided (simple
-        reflection).
-        """
-        return self._double_sided
-
-    @double_sided.setter
-    def double_sided(self, value):
-        if not isinstance(value, bool):
-            raise ValueError('Must be a boolean.')
-        self._double_sided = value
-
-    @property
-    def spiral_galaxy(self):
-        """
-        Property to determine if the 3D model is a spiral galaxy, which
-        uses special processing.
-        """
-        return self._spiral_galaxy
-
-    @spiral_galaxy.setter
-    def spiral_galaxy(self, value):
-        if not isinstance(value, bool):
-            raise ValueError('Must be a boolean.')
-        self._spiral_galaxy = value
 
     @classmethod
     def from_fits(cls, filename, resize_xsize=1000):
@@ -534,14 +466,14 @@ class Model3D(object):
         if split_model:
             model1, model2 = image_utils.split_image(self.data, axis=0)
             write_mesh(model1, filename_prefix + '_part1',
-                       x_size_mm=x_size_mm, double_sided=self.double_sided,
+                       x_size_mm=x_size_mm, double_sided=self._double_sided,
                        stl_format=stl_format, clobber=clobber)
             write_mesh(model2, filename_prefix + '_part2',
-                       x_size_mm=x_size_mm, double_sided=self.double_sided,
+                       x_size_mm=x_size_mm, double_sided=self._double_sided,
                        stl_format=stl_format, clobber=clobber)
         else:
             write_mesh(self.data, filename_prefix, x_size_mm=x_size_mm,
-                       double_sided=self.double_sided, stl_format=stl_format,
+                       double_sided=self._double_sided, stl_format=stl_format,
                        clobber=clobber)
 
     def _prepare_masks(self):
@@ -691,7 +623,7 @@ class Model3D(object):
             The base level above which pixel values are compressed.
         """
 
-        if not self.spiral_galaxy:
+        if not self._spiral_galaxy:
             return None
 
         log.info('Compressing the bulge.')
@@ -797,7 +729,7 @@ class Model3D(object):
         self.data[self.data < min_value] = 0.0
 
     def _extract_galaxy(self):
-        if not self.spiral_galaxy:
+        if not self._spiral_galaxy:
             return None
 
         log.info('Extracting the galaxy using source segmentation.')
@@ -915,7 +847,7 @@ class Model3D(object):
         """
 
         # clip the image at the cusp base_height
-        if self.spiral_galaxy:
+        if self._spiral_galaxy:
             if self._has_intensity:
                 base_height = self._apply_spiral_central_cusp(
                     base_height_only=True)
@@ -924,7 +856,7 @@ class Model3D(object):
                          'cusp).'.format(base_height))
                 self.data[self.data > base_height] = base_height
 
-        if self.double_sided:
+        if self._double_sided:
             model_height = model_height / 2.
         self._normalize_image(max_value=model_height)
 
@@ -975,7 +907,7 @@ class Model3D(object):
             The slope of the star texture sides.
         """
 
-        if self.has_intensity:
+        if self._has_intensity:
             base_percentile = 75.
             depth = 3.
             data = self.data
@@ -985,7 +917,7 @@ class Model3D(object):
             data = np.zeros_like(self.data)
 
         if len(self.stellar_tables) == 0:
-            if not self.has_intensity:
+            if not self._has_intensity:
                 log.info('Discarding data intensity')
                 self.data = self._texture_layer
         else:
@@ -995,7 +927,7 @@ class Model3D(object):
                 radius_b=radius_b, depth=depth, slope=slope,
                 base_percentile=base_percentile)
 
-            if self.has_intensity:
+            if self._has_intensity:
                 self.data = textures.apply_textures(
                     self.data, self._stellar_texture_layer)
             else:
@@ -1066,8 +998,8 @@ class Model3D(object):
             The base height of the texture model.
         """
 
-        if self.spiral_galaxy:
-            if self.has_intensity:
+        if self._spiral_galaxy:
+            if self._has_intensity:
                 base_percentile = 0.
             else:
                 base_percentile = None
@@ -1098,7 +1030,7 @@ class Model3D(object):
     def _apply_textures(self):
         """Apply all textures to the model."""
 
-        if self.has_textures:
+        if self._has_textures:
             self._add_masked_textures()
             self._apply_stellar_textures()
             self._apply_spiral_central_cusp()
@@ -1137,7 +1069,7 @@ class Model3D(object):
         """
 
         log.info('Making model base.')
-        if self.double_sided and self.has_intensity:
+        if self._double_sided and self._has_intensity:
             data_mask = self.data.astype(bool)
             selem = np.ones((filter_size, filter_size))
             dilation_mask = ndimage.binary_dilation(data_mask,
@@ -1153,7 +1085,9 @@ class Model3D(object):
         self.data += self._base_layer
         self.data[self.data < min_value] = min_value
 
-    def make(self, compress_bulge_percentile=0., compress_bulge_factor=0.05,
+    def make(self, intensity=True, textures=True, double_sided=False,
+             spiral_galaxy=False,
+             compress_bulge_percentile=0., compress_bulge_factor=0.05,
              suppress_background_percentile=90.,
              suppress_background_factor=0.2, smooth_size1=11,
              smooth_size2=15, minvalue_to_zero=0.02, crop_data_threshold=0.,
@@ -1168,6 +1102,22 @@ class Model3D(object):
 
         Parameters
         ----------
+        intensity : bool
+            Whether the 3D model has intensities.  At least one of
+            ``intensity`` and ``textures`` must be `True`.
+
+        textures : bool
+            Whether the 3D model has textures.  At least one of
+            ``intensity`` and ``textures`` must be `True`.
+
+        double_sided : bool
+            Whether the 3D model is double sided.  Double-sided models
+            are generated using a simple reflection.
+
+        spiral_galaxy : bool
+            Whether the 3D model is a spiral galaxy, which uses special
+            processing.
+
         compress_bulge_percentile : float in range of [0, 100], optional
             The percentile of pixel values within the bulge mask to use
             as the base level when compressing the bulge.  See
@@ -1235,6 +1185,13 @@ class Model3D(object):
             region of height ``min_value`` will be placed around the
             interior of the hole.  See `_make_model_base`.
         """
+
+        if not textures and not intensity:
+            raise ValueError('3D Model must have textures and/or intensity.')
+        self._has_intensity = intensity
+        self._has_textures = textures
+        self._double_sided = double_sided
+        self._spiral_galaxy = spiral_galaxy
 
         self.data = deepcopy(self.data_original_resized)    # start fresh
         self._prepare_masks()
