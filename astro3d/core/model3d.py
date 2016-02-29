@@ -5,6 +5,7 @@ from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 from collections import defaultdict
 from copy import deepcopy
+import glob
 import warnings
 from functools import partial
 
@@ -32,17 +33,17 @@ class Model3D(object):
     """
     Class to create a 3D model from an astronomical image.
 
+    Parameters
+    ----------
+    data : array-like
+        The input 2D array from which to create a 3D model.
+
     Examples
     --------
     >>> # initialize the model
     >>> model = Model3D(data)     # from an array
-    >>> model = Model3D.from_fits('myimage.fits')    # or from FITS file
-
-    >>> # define the type of 3D model
-    >>> model.has_textures = True
-    >>> model.has_intensity = True
-    >>> model.double_sided = True
-    >>> model.spiral_galaxy = True
+    >>> model = Model3D.from_fits('myimage.fits')    # or from a FITS file
+    >>> model = Model3D.from_rgb('myimage.png')      # or from a bitmap image
 
     >>> # read the region/texture masks
     >>> model.read_mask('mask_file.fits')      # can read one by one
@@ -57,7 +58,8 @@ class Model3D(object):
     >>> model.read_star_clusters('object_star_clusters.txt')   # same as above
 
     >>> # make the model
-    >>> model.make()
+    >>> model.make(intensity=True, textures=True, double_sided=True,
+    ...            spiral_galaxy=True)
 
     >>> # write the model to a STL file
     >>> filename_prefix = 'myobject'
@@ -73,63 +75,9 @@ class Model3D(object):
     >>> model.write_all_stellar_tables(filename_prefix)    # all at once
     """
 
-    def __init__(self, data, resize_xsize=1000):
-        """
-        Parameters
-        ----------
-        data : array-like
-            The input 2D array from which to create a 3D model.
-
-        resize_xsize : int, optional
-            The size of the x axis of the resized image.
-
-        Notes
-        -----
-        The maximum model sizes for the MakerBot 2 printer are:
-            ``x``: 275 mm
-            ``y``: 143 mm
-            ``z``: 150 mm
-
-        The maximum model sizes for the MakerBot 5 printer are:
-            ``x``: 242 mm
-            ``y``: 189 mm
-            ``z``: 143 mm
-
-        The model physical scale (mm/pixel) depends on two numbers: the
-        input ``resize_xsize`` (default 1000) and the ``x_size_mm``
-        (default 275) parameter to `write_stl`.  The model scale is
-        simply ``x_size_mm`` / ``resize_xsize``.  The default is
-        275/1000. = 0.275 mm/pixel.
-
-        With the defaults, a ``model_base_height`` (a `make` parameter)
-        of 18.18 corresponds to 5.0 mm.  Note that the
-        ``model_base_height`` is the base height for both single- and
-        double-sided models (it is not doubled for two-sided models).
-
-        With the defaults, a ``model_height`` (a `make` parameter) of
-        200 corresponds to a physical height of 55.0 mm.  This is the
-        height of the intensity map *before* the textures, including the
-        spiral galaxy central cusp, are applied.
-
-        .. note::
-
-            The physical model sizes above are for the output model
-            **before** any subsequent scaling in the MakerBot Desktop or
-            any other software.
-        """
-
+    def __init__(self, data):
         self.data_original = np.asanyarray(data)
-        self.resize_scale_factor = float(resize_xsize /
-                                         self.data_original.shape[1])
-        self.data_original_resized = image_utils.resize_image(
-            image_utils.remove_nonfinite(self.data_original),
-            self.resize_scale_factor)
-
         self._model_complete = False
-        self._has_textures = True
-        self._has_intensity = True
-        self._double_sided = False
-        self._spiral_galaxy = False
 
         self.texture_order = ['small_dots', 'dots', 'lines']
         self.region_mask_types = ['smooth', 'remove_star']
@@ -157,67 +105,8 @@ class Model3D(object):
             textures.lines_texture_image, profile='linear', thickness=13,
             height=7.8, spacing=20, orientation=0)
 
-    @property
-    def has_textures(self):
-        """
-        Property to determine if the 3D model has textures.
-        `True` or `False`.
-        """
-        return self._has_textures
-
-    @has_textures.setter
-    def has_textures(self, value):
-        if not isinstance(value, bool):
-            raise ValueError('Must be a boolean.')
-        if not value and not self.has_intensity:
-            raise ValueError('3D Model must have textures and/or intensity.')
-        self._has_textures = value
-
-    @property
-    def has_intensity(self):
-        """
-        Property to determine if the 3D model has intensities.
-        """
-        return self._has_intensity
-
-    @has_intensity.setter
-    def has_intensity(self, value):
-        if not isinstance(value, bool):
-            raise ValueError('Must be a boolean.')
-        if not value and not self.has_textures:
-            raise ValueError('3D Model must have textures and/or intensity.')
-        self._has_intensity = value
-
-    @property
-    def double_sided(self):
-        """
-        Property to determine if the 3D model is double sided (simple
-        reflection).
-        """
-        return self._double_sided
-
-    @double_sided.setter
-    def double_sided(self, value):
-        if not isinstance(value, bool):
-            raise ValueError('Must be a boolean.')
-        self._double_sided = value
-
-    @property
-    def spiral_galaxy(self):
-        """
-        Property to determine if the 3D model is a spiral galaxy, which
-        uses special processing.
-        """
-        return self._spiral_galaxy
-
-    @spiral_galaxy.setter
-    def spiral_galaxy(self, value):
-        if not isinstance(value, bool):
-            raise ValueError('Must be a boolean.')
-        self._spiral_galaxy = value
-
     @classmethod
-    def from_fits(cls, filename, resize_xsize=1000):
+    def from_fits(cls, filename):
         """
         Create a `Model3D` instance from a FITS file.
 
@@ -225,9 +114,6 @@ class Model3D(object):
         ----------
         filename : str
             The name of the FITS file.
-
-        resize_xsize : int, optional
-            The size of the x axis of the resized image.
         """
 
         data = fits.getdata(filename)
@@ -241,10 +127,10 @@ class Model3D(object):
             data = data[0] * 0.299 + data[1] * 0.587 + data[2] * 0.144
             data = image_utils.remove_nonfinite(data)
 
-        return cls(data, resize_xsize=resize_xsize)
+        return cls(data)
 
     @classmethod
-    def from_rgb(cls, filename, resize_xsize=1000):
+    def from_rgb(cls, filename):
         """
         Create a `Model3D` instance from a RGB file (e.g. JPG, PNG,
         TIFF).
@@ -253,14 +139,11 @@ class Model3D(object):
         ----------
         filename : str
             The name of the RGB file.
-
-        resize_xsize : int, optional
-            The size of the x axis of the resized image.
         """
 
         data = np.array(Image.open(filename).convert('L'),
                         dtype=np.float32)[::-1]
-        return cls(data, resize_xsize=resize_xsize)
+        return cls(data)
 
     def _translate_mask_type(self, mask_type):
         """
@@ -367,7 +250,6 @@ class Model3D(object):
         >>> model3d.read_all_masks('masks/*.fits')
         """
 
-        import glob
         for filename in glob.iglob(pathname):
             self.read_mask(filename)
 
@@ -534,15 +416,25 @@ class Model3D(object):
         if split_model:
             model1, model2 = image_utils.split_image(self.data, axis=0)
             write_mesh(model1, filename_prefix + '_part1',
-                       x_size_mm=x_size_mm, double_sided=self.double_sided,
+                       x_size_mm=x_size_mm, double_sided=self._double_sided,
                        stl_format=stl_format, clobber=clobber)
             write_mesh(model2, filename_prefix + '_part2',
-                       x_size_mm=x_size_mm, double_sided=self.double_sided,
+                       x_size_mm=x_size_mm, double_sided=self._double_sided,
                        stl_format=stl_format, clobber=clobber)
         else:
             write_mesh(self.data, filename_prefix, x_size_mm=x_size_mm,
-                       double_sided=self.double_sided, stl_format=stl_format,
+                       double_sided=self._double_sided, stl_format=stl_format,
                        clobber=clobber)
+
+    def _prepare_data(self):
+        """
+        Resize the input data.
+        """
+
+        self.data_original_resized = image_utils.resize_image(
+            image_utils.remove_nonfinite(self.data_original),
+            self._resize_scale_factor)
+        self.data = deepcopy(self.data_original_resized)
 
     def _prepare_masks(self):
         """
@@ -561,13 +453,13 @@ class Model3D(object):
         for mask_type, masks in self.texture_masks_original.iteritems():
             prepared_mask = image_utils.resize_image(
                 image_utils.combine_region_masks(masks),
-                self.resize_scale_factor)
+                self._resize_scale_factor)
             self.texture_masks[mask_type] = prepared_mask   # ndarray
 
         # resize but do not combine region_masks
         for mask_type, masks in self.region_masks_original.iteritems():
             resized_masks = [image_utils.resize_image(
-                mask.mask, self.resize_scale_factor) for mask in masks]
+                mask.mask, self._resize_scale_factor) for mask in masks]
             self.region_masks[mask_type] = resized_masks   # list of ndarrays
 
     @staticmethod
@@ -691,7 +583,7 @@ class Model3D(object):
             The base level above which pixel values are compressed.
         """
 
-        if not self.spiral_galaxy:
+        if not self._spiral_galaxy:
             return None
 
         log.info('Compressing the bulge.')
@@ -797,7 +689,7 @@ class Model3D(object):
         self.data[self.data < min_value] = 0.0
 
     def _extract_galaxy(self):
-        if not self.spiral_galaxy:
+        if not self._spiral_galaxy:
             return None
 
         log.info('Extracting the galaxy using source segmentation.')
@@ -915,7 +807,7 @@ class Model3D(object):
         """
 
         # clip the image at the cusp base_height
-        if self.spiral_galaxy:
+        if self._spiral_galaxy:
             if self._has_intensity:
                 base_height = self._apply_spiral_central_cusp(
                     base_height_only=True)
@@ -924,7 +816,7 @@ class Model3D(object):
                          'cusp).'.format(base_height))
                 self.data[self.data > base_height] = base_height
 
-        if self.double_sided:
+        if self._double_sided:
             model_height = model_height / 2.
         self._normalize_image(max_value=model_height)
 
@@ -975,7 +867,7 @@ class Model3D(object):
             The slope of the star texture sides.
         """
 
-        if self.has_intensity:
+        if self._has_intensity:
             base_percentile = 75.
             depth = 3.
             data = self.data
@@ -985,7 +877,7 @@ class Model3D(object):
             data = np.zeros_like(self.data)
 
         if len(self.stellar_tables) == 0:
-            if not self.has_intensity:
+            if not self._has_intensity:
                 log.info('Discarding data intensity')
                 self.data = self._texture_layer
         else:
@@ -995,7 +887,7 @@ class Model3D(object):
                 radius_b=radius_b, depth=depth, slope=slope,
                 base_percentile=base_percentile)
 
-            if self.has_intensity:
+            if self._has_intensity:
                 self.data = textures.apply_textures(
                     self.data, self._stellar_texture_layer)
             else:
@@ -1066,8 +958,8 @@ class Model3D(object):
             The base height of the texture model.
         """
 
-        if self.spiral_galaxy:
-            if self.has_intensity:
+        if self._spiral_galaxy:
+            if self._has_intensity:
                 base_percentile = 0.
             else:
                 base_percentile = None
@@ -1098,7 +990,7 @@ class Model3D(object):
     def _apply_textures(self):
         """Apply all textures to the model."""
 
-        if self.has_textures:
+        if self._has_textures:
             self._add_masked_textures()
             self._apply_stellar_textures()
             self._apply_spiral_central_cusp()
@@ -1137,7 +1029,7 @@ class Model3D(object):
         """
 
         log.info('Making model base.')
-        if self.double_sided and self.has_intensity:
+        if self._double_sided and self._has_intensity:
             data_mask = self.data.astype(bool)
             selem = np.ones((filter_size, filter_size))
             dilation_mask = ndimage.binary_dilation(data_mask,
@@ -1153,7 +1045,9 @@ class Model3D(object):
         self.data += self._base_layer
         self.data[self.data < min_value] = min_value
 
-    def make(self, compress_bulge_percentile=0., compress_bulge_factor=0.05,
+    def make(self, intensity=True, textures=True, double_sided=False,
+             spiral_galaxy=False, model_xsize=1000,
+             compress_bulge_percentile=0., compress_bulge_factor=0.05,
              suppress_background_percentile=90.,
              suppress_background_factor=0.2, smooth_size1=11,
              smooth_size2=15, minvalue_to_zero=0.02, crop_data_threshold=0.,
@@ -1168,6 +1062,25 @@ class Model3D(object):
 
         Parameters
         ----------
+        intensity : bool
+            Whether the 3D model has intensities.  At least one of
+            ``intensity`` and ``textures`` must be `True`.
+
+        textures : bool
+            Whether the 3D model has textures.  At least one of
+            ``intensity`` and ``textures`` must be `True`.
+
+        double_sided : bool
+            Whether the 3D model is double sided.  Double-sided models
+            are generated using a simple reflection.
+
+        spiral_galaxy : bool
+            Whether the 3D model is a spiral galaxy, which uses special
+            processing.
+
+        model_xsize : int, optional
+            The size of the x axis of the model image.
+
         compress_bulge_percentile : float in range of [0, 100], optional
             The percentile of pixel values within the bulge mask to use
             as the base level when compressing the bulge.  See
@@ -1234,12 +1147,57 @@ class Model3D(object):
             arms) with the ``model_base_height``.  Otherwise a "thin"
             region of height ``min_value`` will be placed around the
             interior of the hole.  See `_make_model_base`.
+
+        Notes
+        -----
+        The maximum model sizes for the MakerBot 2 printer are:
+            ``x``: 275 mm
+            ``y``: 143 mm
+            ``z``: 150 mm
+
+        The maximum model sizes for the MakerBot 5 printer are:
+            ``x``: 242 mm
+            ``y``: 189 mm
+            ``z``: 143 mm
+
+        The model physical scale (mm/pixel) depends on two numbers: the
+        input ``model_xsize`` (default 1000) and the ``x_size_mm``
+        (default 275) parameter to `write_stl`.  The model scale is
+        simply ``x_size_mm`` / ``model_xsize``.  The default is
+        275/1000. = 0.275 mm/pixel.
+
+        With the defaults, a ``model_base_height`` of 18.18 corresponds
+        to 5.0 mm.  Note that the ``model_base_height`` is the base
+        height for both single- and double-sided models (it is not
+        doubled for two-sided models).
+
+        With the defaults, a ``model_height`` of 200 corresponds to a
+        physical height of 55.0 mm.  This is the height of the intensity
+        map *before* the textures, including the spiral galaxy central
+        cusp, are applied.
+
+        .. note::
+
+            The physical model sizes above are for the output model
+            **before** any subsequent scaling in the MakerBot Desktop or
+            any other software.
         """
 
-        self.data = deepcopy(self.data_original_resized)    # start fresh
+        if not textures and not intensity:
+            raise ValueError('The 3D model must have textures and/or '
+                             'intensity.')
+        self._has_intensity = intensity
+        self._has_textures = textures
+        self._double_sided = double_sided
+        self._spiral_galaxy = spiral_galaxy
+
+        self._resize_scale_factor = float(model_xsize /
+                                          self.data_original.shape[1])
+
+        self._prepare_data()
         self._prepare_masks()
         self._scale_stellar_table_positions(
-            self.stellar_tables_original, self.resize_scale_factor)
+            self.stellar_tables_original, self._resize_scale_factor)
         self._remove_stars()
         self._spiralgalaxy_compress_bulge(
             percentile=compress_bulge_percentile,
@@ -1358,7 +1316,7 @@ class Model3D(object):
         tbl.rename_column('segment_sum', 'flux')
 
         scaled_tbl = self._scale_table_positions(
-            tbl, 1. / self.resize_scale_factor)
+            tbl, 1. / self._resize_scale_factor)
         self.stellar_tables_original[stellar_type] = scaled_tbl
 
         self.stellar_tables = deepcopy(self.stellar_tables_original)
@@ -1426,7 +1384,7 @@ class Model3D(object):
                               AstropyUserWarning)
 
             mask = image_utils.resize_image(mask,
-                                            1. / self.resize_scale_factor)
+                                            1. / self._resize_scale_factor)
             region_mask = RegionMask(mask, mask_type)
             self.texture_masks_original[texture_type] = [region_mask]
 
