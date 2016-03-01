@@ -56,7 +56,9 @@ class ShapeEditor(QtGui.QWidget):
         self._canvas = canvas
 
         # Setup parameters
-        self.drawkinds = list(VALID_KINDS.intersection(self.canvas.get_drawtypes()))
+        self.drawkinds = list(
+            VALID_KINDS.intersection(self.canvas.get_drawtypes())
+        )
         self.drawkinds.sort()
 
         # Setup for actual drawing
@@ -68,6 +70,7 @@ class ShapeEditor(QtGui.QWidget):
         canvas.setSurface(self.surface)
         canvas.register_for_cursor_drawing(self.surface)
         canvas.set_draw_mode('edit')
+        self._build_gui()
 
     @property
     def enabled(self):
@@ -75,7 +78,6 @@ class ShapeEditor(QtGui.QWidget):
 
     @enabled.setter
     def enabled(self, state):
-        self.logger.debug('Called: state="{}"'.format(state))
         self._enabled = state
         try:
             self._canvas.ui_setActive(state)
@@ -84,27 +86,21 @@ class ShapeEditor(QtGui.QWidget):
 
     def new_region(self, type_item):
         self.type_item = type_item
-        try:
-            self.canvas = type_item.view.canvas
-        except AttributeError:
-            pass
         if self.canvas is None:
             raise RuntimeError('Internal error: no canvas to draw on.')
-        self._build_gui()
+        self.set_drawparams()
         self.enabled = True
 
     def set_drawparams(self):
-        self.logger.debug('Called.')
         kind = self.drawkinds[self.drawtype_widget.currentIndex()]
-        params = self.type_item.draw_params
-        self.logger.debug('kind="{}"'.format(kind))
-        self.logger.debug('params="{}"'.format(params))
+        try:
+            params = self.type_item.draw_params
+        except AttributeError:
+            params = {}
         self.canvas.set_drawtype(kind, **params)
-        self.logger.debug('drawparams set.')
 
     def draw_cb(self, canvas, tag):
         """Draw callback"""
-        self.logger.debug('Called: canvas="{}" shape_id="{}"'.format(canvas, tag))
         shape = canvas.get_object_by_tag(tag)
         region_mask = self.surface.get_shape_mask(
             self.type_item.text(),
@@ -143,11 +139,8 @@ class ShapeEditor(QtGui.QWidget):
             drawtype_widget.setCurrentIndex(index)
 
         # Put it together
-        self.logger.debug('Creating layout.')
         layout = QtGui.QVBoxLayout()
-        layout.setContentsMargins(QtCore.QMargins(2, 2, 2, 2))
+        layout.setContentsMargins(QtCore.QMargins(20, 20, 20, 20))
         layout.setSpacing(1)
         layout.addWidget(drawtype_widget)
         self.setLayout(layout)
-
-        self.logger.debug('Done.')

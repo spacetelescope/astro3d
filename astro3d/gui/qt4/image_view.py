@@ -23,10 +23,7 @@ class ImageView(CanvasView):
         self.ui_setActive(True)
 
         bd = self.get_bindings()
-        bd.enable_pan(True)
-        bd.enable_zoom(True)
-        bd.enable_cuts(True)
-        bd.enable_flip(True)
+        bd.enable_all(True)
 
     def get_shape_mask(self, mask_type, shape):
         """Return the RegionMask representing the shape"""
