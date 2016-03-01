@@ -140,7 +140,7 @@ class Model(QStandardItemModel):
                spiral_galaxy=self.stages.spiral_galaxy)
 
         triset = make_triangles(m.data)
-        if m.double_sided:
+        if self.stages.double_sided:
             triset = concatenate((triset, reflect_triangles(triset)))
         self.triset = triset
         return (triset, m)

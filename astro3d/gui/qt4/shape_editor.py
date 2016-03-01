@@ -71,6 +71,7 @@ class ShapeEditor(QtGui.QWidget):
         canvas.register_for_cursor_drawing(self.surface)
         canvas.set_draw_mode('edit')
         self._build_gui()
+        self.enabled = True
 
     @property
     def enabled(self):
@@ -89,7 +90,7 @@ class ShapeEditor(QtGui.QWidget):
         if self.canvas is None:
             raise RuntimeError('Internal error: no canvas to draw on.')
         self.set_drawparams()
-        self.enabled = True
+        self.canvas.set_draw_mode('draw')
 
     def set_drawparams(self):
         kind = self.drawkinds[self.drawtype_widget.currentIndex()]
@@ -101,13 +102,13 @@ class ShapeEditor(QtGui.QWidget):
 
     def draw_cb(self, canvas, tag):
         """Draw callback"""
+        self.canvas.set_draw_mode('edit')
         shape = canvas.get_object_by_tag(tag)
         region_mask = self.surface.get_shape_mask(
             self.type_item.text(),
             shape
         )
         self.type_item.add_shape(shape=shape, mask=region_mask, id=tag)
-        self.enabled = False
 
     def edit_cb(self, *args, **kwargs):
         """Edit callback"""
