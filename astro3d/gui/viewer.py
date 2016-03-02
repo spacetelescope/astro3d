@@ -1,10 +1,7 @@
 """Main UI Viewer
 """
-from functools import partial
-
 from attrdict import AttrDict
 from ginga.AstroImage import AstroImage
-from ginga.LayerImage import LayerImage
 
 from ..util.logger import make_logger
 from ..external.qt import (QtGui, QtCore)
@@ -32,7 +29,7 @@ STAGES = {
 }
 
 
-class Image(AstroImage, LayerImage):
+class Image(AstroImage):
     """Image container"""
 
 
@@ -331,7 +328,8 @@ class MainWindow(GTK_MainWindow):
     def _create_signals(self):
         """Setup the overall signal structure"""
         self.image_viewer.set_callback('drag-drop', self.path_by_drop)
-        self.logger.debug('signals="{}"'.format(signaldb))
+        self.image_viewer.set_callback('leave', self.shape_editor.edit_deselect_cb)
+
         signaldb.Quit.connect(self.quit)
         signaldb.NewImage.connect(self.image_update)
         signaldb.UpdateMesh.connect(self.mesh_viewer.update_mesh)

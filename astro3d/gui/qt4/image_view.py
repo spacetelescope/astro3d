@@ -1,4 +1,5 @@
 from ginga.gw.Viewers import CanvasView
+from ginga.canvas.CanvasObject import get_canvas_types
 
 from ...util.logger import make_logger
 from ...core.region_mask import RegionMask
@@ -24,6 +25,12 @@ class ImageView(CanvasView):
 
         bd = self.get_bindings()
         bd.enable_all(True)
+
+        # Show the mode.
+        dc = get_canvas_types()
+        self.private_canvas.add(dc.ModeIndicator(corner='ur', fontsize=14))
+        bm = self.get_bindmap()
+        bm.add_callback('mode-set', lambda *args: self.redraw(whence=3))
 
     def get_shape_mask(self, mask_type, shape):
         """Return the RegionMask representing the shape"""

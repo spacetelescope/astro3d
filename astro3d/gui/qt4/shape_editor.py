@@ -86,6 +86,7 @@ class ShapeEditor(QtGui.QWidget):
             pass
 
     def new_region(self, type_item):
+        self.logger.debug('Called type_item="{}"'.format(type_item))
         self.type_item = type_item
         if self.canvas is None:
             raise RuntimeError('Internal error: no canvas to draw on.')
@@ -117,6 +118,10 @@ class ShapeEditor(QtGui.QWidget):
     def edit_select_cb(self, *args, **kwargs):
         """Edit selected object callback"""
         self.logger.debug('Called with args="{}" kwargs="{}".'.format(args, kwargs))
+
+    def edit_deselect_cb(self, *args, **kwargs):
+        """Deselect"""
+        self.canvas.clear_selected()
 
     def _build_gui(self):
         """Build out the GUI"""
