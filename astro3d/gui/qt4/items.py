@@ -4,10 +4,16 @@ from __future__ import absolute_import, print_function
 from collections import (defaultdict, namedtuple)
 
 from ...util.logger import make_logger
-from ...external.qt.QtGui import (QAction, QStandardItem)
-from ...external.qt.QtCore import (QObject, Qt)
+from ...external.qt import (QtCore, QtGui)
 
 from .. import signaldb
+
+# Shortcuts
+QAction = QtGui.QAction
+QStandardItem = QtGui.QStandardItem
+Qt = QtCore.Qt
+QObject = QtCore.QObject
+
 
 __all__ = [
     'ClusterItem',
@@ -142,6 +148,13 @@ class LayerItem(QStandardItem):
             fix_tristate(self.parent())
 
 
+class FixedMixin(object):
+    """Item cannot be edited"""
+    def __init__(self, *args, **kwargs):
+        super(FixedMixin, self).__init__(*args, **kwargs)
+        self.setEditable(False)
+
+
 class CheckableItem(LayerItem):
     """Items that are checkable"""
     def __init__(self, *args, **kwargs):
@@ -188,7 +201,7 @@ class ClusterItem(CheckableItem):
     """A cluster"""
 
 
-class TypeItem(CheckableItem):
+class TypeItem(FixedMixin, CheckableItem):
     """Types of regions"""
     def __init__(self, *args, **kwargs):
         super(TypeItem, self).__init__(*args, **kwargs)
@@ -218,7 +231,7 @@ class TypeItem(CheckableItem):
         region_item.fix_family()
 
 
-class Regions(CheckableItem):
+class Regions(FixedMixin, CheckableItem):
     """Regions container"""
 
     def __init__(self, *args, **kwargs):
@@ -285,14 +298,14 @@ class Regions(CheckableItem):
         return actions
 
 
-class Textures(CheckableItem):
+class Textures(FixedMixin, CheckableItem):
     """Textures container"""
     def __init__(self, *args, **kwargs):
         super(Textures, self).__init__(*args, **kwargs)
         self.setText('Textures')
 
 
-class Clusters(CheckableItem):
+class Clusters(FixedMixin, CheckableItem):
     """Cluster container"""
     def __init__(self, *args, **kwargs):
         super(Clusters, self).__init__(*args, **kwargs)
@@ -305,7 +318,7 @@ class Clusters(CheckableItem):
         item.fix_family()
 
 
-class Stars(CheckableItem):
+class Stars(FixedMixin, CheckableItem):
     """Stars container"""
 
     def __init__(self, *args, **kwargs):

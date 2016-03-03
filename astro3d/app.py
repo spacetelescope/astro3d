@@ -35,6 +35,9 @@ class Application(Controller):
             logger=self.logger
         )
         self.viewer.show()
+        self.__class__.ui_app.setActiveWindow(self.viewer)
+        self.viewer.raise_()
+        self.viewer.activateWindow()
 
     def quit(self, *args, **kwargs):
         self.logger.debug("Attempting to shut down the application...")

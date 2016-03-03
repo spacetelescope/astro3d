@@ -1,23 +1,24 @@
 """Main UI Viewer
 """
-from functools import partial
-
 from attrdict import AttrDict
 from ginga.AstroImage import AstroImage
-from ginga.LayerImage import LayerImage
 
 from ..util.logger import make_logger
 from ..external.qt import (QtGui, QtCore)
-from ..external.qt.QtCore import Qt
-from ..external.qt.QtGui import QMainWindow as GTK_MainWindow
 from . import signaldb
 from qt4 import (
     LayerManager,
     ImageView,
     ViewMesh,
     ShapeEditor,
-    OverlayView
+    OverlayView,
 )
+from qt4.preferences import Preferences
+
+
+# Shortcuts
+Qt = QtCore.Qt
+GTK_MainWindow = QtGui.QMainWindow
 
 
 __all__ = ['MainWindow']
@@ -31,7 +32,7 @@ STAGES = {
 }
 
 
-class Image(AstroImage, LayerImage):
+class Image(AstroImage):
     """Image container"""
 
 
@@ -283,7 +284,23 @@ class MainWindow(GTK_MainWindow):
 
     def _create_menus(self):
         """Setup the main menus"""
-        self.menubar = menubar = QtGui.QMenuBar()
+        from sys import platform
+        if platform == 'darwin':
+            menubar = QtGui.QMenuBar()
+        else:
+            menubar = self.menuBar()
+        self.menubar = menubar
+
+
+        # Preferences
+        prefs_menu = Preferences('Preferences')
+        prefs_menu.addAction(self.actions.auto_reprocess)
+        self._prefs_menu = prefs_menu.for_menubar(parent=self)
+        menubar.addMenu(self._prefs_menu)
+        # Note: _prefs_menu must be kept in scope. Not sure why
+        # but guess is that when it is reparented into the
+        # application menu, it can drop out of scope and be
+        # removed.
 
         # File menu
         file_menu = menubar.addMenu('&File')
@@ -305,10 +322,6 @@ class MainWindow(GTK_MainWindow):
         stage_menu.addSeparator()
         stage_menu.addAction(self.actions.reprocess)
 
-        # Preferences
-        prefs_menu = menubar.addMenu('Preferences')
-        prefs_menu.addAction(self.actions.auto_reprocess)
-
     def _create_toolbars(self):
         """Setup the main toolbars"""
 
@@ -318,7 +331,11 @@ class MainWindow(GTK_MainWindow):
     def _create_signals(self):
         """Setup the overall signal structure"""
         self.image_viewer.set_callback('drag-drop', self.path_by_drop)
-        self.logger.debug('signals="{}"'.format(signaldb))
+        self.image_viewer.add_callback(
+            'leave',
+            self.shape_editor.edit_deselect_cb
+        )
+
         signaldb.Quit.connect(self.quit)
         signaldb.NewImage.connect(self.image_update)
         signaldb.UpdateMesh.connect(self.mesh_viewer.update_mesh)

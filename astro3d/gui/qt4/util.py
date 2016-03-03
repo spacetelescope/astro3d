@@ -2,7 +2,10 @@
 
 from functools import (partial, wraps)
 
-from ...external.qt.QtCore import QTimer
+from ...external.qt import QtCore
+
+# Shortcuts
+QTimer = QtCore.QTimer
 
 
 class DecorMethod(object):

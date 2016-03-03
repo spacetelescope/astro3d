@@ -1,9 +1,11 @@
 from math import sqrt
 
-from ...external.qt import (QtGui, QtCore)
-from ...external.qt.QtCore import Qt
+from ...external.qt import QtCore
 
 from pyqtgraph.opengl import (GLGridItem, GLMeshItem, GLViewWidget, MeshData)
+
+# Shortcuts
+Qt = QtCore.Qt
 
 
 __all__ = ['ViewMesh']
@@ -39,7 +41,6 @@ class ViewMesh(GLViewWidget):
                                shader='viewNormalColor',
                                glOptions='opaque',
                                smooth=True)
-#        mesh_item.translate(-1. * scaling[0] / 2., -1. * scaling[1] / 2., 0)
 
         self.setCameraPosition(distance=distance, azimuth=45, elevation=45)
         self.addItem(mesh_item)
