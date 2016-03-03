@@ -4,10 +4,16 @@ from __future__ import absolute_import, print_function
 from collections import (defaultdict, namedtuple)
 
 from ...util.logger import make_logger
-from ...external.qt.QtGui import (QAction, QStandardItem)
-from ...external.qt.QtCore import (QObject, Qt)
+from ...external.qt import (QtCore, QtGui)
 
 from .. import signaldb
+
+# Shortcuts
+QAction = QtGui.QAction
+QStandardItem = QtGui.QStandardItem
+Qt = QtCore.Qt
+QObject = QtCore.QObject
+
 
 __all__ = [
     'ClusterItem',

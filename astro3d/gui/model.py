@@ -8,14 +8,17 @@ from attrdict import AttrDict
 
 from numpy import concatenate
 
-from ..external.qt.QtGui import QStandardItemModel
-from ..external.qt.QtCore import Qt
+from ..external.qt import (QtCore, QtGui)
 from ..core.model3d import Model3D
 from ..core.region_mask import RegionMask
 from ..core.meshes import (make_triangles, reflect_triangles)
 from ..util.logger import make_logger
 from . import signaldb
 from .qt4.items import (Regions, Textures, Clusters, Stars)
+
+# Shortcuts
+QStandardItemModel = QtGui.QStandardItemModel
+Qt = QtCore.Qt
 
 
 __all__ = ['Model']

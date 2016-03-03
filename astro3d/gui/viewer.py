@@ -5,8 +5,6 @@ from ginga.AstroImage import AstroImage
 
 from ..util.logger import make_logger
 from ..external.qt import (QtGui, QtCore)
-from ..external.qt.QtCore import Qt
-from ..external.qt.QtGui import QMainWindow as GTK_MainWindow
 from . import signaldb
 from qt4 import (
     LayerManager,
@@ -16,6 +14,11 @@ from qt4 import (
     OverlayView,
 )
 from qt4.preferences import Preferences
+
+
+# Shortcuts
+Qt = QtCore.Qt
+GTK_MainWindow = QtGui.QMainWindow
 
 
 __all__ = ['MainWindow']
@@ -328,7 +331,10 @@ class MainWindow(GTK_MainWindow):
     def _create_signals(self):
         """Setup the overall signal structure"""
         self.image_viewer.set_callback('drag-drop', self.path_by_drop)
-        self.image_viewer.set_callback('leave', self.shape_editor.edit_deselect_cb)
+        self.image_viewer.add_callback(
+            'leave',
+            self.shape_editor.edit_deselect_cb
+        )
 
         signaldb.Quit.connect(self.quit)
         signaldb.NewImage.connect(self.image_update)

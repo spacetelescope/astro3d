@@ -121,6 +121,7 @@ class ShapeEditor(QtGui.QWidget):
 
     def edit_deselect_cb(self, *args, **kwargs):
         """Deselect"""
+        self.logger.debug('Called with args="{}" kwargs="{}".'.format(args, kwargs))
         self.canvas.clear_selected()
 
     def _build_gui(self):

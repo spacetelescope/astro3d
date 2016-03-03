@@ -14,12 +14,14 @@ class ImageView(CanvasView):
             logger = make_logger('astro3d ImageView')
         self.logger = logger
 
-        super(ImageView, self).__init__(self.logger, render='widget')
+        super(ImageView, self).__init__(self.logger)
 
         # Enable the image viewing functions.
         self.enable_autocuts('on')
         self.set_autocut_params('zscale')
         self.enable_autozoom('on')
+        self.set_zoom_algorithm('rate')
+        self.set_zoomrate(1.4)
         self.set_bg(0.2, 0.2, 0.2)
         self.ui_setActive(True)
 
