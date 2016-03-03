@@ -8,9 +8,12 @@ from .. import signaldb
 __all__ = ['ShapeEditor']
 
 
-VALID_KINDS = set(('circle', 'rectangle', 'polygon',
-                   'triangle', 'righttriangle',
-                   'square', 'ellipse', 'box'))
+VALID_KINDS = set((
+    'freepolygon', 'freepath',
+    'circle', 'rectangle',
+    'triangle', 'righttriangle',
+    'square', 'ellipse', 'box'
+))
 
 
 class ShapeEditor(QtGui.QWidget):
