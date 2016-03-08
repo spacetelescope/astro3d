@@ -8,6 +8,7 @@ from copy import deepcopy
 import glob
 import warnings
 from functools import partial
+from distutils.version import LooseVersion
 
 from scipy import ndimage
 import numpy as np
@@ -23,6 +24,12 @@ from . import textures
 from . import image_utils
 from .meshes import write_mesh
 from .region_mask import RegionMask
+
+
+if LooseVersion(photutils.__version__) < LooseVersion('0.3'):
+    PHOTUTILS_LT_0P3 = True
+else:
+    PHOTUTILS_LT_0P3 = False
 
 
 __all__ = ['Model3D']
@@ -694,8 +701,16 @@ class Model3D(object):
 
         log.info('Extracting the galaxy using source segmentation.')
         segm = photutils.detect_sources(self.data, 0., 1)
-        idx = np.argmax(segm.areas[1:])
-        segm.keep_labels(idx + 1)
+
+        if PHOTUTILS_LT_0P3:
+            props = photutils.source_properties(self.data, segm)
+            areas = [prop['area'].value for prop in props]
+            label = np.argmax(areas) + 1
+        else:
+            label = np.argmax(segm.areas[1:]) + 1    # exclude label=0
+
+        log.info('label: {0}'.format(label))
+        segm.keep_labels(label)
         segm_mask = segm.data.astype(bool)
         self.data *= segm_mask
 
@@ -1301,7 +1316,7 @@ class Model3D(object):
                 sigclip_iters=sigclip_iters)
             segm_img = photutils.detect_sources(self.data, threshold,
                                                 npixels=npixels)
-            segm_props = photutils.segment_properties(self.data, segm_img)
+            segm_props = photutils.source_properties(self.data, segm_img)
             tbl = photutils.properties_table(segm_props, columns=columns)
 
             if len(tbl) >= min_count:
