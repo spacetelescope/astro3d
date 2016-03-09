@@ -1,5 +1,7 @@
 """Shape Editor"""
 
+from ginga.gw import Widgets
+
 from ...external.qt import (QtGui, QtCore)
 from ...util.logger import make_logger
 from .. import signaldb
@@ -15,6 +17,11 @@ VALID_KINDS = set((
     'square', 'ellipse', 'box'
 ))
 
+INSTRUCTIONS = (
+    'Draw a region with the cursor. '
+    'For polygons/paths press \'v\' to create a vertex, '
+    '\'z\' to remove last vertex.'
+)
 
 class ShapeEditor(QtGui.QWidget):
     """Shape Editor
@@ -93,11 +100,11 @@ class ShapeEditor(QtGui.QWidget):
         self.type_item = type_item
         if self.canvas is None:
             raise RuntimeError('Internal error: no canvas to draw on.')
-        self.set_drawparams()
+        self.set_drawparams_cb()
         self.canvas.set_draw_mode('draw')
 
-    def set_drawparams(self):
-        kind = self.drawkinds[self.drawtype_widget.currentIndex()]
+    def set_drawparams_cb(self):
+        kind = self.drawkinds[self.dtypes_bunch.draw_type.get_index()]
         try:
             params = self.type_item.draw_params
         except AttributeError:
@@ -133,24 +140,43 @@ class ShapeEditor(QtGui.QWidget):
         self.logger.debug('Called.')
         if self.layout() is not None:
             QtGui.QWidget().setLayout(self.layout())
+        self._children = {}
 
-        # Select drawing types
-        self.logger.debug('Creating combobox.')
-        drawtype_widget = QtGui.QComboBox()
-        self.drawtype_widget = drawtype_widget
+        # Instructions
+        tw = Widgets.TextArea(wrap=True, editable=False)
+        font = QtGui.QFont('sans serif', 12)
+        tw.set_font(font)
+        tw.set_text(INSTRUCTIONS)
+        tw_frame = Widgets.Expander("Instructions")
+        tw_frame.set_widget(tw)
+        self._children['tw'] = tw
+        self._children['tw_frame'] = tw_frame
+
+        # Setup for the drawing types
+        captions = (
+            ("Draw type:", 'label', "Draw type", 'combobox'),
+        )
+        dtypes_widget, dtypes_bunch = Widgets.build_info(captions)
+        self.dtypes_widget = dtypes_widget
+        self.dtypes_bunch = dtypes_bunch
+
+        combobox = dtypes_bunch.draw_type
         for name in self.drawkinds:
-            drawtype_widget.addItem(name)
-        drawtype_widget.currentIndexChanged.connect(self.set_drawparams)
-        try:
-            index = self.drawkinds.index('circle')
-        except ValueError:
-            pass
-        else:
-            drawtype_widget.setCurrentIndex(index)
+            combobox.append_text(name)
+        index = self.drawkinds.index('freepath')
+        combobox.add_callback(
+            'activated',
+            lambda w, idx: self.set_drawparams_cb()
+        )
+        combobox.set_index(index)
+
+        dtypes_frame = Widgets.Frame("Drawing")
+        dtypes_frame.set_widget(dtypes_widget)
 
         # Put it together
         layout = QtGui.QVBoxLayout()
         layout.setContentsMargins(QtCore.QMargins(20, 20, 20, 20))
         layout.setSpacing(1)
-        layout.addWidget(drawtype_widget)
+        layout.addWidget(tw_frame.get_widget(), stretch=0)
+        layout.addWidget(dtypes_frame.get_widget(), stretch=1)
         self.setLayout(layout)
