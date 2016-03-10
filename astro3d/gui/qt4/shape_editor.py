@@ -1,5 +1,6 @@
 """Shape Editor"""
 
+from ginga.misc.Bunch import Bunch
 from ginga.gw import Widgets
 
 from ...external.qt import (QtGui, QtCore)
@@ -22,6 +23,7 @@ INSTRUCTIONS = (
     'For polygons/paths press \'v\' to create a vertex, '
     '\'z\' to remove last vertex.'
 )
+
 
 class ShapeEditor(QtGui.QWidget):
     """Shape Editor
@@ -104,7 +106,8 @@ class ShapeEditor(QtGui.QWidget):
         self.canvas.set_draw_mode('draw')
 
     def set_drawparams_cb(self):
-        kind = self.drawkinds[self.dtypes_bunch.draw_type.get_index()]
+        self.logger.debug('children="{}"'.format(self.children))
+        kind = self.drawkinds[self.children.draw_type.get_index()]
         try:
             params = self.type_item.draw_params
         except AttributeError:
@@ -134,13 +137,22 @@ class ShapeEditor(QtGui.QWidget):
         self.logger.debug('Called with args="{}" kwargs="{}".'.format(args, kwargs))
         self.canvas.clear_selected()
 
+    def rotate_object(self, w):
+        delta = float(w.get_text())
+        self.canvas.edit_rotate(delta, self.surface)
+
+    def scale_object(self, w):
+        delta = float(w.get_text())
+        self.canvas.edit_scale(delta, delta, self.surface)
+
     def _build_gui(self):
         """Build out the GUI"""
         # Remove old layout
         self.logger.debug('Called.')
         if self.layout() is not None:
             QtGui.QWidget().setLayout(self.layout())
-        self._children = {}
+        self.children = Bunch()
+        spacer = Widgets.Label('')
 
         # Instructions
         tw = Widgets.TextArea(wrap=True, editable=False)
@@ -149,16 +161,16 @@ class ShapeEditor(QtGui.QWidget):
         tw.set_text(INSTRUCTIONS)
         tw_frame = Widgets.Expander("Instructions")
         tw_frame.set_widget(tw)
-        self._children['tw'] = tw
-        self._children['tw_frame'] = tw_frame
+        self.children['tw'] = tw
+        self.children['tw_frame'] = tw_frame
 
         # Setup for the drawing types
         captions = (
             ("Draw type:", 'label', "Draw type", 'combobox'),
         )
         dtypes_widget, dtypes_bunch = Widgets.build_info(captions)
-        self.dtypes_widget = dtypes_widget
-        self.dtypes_bunch = dtypes_bunch
+        self.children.update(dtypes_bunch)
+        self.logger.debug('children="{}"'.format(self.children))
 
         combobox = dtypes_bunch.draw_type
         for name in self.drawkinds:
@@ -173,10 +185,28 @@ class ShapeEditor(QtGui.QWidget):
         dtypes_frame = Widgets.Frame("Drawing")
         dtypes_frame.set_widget(dtypes_widget)
 
+        # Setup for editing
+        captions = (("Rotate By:", 'label', 'Rotate By', 'entry'),
+                    ("Scale By:", 'label', 'Scale By', 'entry'),
+        )
+        edit_widget, edit_bunch = Widgets.build_info(captions)
+        self.children.update(edit_bunch)
+        edit_bunch.scale_by.add_callback('activated', self.scale_object)
+        edit_bunch.scale_by.set_text('0.9')
+        edit_bunch.scale_by.set_tooltip("Scale selected object in edit mode")
+        edit_bunch.rotate_by.add_callback('activated', self.rotate_object)
+        edit_bunch.rotate_by.set_text('90.0')
+        edit_bunch.rotate_by.set_tooltip("Rotate selected object in edit mode")
+
+        edit_frame = Widgets.Frame('Editing')
+        edit_frame.set_widget(edit_widget)
+
         # Put it together
         layout = QtGui.QVBoxLayout()
         layout.setContentsMargins(QtCore.QMargins(20, 20, 20, 20))
         layout.setSpacing(1)
         layout.addWidget(tw_frame.get_widget(), stretch=0)
-        layout.addWidget(dtypes_frame.get_widget(), stretch=1)
+        layout.addWidget(dtypes_frame.get_widget(), stretch=0)
+        layout.addWidget(edit_frame.get_widget(), stretch=0)
+        layout.addWidget(spacer.get_widget(), stretch=1)
         self.setLayout(layout)
