@@ -126,7 +126,12 @@ class LayerItem(QStandardItem):
     @property
     def value(self):
         """Value of the item"""
-        return self._value
+        try:
+            value = self._value()
+        except TypeError:
+            value = self._value
+
+        return value
 
     @value.setter
     def value(self, value):

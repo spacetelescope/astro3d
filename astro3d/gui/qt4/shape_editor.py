@@ -1,5 +1,7 @@
 """Shape Editor"""
 
+from functools import partial
+
 from ginga.misc.Bunch import Bunch
 from ginga.gw import Widgets
 
@@ -118,7 +120,8 @@ class ShapeEditor(QtGui.QWidget):
         """Draw callback"""
         self.canvas.set_draw_mode('edit')
         shape = canvas.get_object_by_tag(tag)
-        region_mask = self.surface.get_shape_mask(
+        region_mask = partial(
+            self.surface.get_shape_mask,
             self.type_item.text(),
             shape
         )
@@ -127,6 +130,7 @@ class ShapeEditor(QtGui.QWidget):
     def edit_cb(self, *args, **kwargs):
         """Edit callback"""
         self.logger.debug('Called with args="{}" kwargs="{}".'.format(args, kwargs))
+        signaldb.ModelUpdate()
 
     def edit_select_cb(self, *args, **kwargs):
         """Edit selected object callback"""
@@ -140,10 +144,12 @@ class ShapeEditor(QtGui.QWidget):
     def rotate_object(self, w):
         delta = float(w.get_text())
         self.canvas.edit_rotate(delta, self.surface)
+        signaldb.ModelUpdate()
 
     def scale_object(self, w):
         delta = float(w.get_text())
         self.canvas.edit_scale(delta, delta, self.surface)
+        signaldb.ModelUpdate()
 
     def _build_gui(self):
         """Build out the GUI"""
@@ -175,7 +181,7 @@ class ShapeEditor(QtGui.QWidget):
         combobox = dtypes_bunch.draw_type
         for name in self.drawkinds:
             combobox.append_text(name)
-        index = self.drawkinds.index('freepath')
+        index = self.drawkinds.index('freepolygon')
         combobox.add_callback(
             'activated',
             lambda w, idx: self.set_drawparams_cb()
