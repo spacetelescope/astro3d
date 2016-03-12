@@ -110,10 +110,12 @@ class ShapeEditor(QtGui.QWidget):
     def set_drawparams_cb(self):
         self.logger.debug('children="{}"'.format(self.children))
         kind = self.drawkinds[self.children.draw_type.get_index()]
+        linewidth = self.children.line_width.get_value()
+        params = {'linewidth': linewidth}
         try:
-            params = self.type_item.draw_params
+            params.update(self.type_item.draw_params)
         except AttributeError:
-            params = {}
+            pass
         self.canvas.set_drawtype(kind, **params)
 
     def draw_cb(self, canvas, tag):
@@ -173,6 +175,7 @@ class ShapeEditor(QtGui.QWidget):
         # Setup for the drawing types
         captions = (
             ("Draw type:", 'label', "Draw type", 'combobox'),
+            ('Line width:', 'label', 'Line width', 'spinbutton')
         )
         dtypes_widget, dtypes_bunch = Widgets.build_info(captions)
         self.children.update(dtypes_bunch)
@@ -187,6 +190,13 @@ class ShapeEditor(QtGui.QWidget):
             lambda w, idx: self.set_drawparams_cb()
         )
         combobox.set_index(index)
+
+        linewidth = dtypes_bunch.line_width
+        linewidth.set_limits(1, 10)
+        linewidth.add_callback(
+            'value-changed',
+            lambda w, idx: self.set_drawparams_cb()
+        )
 
         dtypes_frame = Widgets.Frame("Drawing")
         dtypes_frame.set_widget(dtypes_widget)
