@@ -33,8 +33,6 @@ Astro3d requires:
 
 * `photutils <https://photutils.readthedocs.org/en/latest/>`_
 
-* `qimage2ndarray <https://github.com/hmeine/qimage2ndarray>`_
-
 
 Obtaining the Source Package
 ----------------------------
