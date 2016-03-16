@@ -103,12 +103,8 @@ class MainWindow(GTK_MainWindow):
             'Specify prefix to save all as'
         )
         self.logger.debug('result="{}"'.format(result))
-        try:
-            prefix = result[0]
-        except IndexError:
-            prefix = str(result)
-        if len(prefix) > 0:
-            self.model.save_all(prefix)
+        if len(result) > 0:
+            self.model.save_all(result)
 
     def open_path(self, pathname):
         """Open the image from pathname"""

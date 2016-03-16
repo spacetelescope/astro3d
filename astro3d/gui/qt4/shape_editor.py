@@ -192,7 +192,7 @@ class ShapeEditor(QtGui.QWidget):
         combobox.set_index(index)
 
         linewidth = dtypes_bunch.line_width
-        linewidth.set_limits(1, 10)
+        linewidth.set_limits(1, 100)
         linewidth.add_callback(
             'value-changed',
             lambda w, idx: self.set_drawparams_cb()
