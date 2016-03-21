@@ -214,10 +214,12 @@ class ShapeEditor(QtGui.QWidget):
         self.brush = self.new_brush(previous)
         self.brush_move(data_x, data_y)
         self.stroke(previous, self.brush)
+        self.canvas.delete_object(previous)
 
     def paint_stop(self, canvas, event, data_x, data_y, surface):
         """Finish paint stroke"""
         self.paint_stroke(canvas, event, data_x, data_y, surface)
+        self.canvas.delete_object(self.brush)
         self.canvas.set_draw_mode('edit')
 
     def stroke(self, previous, current):
