@@ -1,10 +1,14 @@
 """Shape Editor"""
 
 from functools import partial
+from numpy import (zeros, uint8)
 
+from ginga import colors
 from ginga.misc.Bunch import Bunch
+from ginga.RGBImage import RGBImage
 from ginga.gw import Widgets
 
+from ...core.region_mask import RegionMask
 from ...external.qt import (QtGui, QtCore)
 from ...util.logger import make_logger
 from .. import signaldb
@@ -129,11 +133,10 @@ class ShapeEditor(QtGui.QWidget):
         self.canvas.set_draw_mode('paint')
 
     def set_drawparams_cb(self, kind=None):
-        self.logger.debug('children="{}"'.format(self.children))
+        params = {}
         if kind is None:
             kind = self.get_selected_kind()
-        linewidth = self.children.line_width.get_value()
-        params = {'linewidth': linewidth}
+        self.enable_brush(kind == 'paint')
         try:
             params.update(self.type_item.draw_params)
         except AttributeError:
@@ -178,10 +181,10 @@ class ShapeEditor(QtGui.QWidget):
 
     def new_brush(self, copy_from=None):
         """Create a new brush shape"""
+        brush_size = self.children.brush_size.get_value()
         brush = self.canvas.get_draw_class('squarebox')(
-            x=0., y=0., radius=10,
-            linewidth=0,
-            fill=True, fillcolor='red'
+            x=0., y=0., radius=max(brush_size / 2, 0.5),
+            **self.type_item.draw_params
         )
         if copy_from is not None:
             brush.x = copy_from.x
@@ -206,6 +209,7 @@ class ShapeEditor(QtGui.QWidget):
         ))
 
         self.brush = self.new_brush()
+        self.mask = self.new_mask()
         self.brush_move(data_x, data_y)
 
     def paint_stroke(self, canvas, event, data_x, data_y, surface):
@@ -215,23 +219,48 @@ class ShapeEditor(QtGui.QWidget):
         self.brush_move(data_x, data_y)
         self.stroke(previous, self.brush)
         self.canvas.delete_object(previous)
+        self.canvas.redraw(whence=0)
 
     def paint_stop(self, canvas, event, data_x, data_y, surface):
         """Finish paint stroke"""
         self.paint_stroke(canvas, event, data_x, data_y, surface)
         self.canvas.delete_object(self.brush)
         self.canvas.set_draw_mode('edit')
+        region_mask = RegionMask(
+            mask=self.mask > 0,
+            mask_type=self.type_item.text()
+        )
+        self.type_item.add_shape(None, region_mask, self.mask_id)
 
     def stroke(self, previous, current):
         """Stroke to current brush position"""
         poly_points = get_bpoly(previous, current)
         polygon = self.canvas.get_draw_class('polygon')(
             poly_points,
-            linewidth=current.linewidth,
-            fill=current.fill,
-            fillcolor=current.fillcolor
+            **self.type_item.draw_params
         )
         self.canvas.add(polygon)
+        view, contains = self.surface.get_image().get_shape_view(polygon)
+        self.mask[view][contains] = self.type_item.draw_params['fillalpha'] * 255
+        self.canvas.delete_object(polygon)
+
+    def new_mask(self):
+        color = self.type_item.draw_params['color']
+        r, g, b = colors.lookup_color(color)
+        height, width = self.surface.get_image().shape
+        rgbarray = zeros((height, width, 4), dtype=uint8)
+        mask_rgb = RGBImage(data_np=rgbarray)
+        mask_image = self.canvas.get_draw_class('image')(0, 0, mask_rgb)
+        rc = mask_rgb.get_slice('R')
+        gc = mask_rgb.get_slice('G')
+        bc = mask_rgb.get_slice('B')
+        rc[:] = int(r * 255)
+        gc[:] = int(g * 255)
+        bc[:] = int(b * 255)
+        alpha = mask_rgb.get_slice('A')
+        alpha[:] = 0
+        self.mask_id = self.canvas.add(mask_image)
+        return alpha
 
     def get_selected_kind(self):
         kind = self.drawkinds[self.children.draw_type.get_index()]
@@ -240,6 +269,17 @@ class ShapeEditor(QtGui.QWidget):
     def brush_move(self, x, y):
         self.brush.move_to(x, y)
         self.canvas.update_canvas(whence=3)
+
+    def enable_brush(self, state):
+        widgets =(
+            self.children.brush_size,
+            self.children.lbl_brush_size,
+        )
+        for widget in widgets:
+            if state:
+                widget.show()
+            else:
+                widget.hide()
 
     def _build_gui(self):
         """Build out the GUI"""
@@ -263,7 +303,7 @@ class ShapeEditor(QtGui.QWidget):
         # Setup for the drawing types
         captions = (
             ("Draw type:", 'label', "Draw type", 'combobox'),
-            ('Line width:', 'label', 'Line width', 'spinbutton')
+            ('Brush size:', 'label', 'Brush size', 'spinbutton')
         )
         dtypes_widget, dtypes_bunch = Widgets.build_info(captions)
         self.children.update(dtypes_bunch)
@@ -279,12 +319,10 @@ class ShapeEditor(QtGui.QWidget):
         )
         combobox.set_index(index)
 
-        linewidth = dtypes_bunch.line_width
-        linewidth.set_limits(1, 100)
-        linewidth.add_callback(
-            'value-changed',
-            lambda w, idx: self.set_drawparams_cb()
-        )
+        brush_size = dtypes_bunch.brush_size
+        brush_size.set_limits(1, 100)
+        brush_size.set_value(10)
+        self.enable_brush(False)
 
         dtypes_frame = Widgets.Frame("Drawing")
         dtypes_frame.set_widget(dtypes_widget)

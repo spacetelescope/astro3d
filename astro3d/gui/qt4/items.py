@@ -39,7 +39,8 @@ DRAW_PARAMS_DEFAULT = {
     'color': 'red',
     'alpha': 0.3,
     'fill': True,
-    'fillalpha': 0.3
+    'fillalpha': 0.3,
+    'linewidth': 0.,
 }
 
 DRAW_PARAMS = defaultdict(
