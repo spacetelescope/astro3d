@@ -54,6 +54,7 @@ class ShapeEditor(QtGui.QWidget):
         super(ShapeEditor, self).__init__(*args, **kwargs)
 
         self._canvas = None
+        self._mode = None
         self.drawkinds = []
         self.enabled = False
         self.canvas = canvas
@@ -93,8 +94,8 @@ class ShapeEditor(QtGui.QWidget):
         canvas.enable_edit(True)
         canvas.setSurface(self.surface)
         canvas.register_for_cursor_drawing(self.surface)
-        canvas.set_draw_mode('edit')
         self._build_gui()
+        self.mode = None
         self.enabled = True
 
     @property
@@ -108,6 +109,25 @@ class ShapeEditor(QtGui.QWidget):
             self._canvas.ui_setActive(state)
         except AttributeError:
             pass
+
+    @property
+    def mode(self):
+        return self._mode
+
+    @mode.setter
+    def mode(self, new_mode):
+        self._mode = new_mode
+        for frame in self.mode_frames:
+            if frame == new_mode:
+                self.mode_frames[frame].show()
+            else:
+                self.mode_frames[frame].hide()
+        if new_mode is None:
+            self.canvas.set_draw_mode('edit')
+        elif new_mode == 'edit_select':
+            self.canvas.set_draw_mode('edit')
+        else:
+            self.canvas.set_draw_mode(new_mode)
 
     def new_region(self, type_item):
         self.logger.debug('Called type_item="{}"'.format(type_item))
@@ -127,10 +147,10 @@ class ShapeEditor(QtGui.QWidget):
     def shape_region(self, kind=None):
         self.set_drawparams_cb(kind=kind)
         self.canvas.enable_draw(True)
-        self.canvas.set_draw_mode('draw')
+        self.mode = 'draw'
 
     def paint_region(self):
-        self.canvas.set_draw_mode('paint')
+        self.mode = 'paint'
 
     def set_drawparams_cb(self, kind=None):
         params = {}
@@ -153,7 +173,7 @@ class ShapeEditor(QtGui.QWidget):
             shape
         )
         self.type_item.add_shape(shape=shape, mask=region_mask, id=tag)
-        self.canvas.set_draw_mode('edit')
+        self.mode = None
 
     def edit_cb(self, *args, **kwargs):
         """Edit callback"""
@@ -163,6 +183,10 @@ class ShapeEditor(QtGui.QWidget):
     def edit_select_cb(self, *args, **kwargs):
         """Edit selected object callback"""
         self.logger.debug('Called with args="{}" kwargs="{}".'.format(args, kwargs))
+        if self.canvas.num_selected() > 0:
+            self.mode = 'edit_select'
+        else:
+            self.mode = None
 
     def edit_deselect_cb(self, *args, **kwargs):
         """Deselect"""
@@ -225,7 +249,7 @@ class ShapeEditor(QtGui.QWidget):
         """Finish paint stroke"""
         self.paint_stroke(canvas, event, data_x, data_y, surface)
         self.canvas.delete_object(self.brush)
-        self.canvas.set_draw_mode('edit')
+        self.mode = None
         region_mask = RegionMask(
             mask=self.mask > 0,
             mask_type=self.type_item.text()
@@ -271,7 +295,7 @@ class ShapeEditor(QtGui.QWidget):
         self.canvas.update_canvas(whence=3)
 
     def enable_brush(self, state):
-        widgets =(
+        widgets = (
             self.children.brush_size,
             self.children.lbl_brush_size,
         )
@@ -324,12 +348,12 @@ class ShapeEditor(QtGui.QWidget):
         brush_size.set_value(10)
         self.enable_brush(False)
 
-        dtypes_frame = Widgets.Frame("Drawing")
-        dtypes_frame.set_widget(dtypes_widget)
+        draw_frame = Widgets.Frame("Drawing")
+        draw_frame.set_widget(dtypes_widget)
 
         # Setup for editing
         captions = (("Rotate By:", 'label', 'Rotate By', 'entry'),
-                    ("Scale By:", 'label', 'Scale By', 'entry'),
+                    ("Scale By:", 'label', 'Scale By', 'entry')
         )
         edit_widget, edit_bunch = Widgets.build_info(captions)
         self.children.update(edit_bunch)
@@ -348,10 +372,16 @@ class ShapeEditor(QtGui.QWidget):
         layout.setContentsMargins(QtCore.QMargins(20, 20, 20, 20))
         layout.setSpacing(1)
         layout.addWidget(tw_frame.get_widget(), stretch=0)
-        layout.addWidget(dtypes_frame.get_widget(), stretch=0)
+        layout.addWidget(draw_frame.get_widget(), stretch=0)
         layout.addWidget(edit_frame.get_widget(), stretch=0)
         layout.addWidget(spacer.get_widget(), stretch=1)
         self.setLayout(layout)
+
+        # Setup mode frames
+        self.mode_frames = {
+            'draw': draw_frame,
+            'edit_select': edit_frame
+        }
 
 
 def get_bpoly(box1, box2):

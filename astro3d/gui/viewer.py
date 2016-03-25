@@ -327,10 +327,6 @@ class MainWindow(GTK_MainWindow):
     def _create_signals(self):
         """Setup the overall signal structure"""
         self.image_viewer.set_callback('drag-drop', self.path_by_drop)
-        self.image_viewer.add_callback(
-            'leave',
-            self.shape_editor.edit_deselect_cb
-        )
 
         signaldb.Quit.connect(self.quit)
         signaldb.NewImage.connect(self.image_update)
