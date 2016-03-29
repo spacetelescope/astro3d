@@ -92,6 +92,7 @@ class ShapeEditor(QtGui.QWidget):
 
         # Initial canvas state
         canvas.enable_edit(True)
+        canvas.enable_draw(True)
         canvas.setSurface(self.surface)
         canvas.register_for_cursor_drawing(self.surface)
         self._build_gui()
@@ -116,12 +117,18 @@ class ShapeEditor(QtGui.QWidget):
 
     @mode.setter
     def mode(self, new_mode):
+        self.logger.debug('Called new_mode="{}"'.format(new_mode))
         self._mode = new_mode
-        for frame in self.mode_frames:
-            if frame == new_mode:
-                self.mode_frames[frame].show()
-            else:
-                self.mode_frames[frame].hide()
+        for mode in self.mode_frames:
+            for frame in self.mode_frames[mode]:
+                frame.hide()
+        try:
+            for frame in self.mode_frames[new_mode]:
+                frame.show()
+        except KeyError:
+            """Doesn't matter if there is nothing to show."""
+            pass
+
         if new_mode is None:
             self.canvas.set_draw_mode('edit')
         elif new_mode == 'edit_select':
@@ -134,38 +141,24 @@ class ShapeEditor(QtGui.QWidget):
         self.type_item = type_item
         if self.canvas is None:
             raise RuntimeError('Internal error: no canvas to draw on.')
-        self.draw_region()
-
-    def draw_region(self):
-        """User draw a new region"""
-        kind = self.get_selected_kind()
-        if kind == 'paint':
-            self.paint_region()
-        else:
-            self.shape_region(kind=kind)
-
-    def shape_region(self, kind=None):
-        self.set_drawparams_cb(kind=kind)
-        self.canvas.enable_draw(True)
-        self.mode = 'draw'
-
-    def paint_region(self):
-        self.mode = 'paint'
+        self.set_drawparams_cb()
 
     def set_drawparams_cb(self, kind=None):
         params = {}
         if kind is None:
             kind = self.get_selected_kind()
-        self.enable_brush(kind == 'paint')
-        try:
-            params.update(self.type_item.draw_params)
-        except AttributeError:
-            pass
-        self.canvas.set_drawtype(kind, **params)
+        if kind == 'paint':
+            self.mode = 'paint'
+        else:
+            self.mode = 'draw'
+            try:
+                params.update(self.type_item.draw_params)
+            except AttributeError:
+                pass
+            self.canvas.set_drawtype(kind, **params)
 
     def draw_cb(self, canvas, tag):
         """Shape draw completion"""
-        self.canvas.enable_draw(False)
         shape = canvas.get_object_by_tag(tag)
         region_mask = partial(
             self.surface.get_shape_mask,
@@ -294,17 +287,6 @@ class ShapeEditor(QtGui.QWidget):
         self.brush.move_to(x, y)
         self.canvas.update_canvas(whence=3)
 
-    def enable_brush(self, state):
-        widgets = (
-            self.children.brush_size,
-            self.children.lbl_brush_size,
-        )
-        for widget in widgets:
-            if state:
-                widget.show()
-            else:
-                widget.hide()
-
     def _build_gui(self):
         """Build out the GUI"""
         # Remove old layout
@@ -327,7 +309,6 @@ class ShapeEditor(QtGui.QWidget):
         # Setup for the drawing types
         captions = (
             ("Draw type:", 'label', "Draw type", 'combobox'),
-            ('Brush size:', 'label', 'Brush size', 'spinbutton')
         )
         dtypes_widget, dtypes_bunch = Widgets.build_info(captions)
         self.children.update(dtypes_bunch)
@@ -343,13 +324,21 @@ class ShapeEditor(QtGui.QWidget):
         )
         combobox.set_index(index)
 
-        brush_size = dtypes_bunch.brush_size
-        brush_size.set_limits(1, 100)
-        brush_size.set_value(10)
-        self.enable_brush(False)
-
         draw_frame = Widgets.Frame("Drawing")
         draw_frame.set_widget(dtypes_widget)
+
+        # Setup for painting
+        captions = (
+            ('Brush size:', 'label', 'Brush size', 'spinbutton'),
+        )
+        paint_widget, paint_bunch = Widgets.build_info(captions)
+        self.children.update(paint_bunch)
+        brush_size = paint_bunch.brush_size
+        brush_size.set_limits(1, 100)
+        brush_size.set_value(10)
+
+        paint_frame = Widgets.Frame('Painting')
+        paint_frame.set_widget(paint_widget)
 
         # Setup for editing
         captions = (("Rotate By:", 'label', 'Rotate By', 'entry'),
@@ -373,14 +362,19 @@ class ShapeEditor(QtGui.QWidget):
         layout.setSpacing(1)
         layout.addWidget(tw_frame.get_widget(), stretch=0)
         layout.addWidget(draw_frame.get_widget(), stretch=0)
+        layout.addWidget(paint_frame.get_widget(), stretch=0)
         layout.addWidget(edit_frame.get_widget(), stretch=0)
         layout.addWidget(spacer.get_widget(), stretch=1)
         self.setLayout(layout)
 
         # Setup mode frames
         self.mode_frames = {
-            'draw': draw_frame,
-            'edit_select': edit_frame
+            'draw': [draw_frame],
+            'edit_select': [edit_frame],
+            'paint': [
+                draw_frame,
+                paint_frame
+            ]
         }
 
 
