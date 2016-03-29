@@ -58,6 +58,7 @@ class ShapeEditor(QtGui.QWidget):
         self.drawkinds = []
         self.enabled = False
         self.canvas = canvas
+        self.mask = None
 
         signaldb.NewRegion.connect(self.new_region)
 
@@ -82,7 +83,7 @@ class ShapeEditor(QtGui.QWidget):
             'paint',
             down=self.paint_start,
             move=self.paint_stroke,
-            up=self.paint_stop
+            up=self.paint_stroke_end
         )
 
         # Setup common events.
@@ -118,7 +119,6 @@ class ShapeEditor(QtGui.QWidget):
     @mode.setter
     def mode(self, new_mode):
         self.logger.debug('Called new_mode="{}"'.format(new_mode))
-        self._mode = new_mode
         for mode in self.mode_frames:
             for frame in self.mode_frames[mode]:
                 frame.hide()
@@ -129,18 +129,33 @@ class ShapeEditor(QtGui.QWidget):
             """Doesn't matter if there is nothing to show."""
             pass
 
+        # Handle the current paint mask.
+        if new_mode == 'paint':
+            if self.mask is None:
+                self.mask = self.new_mask()
+
+        # Set what the canvas should be doing.
+        canvas_mode = new_mode
         if new_mode is None:
-            self.canvas.set_draw_mode('edit')
+            canvas_mode = 'edit'
         elif new_mode == 'edit_select':
-            self.canvas.set_draw_mode('edit')
-        else:
-            self.canvas.set_draw_mode(new_mode)
+            canvas_mode = 'edit'
+        self.canvas.set_draw_mode(canvas_mode)
+
+        # Success. Remember the mode
+        self._mode = new_mode
 
     def new_region(self, type_item):
         self.logger.debug('Called type_item="{}"'.format(type_item))
-        self.type_item = type_item
         if self.canvas is None:
             raise RuntimeError('Internal error: no canvas to draw on.')
+
+        # If painting, close off previous mask
+        if self.mask is not None:
+            self.finalize_paint()
+            self.mask = None
+
+        self.type_item = type_item
         self.set_drawparams_cb()
 
     def set_drawparams_cb(self, kind=None):
@@ -212,21 +227,7 @@ class ShapeEditor(QtGui.QWidget):
 
     def paint_start(self, canvas, event, data_x, data_y, surface):
         """Start a paint stroke"""
-        self.logger.debug((
-            'canvas="{}" '
-            'event="{}" '
-            'x="{}" y="{}"'
-            'surface="{}"'
-        ).format(
-            canvas,
-            event,
-            data_x,
-            data_y,
-            surface
-        ))
-
         self.brush = self.new_brush()
-        self.mask = self.new_mask()
         self.brush_move(data_x, data_y)
 
     def paint_stroke(self, canvas, event, data_x, data_y, surface):
@@ -238,16 +239,25 @@ class ShapeEditor(QtGui.QWidget):
         self.canvas.delete_object(previous)
         self.canvas.redraw(whence=0)
 
-    def paint_stop(self, canvas, event, data_x, data_y, surface):
-        """Finish paint stroke"""
+
+    def paint_stroke_end(self, canvas, event, data_x, data_y, surface):
         self.paint_stroke(canvas, event, data_x, data_y, surface)
         self.canvas.delete_object(self.brush)
+
+    def paint_stop(self):
+        self.finalize_paint()
         self.mode = None
-        region_mask = RegionMask(
-            mask=self.mask > 0,
-            mask_type=self.type_item.text()
-        )
-        self.type_item.add_shape(None, region_mask, self.mask_id)
+
+    def finalize_paint(self):
+        """Finalize the paint mask"""
+        self.canvas.delete_object(self.brush)
+        if self.mask.any():
+            region_mask = RegionMask(
+                mask=self.mask > 0,
+                mask_type=self.type_item.text()
+            )
+            self.type_item.add_shape(None, region_mask, self.mask_id)
+        self.mask = None
 
     def stroke(self, previous, current):
         """Stroke to current brush position"""
@@ -347,12 +357,14 @@ class ShapeEditor(QtGui.QWidget):
             ('Paint mode: ', 'label',
              'Paint', 'radiobutton',
              'Erase', 'radiobutton'),
+            ('Exit Paint', 'button'),
         )
         paint_widget, paint_bunch = Widgets.build_info(captions)
         self.children.update(paint_bunch)
         brush_size = paint_bunch.brush_size
         brush_size.set_limits(1, 100)
         brush_size.set_value(10)
+
         painting = paint_bunch.paint
         painting.add_callback(
             'activated',
@@ -360,6 +372,12 @@ class ShapeEditor(QtGui.QWidget):
         )
         painting.set_state(True)
         self.set_painting(True)
+
+        exit_paint = paint_bunch.exit_paint
+        exit_paint.add_callback(
+            'activated',
+            lambda value: self.paint_stop()
+        )
 
         paint_frame = Widgets.Frame('Painting')
         paint_frame.set_widget(paint_widget)
