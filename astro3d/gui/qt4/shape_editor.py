@@ -258,7 +258,10 @@ class ShapeEditor(QtGui.QWidget):
         )
         self.canvas.add(polygon)
         view, contains = self.surface.get_image().get_shape_view(polygon)
-        self.mask[view][contains] = self.type_item.draw_params['fillalpha'] * 255
+        if self.painting:
+            self.mask[view][contains] = self.type_item.draw_params['fillalpha'] * 255
+        else:
+            self.mask[view][contains] = 0
         self.canvas.delete_object(polygon)
 
     def new_mask(self):
@@ -286,6 +289,17 @@ class ShapeEditor(QtGui.QWidget):
     def brush_move(self, x, y):
         self.brush.move_to(x, y)
         self.canvas.update_canvas(whence=3)
+
+    def set_painting(self, state):
+        """Set painting mode
+
+        Parameters
+        ----------
+        state: bool
+            True for painting, False for erasing
+        """
+        self.logger.debug('Called state="{}"'.format(state))
+        self.painting = state
 
     def _build_gui(self):
         """Build out the GUI"""
@@ -330,12 +344,22 @@ class ShapeEditor(QtGui.QWidget):
         # Setup for painting
         captions = (
             ('Brush size:', 'label', 'Brush size', 'spinbutton'),
+            ('Paint mode: ', 'label',
+             'Paint', 'radiobutton',
+             'Erase', 'radiobutton'),
         )
         paint_widget, paint_bunch = Widgets.build_info(captions)
         self.children.update(paint_bunch)
         brush_size = paint_bunch.brush_size
         brush_size.set_limits(1, 100)
         brush_size.set_value(10)
+        painting = paint_bunch.paint
+        painting.add_callback(
+            'activated',
+            lambda widget, value: self.set_painting(value)
+        )
+        painting.set_state(True)
+        self.set_painting(True)
 
         paint_frame = Widgets.Frame('Painting')
         paint_frame.set_widget(paint_widget)
