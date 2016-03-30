@@ -59,6 +59,8 @@ class ShapeEditor(QtGui.QWidget):
         self.enabled = False
         self.canvas = canvas
         self.mask = None
+        self.type_item = None
+        self.draw_params = None
 
         signaldb.NewRegion.connect(self.new_region)
 
@@ -140,6 +142,8 @@ class ShapeEditor(QtGui.QWidget):
             canvas_mode = 'edit'
         elif new_mode == 'edit_select':
             canvas_mode = 'edit'
+        elif new_mode == 'paint_edit':
+            canvas_mode = 'paint'
         self.canvas.set_draw_mode(canvas_mode)
 
         # Success. Remember the mode
@@ -156,6 +160,7 @@ class ShapeEditor(QtGui.QWidget):
             self.mask = None
 
         self.type_item = type_item
+        self.draw_params = type_item.draw_params
         self.set_drawparams_cb()
 
     def set_drawparams_cb(self, kind=None):
@@ -167,7 +172,7 @@ class ShapeEditor(QtGui.QWidget):
         else:
             self.mode = 'draw'
             try:
-                params.update(self.type_item.draw_params)
+                params.update(self.draw_params)
             except AttributeError:
                 pass
             self.canvas.set_drawtype(kind, **params)
@@ -175,6 +180,7 @@ class ShapeEditor(QtGui.QWidget):
     def draw_cb(self, canvas, tag):
         """Shape draw completion"""
         shape = canvas.get_object_by_tag(tag)
+        shape.type_draw_params = self.draw_params
         region_mask = partial(
             self.surface.get_shape_mask,
             self.type_item.text(),
@@ -186,6 +192,8 @@ class ShapeEditor(QtGui.QWidget):
             id='{}{}'.format(shape.kind, tag)
         )
         self.mode = None
+        self.type_item = None
+        self.draw_params = None
 
     def edit_cb(self, *args, **kwargs):
         """Edit callback"""
@@ -195,6 +203,7 @@ class ShapeEditor(QtGui.QWidget):
     def edit_select_cb(self, canvas, obj):
         """Edit selected object callback"""
         if self.canvas.num_selected() > 0:
+            self.draw_params = obj.type_draw_params
             self.mode = 'edit_select'
             signaldb.LayerSelected(
                 selected_item=obj.item,
@@ -223,7 +232,7 @@ class ShapeEditor(QtGui.QWidget):
         brush_size = self.children.brush_size.get_value()
         brush = self.canvas.get_draw_class('squarebox')(
             x=0., y=0., radius=max(brush_size / 2, 0.5),
-            **self.type_item.draw_params
+            **self.draw_params
         )
         if copy_from is not None:
             brush.x = copy_from.x
@@ -257,36 +266,45 @@ class ShapeEditor(QtGui.QWidget):
     def finalize_paint(self):
         """Finalize the paint mask"""
         self.canvas.delete_object(self.brush)
-        if self.mask.any():
-            region_mask = RegionMask(
-                mask=self.mask > 0,
-                mask_type=self.type_item.text()
-            )
-            shape = self.canvas.get_object_by_tag(self.mask_id)
-            shape.item = self.type_item.add_shape(
-                shape=shape,
-                mask=region_mask,
-                id='mask{}'.format(self.mask_id)
-            )
+
+        # If mode is paint_edit, there is no
+        # reason to create the item.
+        if self.mode == 'paint':
+            if self.mask.any():
+                shape = self.canvas.get_object_by_tag(self.mask_id)
+                shape.type_draw_params = self.draw_params
+                region_mask = partial(
+                    image_shape_to_regionmask,
+                    shape=shape,
+                    mask_type=self.type_item.text()
+                )
+                shape.item = self.type_item.add_shape(
+                    shape=shape,
+                    mask=region_mask,
+                    id='mask{}'.format(self.mask_id)
+                )
         self.mask = None
+        self.type_item = None
+        self.draw_params = None
 
     def stroke(self, previous, current):
         """Stroke to current brush position"""
         poly_points = get_bpoly(previous, current)
         polygon = self.canvas.get_draw_class('polygon')(
             poly_points,
-            **self.type_item.draw_params
+            **self.draw_params
         )
         self.canvas.add(polygon)
         view, contains = self.surface.get_image().get_shape_view(polygon)
         if self.painting:
-            self.mask[view][contains] = self.type_item.draw_params['fillalpha'] * 255
+            self.mask[view][contains] = self.draw_params['fillalpha'] * 255
         else:
             self.mask[view][contains] = 0
         self.canvas.delete_object(polygon)
 
     def new_mask(self):
-        color = self.type_item.draw_params['color']
+        self.draw_params = self.type_item.draw_params
+        color = self.draw_params['color']
         r, g, b = colors.lookup_color(color)
         height, width = self.surface.get_image().shape
         rgbarray = zeros((height, width, 4), dtype=uint8)
@@ -339,13 +357,22 @@ class ShapeEditor(QtGui.QWidget):
 
         if selected_item is not None:
             try:
-                x, y = selected_item.view.get_center_pt()
-                self.canvas._prepare_to_move(selected_item.view, x, y)
+                shape = selected_item.view
+                kind = shape.kind
             except AttributeError:
-                """Not a shape. Ignore"""
-                pass
-            else:
-                self.mode = 'edit_select'
+                return
+
+            self.draw_params = shape.type_draw_params
+
+            if kind == 'image':
+                self.mask = shape.get_image().get_slice('A')
+                self.mask_id = None
+                self.mode = 'paint_edit'
+                return
+
+            x, y = selected_item.view.get_center_pt()
+            self.canvas._prepare_to_move(selected_item.view, x, y)
+            self.mode = 'edit_select'
 
         self.canvas.process_drawing()
 
@@ -454,7 +481,8 @@ class ShapeEditor(QtGui.QWidget):
             'paint': [
                 draw_frame,
                 paint_frame
-            ]
+            ],
+            'paint_edit': [paint_frame]
         }
 
 
@@ -504,3 +532,11 @@ def corners(box):
         (xur, yll)
     ]
     return corners
+
+
+def image_shape_to_regionmask(shape, mask_type):
+    """Convert and Image shape to regionmask"""
+    return RegionMask(
+        mask=shape.get_image().get_slice('A') > 0,
+        mask_type=mask_type
+    )

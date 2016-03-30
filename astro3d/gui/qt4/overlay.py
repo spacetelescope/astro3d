@@ -1,18 +1,18 @@
 """Region overlay handling"""
 from __future__ import absolute_import, print_function
 
-from collections import defaultdict
+from functools import partial
 
 import numpy as np
 
 from ginga import colors
-from ginga.AstroImage import AstroImage
 from ginga.RGBImage import RGBImage
 from ginga.canvas.CanvasObject import get_canvas_types
 
 from ...external.qt import (QtGui, QtCore)
 from ...core.region_mask import RegionMask
 from ...util.logger import make_logger
+from .shape_editor import image_shape_to_regionmask
 from .items import *
 
 from .util import EventDeferred
@@ -160,7 +160,7 @@ class Overlay(BaseOverlay):
         if region_item.view is None:
             region = region_item.value
             if isinstance(region, RegionMask):
-                mask = AstroImage(data_np=region.mask)
+                mask = RGBImage(data_np=region.mask)
                 maskrgb = masktorgb(
                     mask,
                     color=self.draw_params['color'],
@@ -168,6 +168,15 @@ class Overlay(BaseOverlay):
                 maskrgb_obj = self._dc.Image(0, 0, maskrgb)
                 maskrgb_obj.item = region_item
                 region_item.view = maskrgb_obj
+
+                # Redefine the region value so that
+                # it will dynamically update during
+                # editing.
+                region_item.value = partial(
+                    image_shape_to_regionmask,
+                    shape=maskrgb_obj,
+                    mask_type=region.mask_type
+                )
             else:
                 raise NotImplementedError(
                     'Cannot create view of region "{}"'.format(region_item)
