@@ -345,34 +345,40 @@ class ShapeEditor(QtGui.QWidget):
                      deselected_item=None,
                      source=None):
         """Change layer selection"""
+        self.logger.debug(
+            'selected="{}" deselected="{}" source="{}"'.format(
+                selected_item, deselected_item, source
+            )
+        )
 
         # If the selection was initiated by
         # selecting the object directly, there is
         # no reason to handle here.
         if source == 'edit_select_cb':
             return
-        if deselected_item is not None:
-            self.mode = None
+
+        self.mode = None
+        try:
             self.canvas.select_remove(deselected_item.view)
+        except AttributeError:
+            """We tried. No matter"""
+            pass
 
-        if selected_item is not None:
-            try:
-                shape = selected_item.view
-                kind = shape.kind
-            except AttributeError:
-                return
-
+        try:
+            shape = selected_item.view
             self.draw_params = shape.type_draw_params
-
-            if kind == 'image':
+        except AttributeError:
+            """We tried. No matter"""
+            pass
+        else:
+            if shape.kind == 'image':
                 self.mask = shape.get_image().get_slice('A')
                 self.mask_id = None
                 self.mode = 'paint_edit'
-                return
-
-            x, y = selected_item.view.get_center_pt()
-            self.canvas._prepare_to_move(selected_item.view, x, y)
-            self.mode = 'edit_select'
+            else:
+                x, y = selected_item.view.get_center_pt()
+                self.canvas._prepare_to_move(selected_item.view, x, y)
+                self.mode = 'edit_select'
 
         self.canvas.process_drawing()
 
