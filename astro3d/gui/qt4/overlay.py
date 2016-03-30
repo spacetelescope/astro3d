@@ -166,6 +166,7 @@ class Overlay(BaseOverlay):
                     color=self.draw_params['color'],
                     opacity=self.draw_params['fillalpha'])
                 maskrgb_obj = self._dc.Image(0, 0, maskrgb)
+                maskrgb_obj.item = region_item
                 region_item.view = maskrgb_obj
             else:
                 raise NotImplementedError(

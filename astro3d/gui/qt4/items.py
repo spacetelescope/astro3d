@@ -149,9 +149,13 @@ class LayerItem(QStandardItem):
 
     def fix_family(self):
         """Change ancestor/children states based on self state"""
+        if self.checkState() == Qt.Unchecked:
+            signaldb.LayerSelected(deselected_item=self, source='fix_family')
+
         fix_children_availabilty(self)
         if self.isEnabled():
             fix_tristate(self.parent())
+
 
 
 class FixedMixin(object):
@@ -235,6 +239,7 @@ class TypeItem(FixedMixin, CheckableItem):
         region_item.setCheckState(Qt.Checked)
         self.appendRow(region_item)
         region_item.fix_family()
+        return region_item
 
 
 class Regions(FixedMixin, CheckableItem):
@@ -364,4 +369,6 @@ def fix_children_availabilty(item):
         for idx in range(item.rowCount()):
             child = item.child(idx)
             child.setEnabled(enable)
+            if not enable:
+                signaldb.LayerSelected(deselected_item=child, source='fix_children_availabilty')
             fix_children_availabilty(child)

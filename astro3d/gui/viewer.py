@@ -333,3 +333,5 @@ class MainWindow(GTK_MainWindow):
         signaldb.UpdateMesh.connect(self.mesh_viewer.update_mesh)
         signaldb.ProcessStart.connect(self.mesh_viewer.process)
         signaldb.StageChange.connect(self.stagechange)
+        signaldb.LayerSelected.connect(self.shape_editor.select_layer)
+        signaldb.LayerSelected.connect(self.layer_manager.select_from_object)

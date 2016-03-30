@@ -132,7 +132,7 @@ class ShapeEditor(QtGui.QWidget):
         # Handle the current paint mask.
         if new_mode == 'paint':
             if self.mask is None:
-                self.mask = self.new_mask()
+                self.new_mask()
 
         # Set what the canvas should be doing.
         canvas_mode = new_mode
@@ -180,7 +180,7 @@ class ShapeEditor(QtGui.QWidget):
             self.type_item.text(),
             shape
         )
-        self.type_item.add_shape(shape=shape, mask=region_mask, id=tag)
+        shape.item = self.type_item.add_shape(shape=shape, mask=region_mask, id=tag)
         self.mode = None
 
     def edit_cb(self, *args, **kwargs):
@@ -188,11 +188,14 @@ class ShapeEditor(QtGui.QWidget):
         self.logger.debug('Called with args="{}" kwargs="{}".'.format(args, kwargs))
         signaldb.ModelUpdate()
 
-    def edit_select_cb(self, *args, **kwargs):
+    def edit_select_cb(self, canvas, obj):
         """Edit selected object callback"""
-        self.logger.debug('Called with args="{}" kwargs="{}".'.format(args, kwargs))
         if self.canvas.num_selected() > 0:
             self.mode = 'edit_select'
+            signaldb.LayerSelected(
+                selected_item=obj.item,
+                source='edit_select_cb'
+            )
         else:
             self.mode = None
 
@@ -239,7 +242,6 @@ class ShapeEditor(QtGui.QWidget):
         self.canvas.delete_object(previous)
         self.canvas.redraw(whence=0)
 
-
     def paint_stroke_end(self, canvas, event, data_x, data_y, surface):
         self.paint_stroke(canvas, event, data_x, data_y, surface)
         self.canvas.delete_object(self.brush)
@@ -256,7 +258,12 @@ class ShapeEditor(QtGui.QWidget):
                 mask=self.mask > 0,
                 mask_type=self.type_item.text()
             )
-            self.type_item.add_shape(None, region_mask, self.mask_id)
+            shape = self.canvas.get_object_by_tag(self.mask_id)
+            shape.item = self.type_item.add_shape(
+                shape=shape,
+                mask=region_mask,
+                id=self.mask_id
+            )
         self.mask = None
 
     def stroke(self, previous, current):
@@ -289,8 +296,8 @@ class ShapeEditor(QtGui.QWidget):
         bc[:] = int(b * 255)
         alpha = mask_rgb.get_slice('A')
         alpha[:] = 0
+        self.mask = alpha
         self.mask_id = self.canvas.add(mask_image)
-        return alpha
 
     def get_selected_kind(self):
         kind = self.drawkinds[self.children.draw_type.get_index()]
@@ -310,6 +317,33 @@ class ShapeEditor(QtGui.QWidget):
         """
         self.logger.debug('Called state="{}"'.format(state))
         self.painting = state
+
+    def select_layer(self,
+                     selected_item=None,
+                     deselected_item=None,
+                     source=None):
+        """Change layer selection"""
+
+        # If the selection was initiated by
+        # selecting the object directly, there is
+        # no reason to handle here.
+        if source == 'edit_select_cb':
+            return
+        if deselected_item is not None:
+            self.mode = None
+            self.canvas.select_remove(deselected_item.view)
+
+        if selected_item is not None:
+            try:
+                x, y = selected_item.view.get_center_pt()
+                self.canvas._prepare_to_move(selected_item.view, x, y)
+            except AttributeError:
+                """Not a shape. Ignore"""
+                pass
+            else:
+                self.mode = 'edit_select'
+
+        self.canvas.process_drawing()
 
     def _build_gui(self):
         """Build out the GUI"""
