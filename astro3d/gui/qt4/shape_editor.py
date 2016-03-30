@@ -180,7 +180,11 @@ class ShapeEditor(QtGui.QWidget):
             self.type_item.text(),
             shape
         )
-        shape.item = self.type_item.add_shape(shape=shape, mask=region_mask, id=tag)
+        shape.item = self.type_item.add_shape(
+            shape=shape,
+            mask=region_mask,
+            id='{}{}'.format(shape.kind, tag)
+        )
         self.mode = None
 
     def edit_cb(self, *args, **kwargs):
@@ -262,7 +266,7 @@ class ShapeEditor(QtGui.QWidget):
             shape.item = self.type_item.add_shape(
                 shape=shape,
                 mask=region_mask,
-                id=self.mask_id
+                id='mask{}'.format(self.mask_id)
             )
         self.mask = None
 
