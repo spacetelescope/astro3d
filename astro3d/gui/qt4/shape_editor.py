@@ -120,6 +120,8 @@ class ShapeEditor(QtGui.QWidget):
 
     @mode.setter
     def mode(self, new_mode):
+
+        # Close off the current state.
         self.logger.debug('Called new_mode="{}"'.format(new_mode))
         for mode in self.mode_frames:
             for frame in self.mode_frames[mode]:
@@ -131,17 +133,14 @@ class ShapeEditor(QtGui.QWidget):
             """Doesn't matter if there is nothing to show."""
             pass
 
-        # Handle the current paint mask.
-        if new_mode == 'paint':
-            if self.mask is None:
-                self.new_mask()
-
-        # Set what the canvas should be doing.
+        # Setup the new mode.
         canvas_mode = new_mode
         if new_mode is None:
             canvas_mode = 'edit'
         elif new_mode == 'edit_select':
             canvas_mode = 'edit'
+        elif new_mode == 'paint':
+            self.new_mask()
         elif new_mode == 'paint_edit':
             canvas_mode = 'paint'
         self.canvas.set_draw_mode(canvas_mode)
@@ -153,11 +152,6 @@ class ShapeEditor(QtGui.QWidget):
         self.logger.debug('Called type_item="{}"'.format(type_item))
         if self.canvas is None:
             raise RuntimeError('Internal error: no canvas to draw on.')
-
-        # If painting, close off previous mask
-        if self.mask is not None:
-            self.finalize_paint()
-            self.mask = None
 
         self.type_item = type_item
         self.draw_params = type_item.draw_params
@@ -259,19 +253,27 @@ class ShapeEditor(QtGui.QWidget):
         self.paint_stroke(canvas, event, data_x, data_y, surface)
         self.canvas.delete_object(self.brush)
 
+        # If starting to paint, go into edit mode.
+        self.finalize_paint()
+
     def paint_stop(self):
         self.finalize_paint()
         self.mode = None
 
     def finalize_paint(self):
         """Finalize the paint mask"""
-        self.canvas.delete_object(self.brush)
+        try:
+            self.canvas.delete_object(self.brush)
+        except AttributeError:
+            """If no brush, we were not painting"""
+            return
 
         # If mode is paint_edit, there is no
         # reason to create the item.
         if self.mode == 'paint':
             if self.mask.any():
-                shape = self.canvas.get_object_by_tag(self.mask_id)
+                shape = self.mask_image
+                self.canvas.delete_object(shape)
                 shape.type_draw_params = self.draw_params
                 region_mask = partial(
                     image_shape_to_regionmask,
@@ -283,12 +285,17 @@ class ShapeEditor(QtGui.QWidget):
                     mask=region_mask,
                     id='mask{}'.format(self.mask_id)
                 )
-        self.mask = None
-        self.type_item = None
-        self.draw_params = None
+                signaldb.LayerSelected(selected_item=shape.item, source='finalize_paint')
 
     def stroke(self, previous, current):
         """Stroke to current brush position"""
+        # Due to possible object deletion from an update
+        # to treeview, ensure that the image mask is still
+        # on the canvas.
+        if self.mask_id not in self.canvas.tags:
+            self.mask_id = self.canvas.add(self.mask_image)
+
+        # Create a polygon between brush positions.
         poly_points = get_bpoly(previous, current)
         polygon = self.canvas.get_draw_class('polygon')(
             poly_points,
@@ -303,6 +310,7 @@ class ShapeEditor(QtGui.QWidget):
         self.canvas.delete_object(polygon)
 
     def new_mask(self):
+        self.logger.debug('Called.')
         self.draw_params = self.type_item.draw_params
         color = self.draw_params['color']
         r, g, b = colors.lookup_color(color)
@@ -319,6 +327,7 @@ class ShapeEditor(QtGui.QWidget):
         alpha = mask_rgb.get_slice('A')
         alpha[:] = 0
         self.mask = alpha
+        self.mask_image = mask_image
         self.mask_id = self.canvas.add(mask_image)
 
     def get_selected_kind(self):
@@ -372,8 +381,10 @@ class ShapeEditor(QtGui.QWidget):
             pass
         else:
             if shape.kind == 'image':
-                self.mask = shape.get_image().get_slice('A')
-                self.mask_id = None
+                self.mask_image = shape.get_image()
+                self.mask = self.mask_image.get_slice('A')
+                self.mask_id = selected_item.text()
+                self.draw_params = shape.type_draw_params
                 self.mode = 'paint_edit'
             else:
                 x, y = selected_item.view.get_center_pt()
@@ -428,7 +439,6 @@ class ShapeEditor(QtGui.QWidget):
             ('Paint mode: ', 'label',
              'Paint', 'radiobutton',
              'Erase', 'radiobutton'),
-            ('Exit Paint', 'button'),
         )
         paint_widget, paint_bunch = Widgets.build_info(captions)
         self.children.update(paint_bunch)
@@ -444,18 +454,13 @@ class ShapeEditor(QtGui.QWidget):
         painting.set_state(True)
         self.set_painting(True)
 
-        exit_paint = paint_bunch.exit_paint
-        exit_paint.add_callback(
-            'activated',
-            lambda value: self.paint_stop()
-        )
-
         paint_frame = Widgets.Frame('Painting')
         paint_frame.set_widget(paint_widget)
 
         # Setup for editing
-        captions = (("Rotate By:", 'label', 'Rotate By', 'entry'),
-                    ("Scale By:", 'label', 'Scale By', 'entry')
+        captions = (
+            ("Rotate By:", 'label', 'Rotate By', 'entry'),
+            ("Scale By:", 'label', 'Scale By', 'entry')
         )
         edit_widget, edit_bunch = Widgets.build_info(captions)
         self.children.update(edit_bunch)

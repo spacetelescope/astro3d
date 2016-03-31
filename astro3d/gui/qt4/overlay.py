@@ -168,6 +168,7 @@ class Overlay(BaseOverlay):
                 maskrgb_obj = self._dc.Image(0, 0, maskrgb)
                 maskrgb_obj.item = region_item
                 region_item.view = maskrgb_obj
+                region_item.view.type_draw_params = self.draw_params
 
                 # Redefine the region value so that
                 # it will dynamically update during
@@ -181,7 +182,7 @@ class Overlay(BaseOverlay):
                 raise NotImplementedError(
                     'Cannot create view of region "{}"'.format(region_item)
                 )
-        self.canvas.add(region_item.view)
+        self.canvas.add(region_item.view, tag=region_item.text())
         return region_item.view
 
     def add_overlay(self, layer_item):
@@ -358,9 +359,9 @@ def masktorgb(mask, color='red', opacity=0.3):
     data = mask.get_data()
     ac[:] = 0
     idx = data > 0
-    rc[idx] = int(r * 255)
-    gc[idx] = int(g * 255)
-    bc[idx] = int(b * 255)
+    rc[:] = int(r * 255)
+    gc[:] = int(g * 255)
+    bc[:] = int(b * 255)
     ac[idx] = int(opacity * 255)
 
     return rgbobj
