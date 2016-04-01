@@ -22,10 +22,11 @@ __all__ = [
     'RegionItem',
     'Regions',
     'Stars',
+    'StarsItem',
     'Textures',
     'TypeItem',
     'Action',
-    'ActionSeparator'
+    'ActionSeparator',
 ]
 
 
@@ -39,7 +40,8 @@ DRAW_PARAMS_DEFAULT = {
     'color': 'red',
     'alpha': 0.3,
     'fill': True,
-    'fillalpha': 0.3
+    'fillalpha': 0.3,
+    'linewidth': 0.,
 }
 
 DRAW_PARAMS = defaultdict(
@@ -60,6 +62,20 @@ DRAW_PARAMS = defaultdict(
         'spiral': _merge_dicts(
             DRAW_PARAMS_DEFAULT,
             {'color': 'orange'}
+        ),
+        'cluster': _merge_dicts(
+            DRAW_PARAMS_DEFAULT,
+            {'color': 'darkgoldenrod',
+             'linewidth': 10,
+             'fill': False,
+             'radius': 4.0}
+        ),
+        'stars': _merge_dicts(
+            DRAW_PARAMS_DEFAULT,
+            {'color': 'purple',
+             'linewidth': 10,
+             'fill': False,
+             'radius': 4.0}
         )
     }
 )
@@ -126,7 +142,12 @@ class LayerItem(QStandardItem):
     @property
     def value(self):
         """Value of the item"""
-        return self._value
+        try:
+            value = self._value()
+        except TypeError:
+            value = self._value
+
+        return value
 
     @value.setter
     def value(self, value):
@@ -141,8 +162,17 @@ class LayerItem(QStandardItem):
         actions = []
         return actions
 
+    def available(self):
+        """Iterator returning all available children"""
+        for child in self:
+            if child.is_available:
+                yield child
+
     def fix_family(self):
         """Change ancestor/children states based on self state"""
+        if self.checkState() == Qt.Unchecked:
+            signaldb.LayerSelected(deselected_item=self, source='fix_family')
+
         fix_children_availabilty(self)
         if self.isEnabled():
             fix_tristate(self.parent())
@@ -199,6 +229,46 @@ class RegionItem(CheckableItem):
 
 class ClusterItem(CheckableItem):
     """A cluster"""
+    def __init__(self, *args, **kwargs):
+        super(ClusterItem, self).__init__(*args, **kwargs)
+        self.draw_params = DRAW_PARAMS['cluster']
+
+    @property
+    def _actions(self):
+        base_actions = super(ClusterItem, self)._actions
+        actions = [
+            Action(
+                text='Remove',
+                func=self.remove,
+                args=()
+            )
+        ] + base_actions
+        return actions
+
+    def remove(self):
+        self.parent().removeRow(self.row())
+
+
+class StarsItem(CheckableItem):
+    """A star list"""
+    def __init__(self, *args, **kwargs):
+        super(StarsItem, self).__init__(*args, **kwargs)
+        self.draw_params = DRAW_PARAMS['stars']
+
+    @property
+    def _actions(self):
+        base_actions = super(StarsItem, self)._actions
+        actions = [
+            Action(
+                text='Remove',
+                func=self.remove,
+                args=()
+            )
+        ] + base_actions
+        return actions
+
+    def remove(self):
+        self.parent().removeRow(self.row())
 
 
 class TypeItem(FixedMixin, CheckableItem):
@@ -229,6 +299,7 @@ class TypeItem(FixedMixin, CheckableItem):
         region_item.setCheckState(Qt.Checked)
         self.appendRow(region_item)
         region_item.fix_family()
+        return region_item
 
 
 class Regions(FixedMixin, CheckableItem):
@@ -326,7 +397,7 @@ class Stars(FixedMixin, CheckableItem):
         self.setText('Stars')
 
     def add(self, stars, id):
-        item = ClusterItem(id, value=stars)
+        item = StarsItem(id, value=stars)
         item.setCheckState(Qt.Checked)
         self.appendRow(item)
         item.fix_family()
@@ -358,4 +429,9 @@ def fix_children_availabilty(item):
         for idx in range(item.rowCount()):
             child = item.child(idx)
             child.setEnabled(enable)
+            if not enable:
+                signaldb.LayerSelected(
+                    deselected_item=child,
+                    source='fix_children_availabilty'
+                )
             fix_children_availabilty(child)

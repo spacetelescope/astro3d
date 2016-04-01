@@ -103,12 +103,8 @@ class MainWindow(GTK_MainWindow):
             'Specify prefix to save all as'
         )
         self.logger.debug('result="{}"'.format(result))
-        try:
-            prefix = result[0]
-        except IndexError:
-            prefix = str(result)
-        if len(prefix) > 0:
-            self.model.save_all(prefix)
+        if len(result) > 0:
+            self.model.save_all(result)
 
     def open_path(self, pathname):
         """Open the image from pathname"""
@@ -331,13 +327,11 @@ class MainWindow(GTK_MainWindow):
     def _create_signals(self):
         """Setup the overall signal structure"""
         self.image_viewer.set_callback('drag-drop', self.path_by_drop)
-        self.image_viewer.add_callback(
-            'leave',
-            self.shape_editor.edit_deselect_cb
-        )
 
         signaldb.Quit.connect(self.quit)
         signaldb.NewImage.connect(self.image_update)
         signaldb.UpdateMesh.connect(self.mesh_viewer.update_mesh)
         signaldb.ProcessStart.connect(self.mesh_viewer.process)
         signaldb.StageChange.connect(self.stagechange)
+        signaldb.LayerSelected.connect(self.shape_editor.select_layer)
+        signaldb.LayerSelected.connect(self.layer_manager.select_from_object)

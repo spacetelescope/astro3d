@@ -73,3 +73,6 @@ class NewRegion(Signal):
 
 class UpdateMesh(Signal):
     """Update Mesh view"""
+
+class LayerSelected(Signal):
+    """Layers have been selected/deselected"""

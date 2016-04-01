@@ -1,18 +1,18 @@
 """Region overlay handling"""
 from __future__ import absolute_import, print_function
 
-from collections import defaultdict
+from functools import partial
 
 import numpy as np
 
 from ginga import colors
-from ginga.AstroImage import AstroImage
 from ginga.RGBImage import RGBImage
 from ginga.canvas.CanvasObject import get_canvas_types
 
-from ...external.qt import (QtGui, QtCore)
+from ...external.qt import QtCore
 from ...core.region_mask import RegionMask
 from ...util.logger import make_logger
+from .shape_editor import image_shape_to_regionmask
 from .items import *
 
 from .util import EventDeferred
@@ -132,8 +132,14 @@ class Overlay(BaseOverlay):
         if layer.is_available:
             if isinstance(layer, (RegionItem,)):
                 view = self.add_region(layer)
-            elif isinstance(layer, (Regions, Textures, Clusters, Stars, TypeItem)):
+            elif isinstance(
+                    layer,
+                    (Regions, Textures, Clusters, Stars, TypeItem)
+            ):
                 view = self.add_overlay(layer)
+            elif isinstance(layer, (ClusterItem, StarsItem)):
+                view = self.add_table(layer)
+
         self.logger.debug('Returned view="{}"'.format(view))
         return view
 
@@ -160,19 +166,49 @@ class Overlay(BaseOverlay):
         if region_item.view is None:
             region = region_item.value
             if isinstance(region, RegionMask):
-                mask = AstroImage(data_np=region.mask)
+                mask = RGBImage(data_np=region.mask)
                 maskrgb = masktorgb(
                     mask,
                     color=self.draw_params['color'],
                     opacity=self.draw_params['fillalpha'])
                 maskrgb_obj = self._dc.Image(0, 0, maskrgb)
+                maskrgb_obj.item = region_item
                 region_item.view = maskrgb_obj
+                region_item.view.type_draw_params = self.draw_params
+
+                # Redefine the region value so that
+                # it will dynamically update during
+                # editing.
+                region_item.value = partial(
+                    image_shape_to_regionmask,
+                    shape=maskrgb_obj,
+                    mask_type=region.mask_type
+                )
             else:
                 raise NotImplementedError(
                     'Cannot create view of region "{}"'.format(region_item)
                 )
-        self.canvas.add(region_item.view)
+        self.canvas.add(region_item.view, tag=region_item.text())
         return region_item.view
+
+    def add_table(self, layer):
+        self.logger.debug('Called.')
+        if not layer.is_available:
+            return None
+        if layer.view is None:
+            table = layer.value
+            container = self._dc.CompoundObject()
+            container.initialize(None, self.canvas.viewer, self.logger)
+            for row in table:
+                point = self._dc.Point(
+                    x=row['xcentroid'],
+                    y=row['ycentroid'],
+                    **layer.draw_params
+                )
+                container.add_object(point)
+            layer.view = container
+        self.canvas.add(layer.view, tag=layer.text())
+        return layer.view
 
     def add_overlay(self, layer_item):
         """Add another overlay
@@ -348,9 +384,9 @@ def masktorgb(mask, color='red', opacity=0.3):
     data = mask.get_data()
     ac[:] = 0
     idx = data > 0
-    rc[idx] = int(r * 255)
-    gc[idx] = int(g * 255)
-    bc[idx] = int(b * 255)
+    rc[:] = int(r * 255)
+    gc[:] = int(g * 255)
+    bc[:] = int(b * 255)
     ac[idx] = int(opacity * 255)
 
     return rgbobj

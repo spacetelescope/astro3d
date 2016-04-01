@@ -9,7 +9,7 @@ from attrdict import AttrDict
 from numpy import concatenate
 
 from ..external.qt import (QtCore, QtGui)
-from ..core.model3d import Model3D
+from ..core.model3d import (Model3D, read_stellar_table)
 from ..core.region_mask import RegionMask
 from ..core.meshes import (make_triangles, reflect_triangles)
 from ..util.logger import make_logger
@@ -108,12 +108,14 @@ class Model(QStandardItemModel):
     def read_star_catalog(self, pathname):
         """Read in a star catalog"""
         id = basename(pathname)
-        self.stars_catalogs.add(pathname, id)
+        stars = read_stellar_table(pathname, 'stars')
+        self.stars_catalogs.add(stars, id)
 
     def read_cluster_catalog(self, pathname):
         """Read in a star cluster catalog"""
         id = basename(pathname)
-        self.cluster_catalogs.add(pathname, id)
+        cluster = read_stellar_table(pathname, 'star_clusters')
+        self.cluster_catalogs.add(cluster, id)
 
     def process(self):
         """Create the 3D model."""
@@ -132,11 +134,11 @@ class Model(QStandardItemModel):
                 """Not a RegionMask, ignore"""
                 pass
 
-        for (catalog, id) in self.cluster_catalogs:
-            m.read_star_clusters(catalog)
+        for catalog in self.cluster_catalogs.available():
+            m.add_stellar_table(catalog.value, 'star_clusters')
 
-        for (catalog, id) in self.stars_catalogs:
-            m.read_stars(catalog)
+        for catalog in self.stars_catalogs.available():
+            m.add_stellar_table(catalog.value, 'stars')
 
         m.make(intensity=self.stages.intensity, textures=self.stages.textures,
                double_sided=self.stages.double_sided,
