@@ -22,10 +22,11 @@ __all__ = [
     'RegionItem',
     'Regions',
     'Stars',
+    'StarsItem',
     'Textures',
     'TypeItem',
     'Action',
-    'ActionSeparator'
+    'ActionSeparator',
 ]
 
 
@@ -61,6 +62,20 @@ DRAW_PARAMS = defaultdict(
         'spiral': _merge_dicts(
             DRAW_PARAMS_DEFAULT,
             {'color': 'orange'}
+        ),
+        'cluster': _merge_dicts(
+            DRAW_PARAMS_DEFAULT,
+            {'color': 'darkgoldenrod',
+             'linewidth': 10,
+             'fill': False,
+             'radius': 4.0}
+        ),
+        'stars': _merge_dicts(
+            DRAW_PARAMS_DEFAULT,
+            {'color': 'purple',
+             'linewidth': 10,
+             'fill': False,
+             'radius': 4.0}
         )
     }
 )
@@ -157,7 +172,6 @@ class LayerItem(QStandardItem):
             fix_tristate(self.parent())
 
 
-
 class FixedMixin(object):
     """Item cannot be edited"""
     def __init__(self, *args, **kwargs):
@@ -209,6 +223,46 @@ class RegionItem(CheckableItem):
 
 class ClusterItem(CheckableItem):
     """A cluster"""
+    def __init__(self, *args, **kwargs):
+        super(ClusterItem, self).__init__(*args, **kwargs)
+        self.draw_params = DRAW_PARAMS['cluster']
+
+    @property
+    def _actions(self):
+        base_actions = super(ClusterItem, self)._actions
+        actions = [
+            Action(
+                text='Remove',
+                func=self.remove,
+                args=()
+            )
+        ] + base_actions
+        return actions
+
+    def remove(self):
+        self.parent().removeRow(self.row())
+
+
+class StarsItem(CheckableItem):
+    """A star list"""
+    def __init__(self, *args, **kwargs):
+        super(StarsItem, self).__init__(*args, **kwargs)
+        self.draw_params = DRAW_PARAMS['stars']
+
+    @property
+    def _actions(self):
+        base_actions = super(StarsItem, self)._actions
+        actions = [
+            Action(
+                text='Remove',
+                func=self.remove,
+                args=()
+            )
+        ] + base_actions
+        return actions
+
+    def remove(self):
+        self.parent().removeRow(self.row())
 
 
 class TypeItem(FixedMixin, CheckableItem):
@@ -337,7 +391,7 @@ class Stars(FixedMixin, CheckableItem):
         self.setText('Stars')
 
     def add(self, stars, id):
-        item = ClusterItem(id, value=stars)
+        item = StarsItem(id, value=stars)
         item.setCheckState(Qt.Checked)
         self.appendRow(item)
         item.fix_family()
@@ -370,5 +424,8 @@ def fix_children_availabilty(item):
             child = item.child(idx)
             child.setEnabled(enable)
             if not enable:
-                signaldb.LayerSelected(deselected_item=child, source='fix_children_availabilty')
+                signaldb.LayerSelected(
+                    deselected_item=child,
+                    source='fix_children_availabilty'
+                )
             fix_children_availabilty(child)

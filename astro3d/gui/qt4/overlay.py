@@ -9,7 +9,7 @@ from ginga import colors
 from ginga.RGBImage import RGBImage
 from ginga.canvas.CanvasObject import get_canvas_types
 
-from ...external.qt import (QtGui, QtCore)
+from ...external.qt import QtCore
 from ...core.region_mask import RegionMask
 from ...util.logger import make_logger
 from .shape_editor import image_shape_to_regionmask
@@ -132,8 +132,14 @@ class Overlay(BaseOverlay):
         if layer.is_available:
             if isinstance(layer, (RegionItem,)):
                 view = self.add_region(layer)
-            elif isinstance(layer, (Regions, Textures, Clusters, Stars, TypeItem)):
+            elif isinstance(
+                    layer,
+                    (Regions, Textures, Clusters, Stars, TypeItem)
+            ):
                 view = self.add_overlay(layer)
+            elif isinstance(layer, (ClusterItem, StarsItem)):
+                view = self.add_table(layer)
+
         self.logger.debug('Returned view="{}"'.format(view))
         return view
 
@@ -184,6 +190,25 @@ class Overlay(BaseOverlay):
                 )
         self.canvas.add(region_item.view, tag=region_item.text())
         return region_item.view
+
+    def add_table(self, layer):
+        self.logger.debug('Called.')
+        if not layer.is_available:
+            return None
+        if layer.view is None:
+            table = layer.value
+            container = self._dc.CompoundObject()
+            container.initialize(None, self.canvas.viewer, self.logger)
+            for row in table:
+                point = self._dc.Point(
+                    x=row['xcentroid'],
+                    y=row['ycentroid'],
+                    **layer.draw_params
+                )
+                container.add_object(point)
+            layer.view = container
+        self.canvas.add(layer.view, tag=layer.text())
+        return layer.view
 
     def add_overlay(self, layer_item):
         """Add another overlay

@@ -316,10 +316,26 @@ class Model3D(object):
             The type of the table.
         """
 
-        table = Table.read(filename, format='ascii')
-        table.keep_columns(['xcentroid', 'ycentroid', 'flux'])
-        self.stellar_tables_original[stellar_type] = table
+        table = read_stellar_table(filename, stellar_type)
+        self.add_stellar_table(table, stellar_type)
         log.info('Read "{0}" table from "{1}"'.format(stellar_type, filename))
+
+    def add_stellar_table(self, table, stellar_type):
+        """
+        Add a table of stars or star clusters from a table
+
+        The table must have ``'xcentroid``, ``'ycentroid'``, and
+        ``'flux'`` columns.
+
+        Parameters
+        ----------
+        table : ~astropy.Table
+            The table
+
+        stellar_type : {'stars', 'star_clusters'}
+            The type of the table.
+        """
+        self.stellar_tables_original[stellar_type] = table
 
     def read_star_clusters(self, filename):
         """
@@ -1405,3 +1421,30 @@ class Model3D(object):
 
         log.info('Automatically generated "spiral" and "gas" masks for '
                  'spiral galaxy.')
+
+
+def read_stellar_table(filename, stellar_type):
+    """
+    Read a table of stars or star clusters from a file.
+
+    The table must have ``'xcentroid``, ``'ycentroid'``, and
+    ``'flux'`` columns.
+
+    Parameters
+    ----------
+    filename : str
+        The filename containing an `~astropy.Table` in ASCII format.
+
+    stellar_type : {'stars', 'star_clusters'}
+        The type of the table.
+
+    Returns
+    -------
+    Astropy.table.Table
+    """
+
+    table = Table.read(filename, format='ascii')
+    table.keep_columns(['xcentroid', 'ycentroid', 'flux'])
+    log.info('Read "{0}" table from "{1}"'.format(stellar_type, filename))
+
+    return table
