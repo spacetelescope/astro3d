@@ -4,7 +4,7 @@ This module provides tools to create a 3D model from an astronomical image.
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 from collections import defaultdict
-from copy import deepcopy
+from copy import deepcopy, copy
 import glob
 import warnings
 from functools import partial
@@ -507,7 +507,7 @@ class Model3D(object):
             The table with scaled positions.
         """
 
-        result = deepcopy(table)
+        result = table.copy()
         result['xcentroid'] *= resize_scale
         result['ycentroid'] *= resize_scale
         return result
@@ -531,7 +531,7 @@ class Model3D(object):
 
         log.info('Scaling stellar table positions.')
 
-        self.stellar_tables = deepcopy(stellar_tables)
+        self.stellar_tables = copy(stellar_tables)
         for stellar_type, table in self.stellar_tables.iteritems():
             if table is not None:
                 tbl = self._scale_table_positions(table, resize_scale)

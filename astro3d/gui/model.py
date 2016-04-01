@@ -134,11 +134,11 @@ class Model(QStandardItemModel):
                 """Not a RegionMask, ignore"""
                 pass
 
-        for (catalog, id) in self.cluster_catalogs:
-            m.read_star_clusters(catalog)
+        for catalog in self.cluster_catalogs.available():
+            m.add_stellar_table(catalog.value, 'star_clusters')
 
-        for (catalog, id) in self.stars_catalogs:
-            m.read_stars(catalog)
+        for catalog in self.stars_catalogs.available():
+            m.add_stellar_table(catalog.value, 'stars')
 
         m.make(intensity=self.stages.intensity, textures=self.stages.textures,
                double_sided=self.stages.double_sided,

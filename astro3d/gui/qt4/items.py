@@ -162,6 +162,12 @@ class LayerItem(QStandardItem):
         actions = []
         return actions
 
+    def available(self):
+        """Iterator returning all available children"""
+        for child in self:
+            if child.is_available:
+                yield child
+
     def fix_family(self):
         """Change ancestor/children states based on self state"""
         if self.checkState() == Qt.Unchecked:
