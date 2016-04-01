@@ -12,7 +12,7 @@ from ...core.region_mask import RegionMask
 from ...external.qt import (QtGui, QtCore)
 from ...util.logger import make_logger
 from .. import signaldb
-
+from ..helps import instructions
 
 __all__ = ['ShapeEditor']
 
@@ -23,12 +23,6 @@ VALID_KINDS = [
     'triangle', 'righttriangle',
     'square', 'ellipse', 'box'
 ]
-
-INSTRUCTIONS = (
-    'Draw a region with the cursor. '
-    'For polygons/paths press \'v\' to create a vertex, '
-    '\'z\' to remove last vertex.'
-)
 
 
 class ShapeEditor(QtGui.QWidget):
@@ -147,6 +141,7 @@ class ShapeEditor(QtGui.QWidget):
 
         # Success. Remember the mode
         self._mode = new_mode
+        self.children.tw.set_text(instructions[new_mode])
 
     def new_region(self, type_item):
         self.logger.debug('Called type_item="{}"'.format(type_item))
@@ -406,7 +401,6 @@ class ShapeEditor(QtGui.QWidget):
         tw = Widgets.TextArea(wrap=True, editable=False)
         font = QtGui.QFont('sans serif', 12)
         tw.set_font(font)
-        tw.set_text(INSTRUCTIONS)
         tw_frame = Widgets.Expander("Instructions")
         tw_frame.set_widget(tw)
         self.children['tw'] = tw
