@@ -286,8 +286,8 @@ def write_binary_stl(triangles, filename):
     larray[0] = ntri
 
     with open(filename, 'wb') as f:
-        f.write(strhdr)
-        f.write(larray.tostring())
+        f.write(strhdr.encode())
+        f.write(larray.tobytes())
         buff.tofile(f)
 
 
