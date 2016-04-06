@@ -1,6 +1,7 @@
 """This module provides image (2D array) utility functions."""
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
+from functools import reduce
 from copy import deepcopy
 import warnings
 from PIL import Image
