@@ -176,7 +176,7 @@ class Model3D(object):
             return mask_type
         else:
             tx_type = None
-            for tx_type, mask_types in self.translate_texture.iteritems():
+            for tx_type, mask_types in self.translate_texture.items():
                 if mask_type in mask_types:
                     return tx_type
             if tx_type is None:
@@ -278,7 +278,7 @@ class Model3D(object):
             '<filename_prefix>_<mask_type>_<num>.fits'.
         """
 
-        for mask_type, masks in self.region_masks_original.iteritems():
+        for mask_type, masks in self.region_masks_original.items():
             nmasks = len(masks)
             for i, mask in enumerate(masks, 1):
                 if nmasks > 1:
@@ -288,7 +288,7 @@ class Model3D(object):
                     filename = '{0}_{1}.fits'.format(filename_prefix,
                                                      mask_type)
                 mask.write(filename)
-        for texture_type, masks in self.texture_masks_original.iteritems():
+        for texture_type, masks in self.texture_masks_original.items():
             nmasks = len(masks)
             for i, mask in enumerate(masks, 1):
                 mask_type = mask.mask_type
@@ -473,14 +473,14 @@ class Model3D(object):
         self.region_masks = {}
 
         # combine and resize texture_masks
-        for mask_type, masks in self.texture_masks_original.iteritems():
+        for mask_type, masks in self.texture_masks_original.items():
             prepared_mask = image_utils.resize_image(
                 image_utils.combine_region_masks(masks),
                 self._resize_scale_factor)
             self.texture_masks[mask_type] = prepared_mask   # ndarray
 
         # resize but do not combine region_masks
-        for mask_type, masks in self.region_masks_original.iteritems():
+        for mask_type, masks in self.region_masks_original.items():
             resized_masks = [image_utils.resize_image(
                 mask.mask, self._resize_scale_factor) for mask in masks]
             self.region_masks[mask_type] = resized_masks   # list of ndarrays
@@ -532,7 +532,7 @@ class Model3D(object):
         log.info('Scaling stellar table positions.')
 
         self.stellar_tables = copy(stellar_tables)
-        for stellar_type, table in self.stellar_tables.iteritems():
+        for stellar_type, table in self.stellar_tables.items():
             if table is not None:
                 tbl = self._scale_table_positions(table, resize_scale)
                 self.stellar_tables[stellar_type] = tbl
@@ -730,13 +730,13 @@ class Model3D(object):
         segm_mask = segm.data.astype(bool)
         self.data *= segm_mask
 
-        for mask_type, mask in self.texture_masks.iteritems():
+        for mask_type, mask in self.texture_masks.items():
             log.info('Masking the texture masks for the extracted galaxy.')
             mask[~segm_mask] = 0
             self.texture_masks[mask_type] = mask
 
         log.info('Pruning the stellar tables for the extracted galaxy.')
-        for stellar_type, table in self.stellar_tables.iteritems():
+        for stellar_type, table in self.stellar_tables.items():
             values = []
             for row in table:
                 x = int(round(row['xcentroid']))
@@ -787,7 +787,7 @@ class Model3D(object):
             log.info('Padding the image by {0} pixels.'.format(pad_width))
             self.data = np.pad(self.data, pad_width, mode=str('constant'))
 
-        for mask_type, mask in self.texture_masks.iteritems():
+        for mask_type, mask in self.texture_masks.items():
             log.info('Cropping "{0}" mask.'.format(mask_type))
             self.texture_masks[mask_type] = mask[slc]
             if pad_width != 0:
@@ -796,7 +796,7 @@ class Model3D(object):
                     self.texture_masks[mask_type], pad_width,
                     mode=str('constant'))
 
-        for stellar_type, table in self.stellar_tables.iteritems():
+        for stellar_type, table in self.stellar_tables.items():
             idx = ((table['xcentroid'] > slc[1].start) &
                    (table['xcentroid'] < slc[1].stop) &
                    (table['ycentroid'] > slc[0].start) &
@@ -811,7 +811,7 @@ class Model3D(object):
                                  self.data.shape[1])
             self.data = image_utils.resize_image(
                 self.data, scale_factor)
-            for mask_type, mask in self.texture_masks.iteritems():
+            for mask_type, mask in self.texture_masks.items():
                 log.info('Resizing "{0}" mask.'.format(mask_type))
                 self.texture_masks[mask_type] = image_utils.resize_image(
                     mask, scale_factor)
