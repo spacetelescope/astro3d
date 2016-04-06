@@ -749,7 +749,7 @@ def make_starlike_textures(image, stellar_tables, radius_a=10, radius_b=5,
     """
 
     starlike_models = []
-    for stellar_type, table in stellar_tables.iteritems():
+    for stellar_type, table in stellar_tables.items():
         starlike_models.extend(
             make_starlike_models(image, stellar_type, table,
                                  radius_a=radius_a, radius_b=radius_b,
