@@ -1135,12 +1135,14 @@ class Model3D(object):
         smooth_size1 : float or tuple optional
             The shape of filter window for the first image smoothing
             step.  If ``size`` is an `int`, then then ``size`` will be
-            used for both dimensions.  See `_smooth_image`.
+            used for both dimensions.  Set to `None` to skip the first
+            smoothing step.  See `_smooth_image`.
 
         smooth_size2 : float or tuple optional
             The shape of filter window for the second image smoothing
             step.  If ``size`` is an `int`, then then ``size`` will be
-            used for both dimensions.  See `_smooth_image`.
+            used for both dimensions.  Set to `None` to skip the second
+            smoothing step.  See `_smooth_image`.
 
         minvalue_to_zero : float, optional
             The image threshold value below which pixels are set to
@@ -1235,13 +1237,15 @@ class Model3D(object):
             factor=compress_bulge_factor)
         self._suppress_background(percentile=suppress_background_percentile,
                                   factor=suppress_background_factor)
-        self._smooth_image(size=smooth_size1)
+        if smooth_size1 is not None:
+            self._smooth_image(size=smooth_size1)
         self._normalize_image()
         self._minvalue_to_zero(min_value=minvalue_to_zero)
         self._extract_galaxy()
 
-        # smooth the image again (to prevent printing issues)
-        self._smooth_image(size=smooth_size2)
+        if smooth_size2 is not None:
+            # smooth the image again (to prevent printing issues)
+            self._smooth_image(size=smooth_size2)
 
         self._crop_data(threshold=crop_data_threshold,
                         pad_width=crop_data_pad_width, resize=True)
