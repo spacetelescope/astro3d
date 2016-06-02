@@ -600,10 +600,10 @@ def make_starlike_models(image, model_type, sources, radius_a=10, radius_b=5,
     Create the star-like (star or star cluster) texture models to be
     applied to an image.
 
-    Given the position and flux amplitude of each source (``sources``),
-    a list of texture models is generated.  The radius of the star (used
-    in both `StarTexture` and `StarCluster` textures) for each source is
-    linearly scaled by the source flux as:
+    Given the position and flux (or magnitude) of each source
+    (``sources``), a list of texture models is generated.  The radius of
+    the star (used in both `StarTexture` and `StarCluster` textures) for
+    each source is linearly scaled by the source flux as:
 
         .. math:: radius = radius_a + (radius_b * flux / max_flux)
 
@@ -620,7 +620,8 @@ def make_starlike_models(image, model_type, sources, radius_a=10, radius_b=5,
 
     sources : `~astropy.table.Table`
         A table defining the stars or star clusters.  The table must
-        contain ``'xcen'``, ``'ycen'``, and ``'flux'`` columns.
+        contain ``'xcentroid'`` and ``'ycentroid'`` columns and either a
+        ``'flux'`` or ``'magnitude'`` column.
 
     radius_a : float, optional
         The intercept term in calculating the star radius (see above).
@@ -656,21 +657,30 @@ def make_starlike_models(image, model_type, sources, radius_a=10, radius_b=5,
     if len(sources) == 0:
         return []
 
-    columns = ['xcentroid', 'ycentroid', 'flux']
+    columns = ['xcentroid', 'ycentroid']
     for column in columns:
         if column not in sources.colnames:
             raise ValueError('sources must contain a {0} column'
                              .format(column))
 
+    if 'flux' in sources.colnames:
+        fluxes = sources['flux']
+    else:
+        if 'magnitude' not in sources.colnames:
+            raise ValueError('sources must contain either a "flux" or '
+                             '"magnitude" column'.format(column))
+
+        fluxes = 10**(-0.4 * sources['magnitude'])
+
     # assumes that all sources in the source table are good
-    max_flux = float(np.max(sources['flux']))
+    max_flux = float(np.max(fluxes))
 
     yy, xx = np.indices(image.shape)
     models = []
     for source in sources:
         xcen = source['xcentroid']
         ycen = source['ycentroid']
-        radius = radius_a + (radius_b * source['flux'] / max_flux)
+        radius = radius_a + (radius_b * fluxes / max_flux)
         base_height = starlike_model_base_height(
             image, model_type, xcen, ycen, radius, depth, slope,
             base_percentile=base_percentile, image_indices=(yy, xx))
@@ -715,8 +725,8 @@ def make_starlike_textures(image, stellar_tables, radius_a=10, radius_b=5,
     stellar_tables : dict of `~astropy.table.Table`
         A dictionary of tables defining the star-like textures.  The
         dictionary can define either 'stars' or 'star_clusters'.  The
-        table must contain ``'xcentroid'``, ``'ycentroid'``, and
-        ``'flux'`` columns.
+        table must contain ``'xcentroid'`` and ``'ycentroid'`` columns
+        and either a ``'flux'`` or ``'magnitude'`` column.
 
     radius_a : float, optional
         The intercept term in calculating the star radius (see above).
