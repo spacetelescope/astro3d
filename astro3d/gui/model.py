@@ -94,6 +94,14 @@ class Model(QStandardItemModel):
         """
         self._image = image
 
+    def read_image(self, pathname):
+        """Read image from pathname"""
+        try:
+            m = Model3D.from_rgb(pathname)
+        except:
+            m = Model3D.from_fits(pathname)
+        self.image = m.data_original
+
     def read_maskpathlist(self, pathlist):
         """Read a list of mask files"""
         signaldb.ModelUpdate.set_enabled(False, push=True)

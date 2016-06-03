@@ -2,6 +2,7 @@
 """
 from attrdict import AttrDict
 from ginga.AstroImage import AstroImage
+from ginga.RGBImage import RGBImage
 
 from ..util.logger import make_logger
 from ..external.qt import (QtGui, QtCore)
@@ -15,6 +16,28 @@ from qt4 import (
 )
 from qt4.preferences import Preferences
 
+# Supported image formats
+SUPPORT_IMAGE_FORMATS = (
+    'FITS (*.fits)'
+    ';;Images ('
+    '*.jpg'
+    ' *.jpeg*'
+    ' *.png'
+    ' *.gif'
+    ' *.tif*'
+    ' *.bmp'
+    ');;Uncommon ('
+    '*.fpx'
+    ' *.pcd'
+    ' *.pcx'
+    ' *.pixar'
+    ' *.ppm'
+    ' *.sgi'
+    ' *.tga'
+    ' *.xbm'
+    ' *.xpm'
+    ')'
+)
 
 # Shortcuts
 Qt = QtCore.Qt
@@ -32,7 +55,7 @@ STAGES = {
 }
 
 
-class Image(AstroImage):
+class Image(RGBImage):
     """Image container"""
 
 
@@ -48,8 +71,12 @@ class MainWindow(GTK_MainWindow):
         self._create_signals()
 
     def path_from_dialog(self):
-        res = QtGui.QFileDialog.getOpenFileName(self, "Open FITS file",
-                                                ".", "FITS files (*.fits)")
+        res = QtGui.QFileDialog.getOpenFileName(
+            self,
+            "Open image file",
+            ".",
+            SUPPORT_IMAGE_FORMATS
+        )
         if isinstance(res, tuple):
             pathname = res[0]
         else:
@@ -108,8 +135,10 @@ class MainWindow(GTK_MainWindow):
 
     def open_path(self, pathname):
         """Open the image from pathname"""
+        #self.model.read_image(pathname)
         self.image = Image(logger=self.logger)
         self.image.load_file(pathname)
+        #self.image.set_data(self.model.image)
         self.image_update(self.image)
 
     def image_update(self, image):
