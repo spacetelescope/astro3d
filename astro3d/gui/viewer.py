@@ -135,10 +135,9 @@ class MainWindow(GTK_MainWindow):
 
     def open_path(self, pathname):
         """Open the image from pathname"""
-        #self.model.read_image(pathname)
+        self.model.read_image(pathname)
         self.image = Image(logger=self.logger)
-        self.image.load_file(pathname)
-        #self.image.set_data(self.model.image)
+        self.image.set_data(self.model.image)
         self.image_update(self.image)
 
     def image_update(self, image):
@@ -150,7 +149,6 @@ class MainWindow(GTK_MainWindow):
             The image.
         """
         self.image_viewer.set_image(image)
-        self.model.image = image.get_data()
         self.setWindowTitle(image.get('name'))
         signaldb.ModelUpdate()
 
