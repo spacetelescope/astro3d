@@ -2,7 +2,6 @@
 """
 from attrdict import AttrDict
 from ginga.AstroImage import AstroImage
-from ginga.RGBImage import RGBImage
 
 from ..util.logger import make_logger
 from ..external.qt import (QtGui, QtCore)
@@ -18,9 +17,9 @@ from qt4.preferences import Preferences
 
 # Supported image formats
 SUPPORT_IMAGE_FORMATS = (
-    'FITS (*.fits)'
-    ';;Images ('
-    '*.jpg'
+    'Images ('
+    '*.fits'
+    ' *.jpg'
     ' *.jpeg*'
     ' *.png'
     ' *.gif'
@@ -55,7 +54,7 @@ STAGES = {
 }
 
 
-class Image(RGBImage):
+class Image(AstroImage):
     """Image container"""
 
 
