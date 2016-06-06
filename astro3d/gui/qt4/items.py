@@ -124,20 +124,10 @@ class LayerItem(QStandardItem):
         super(LayerItem, self).__init__(*args, **kwargs)
         if self.__class__.logger is None:
             self.__class__.logger = logger
-        self._currentrow = None
 
     def __iter__(self):
-        self._currentrow = None
-        return self
-
-    def next(self):
-        self._currentrow = self._currentrow + 1 \
-                           if self._currentrow is not None \
-                           else 0
-        child = self.child(self._currentrow)
-        if child is None:
-            raise StopIteration
-        return child
+        for row in range(self.rowCount()):
+            yield self.child(row)
 
     @property
     def value(self):
