@@ -219,7 +219,7 @@ class RegionItem(CheckableItem):
                 text='Remove',
                 func=self.remove,
                 args=()
-            )
+            ),
         ] + base_actions
         return actions
 
@@ -287,6 +287,11 @@ class TypeItem(FixedMixin, CheckableItem):
                 func=self.add_region_interactive,
                 args=()
             ),
+            Action(
+                text="Merge regions",
+                func=signaldb.MergeMask,
+                args=(self.text(),)
+            ),
         ] + base_actions
         return actions
 
@@ -341,6 +346,16 @@ class Regions(FixedMixin, CheckableItem):
             self.appendRow(type_item)
         signaldb.NewRegion(type_item)
 
+    def merge_masks(self, mask=None):
+        """Merge mask
+
+        Parameters
+        ----------
+        mask: str
+            The mask to merge. If None, merge all masks.
+        """
+        signaldb.MergeMask(mask)
+
     @property
     def _actions(self):
         base_actions = super(Regions, self)._actions
@@ -364,6 +379,11 @@ class Regions(FixedMixin, CheckableItem):
                 text='Add Remove Star',
                 func=self.add_region_interactive,
                 args=('remove_star',)
+            ),
+            Action(
+                text='Merge all regions',
+                func=signaldb.MergeMask,
+                args=(None,)
             )
         ] + base_actions
         return actions
