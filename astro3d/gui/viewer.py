@@ -1,7 +1,11 @@
 """Main UI Viewer
 """
+from os.path import dirname
+
 from attrdict import AttrDict
 from ginga.AstroImage import AstroImage
+
+from config import config
 
 from ..util.logger import make_logger
 from ..external.qt import (QtGui, QtCore)
@@ -73,7 +77,7 @@ class MainWindow(GTK_MainWindow):
         res = QtGui.QFileDialog.getOpenFileName(
             self,
             "Open image file",
-            ".",
+            config.get('gui', 'working_folder'),
             SUPPORT_IMAGE_FORMATS
         )
         if isinstance(res, tuple):
@@ -82,6 +86,7 @@ class MainWindow(GTK_MainWindow):
             pathname = str(res)
         if len(pathname) != 0:
             self.open_path(pathname)
+            config.set('gui', 'working_folder', dirname(pathname))
 
     def regionpath_from_dialog(self):
         res = QtGui.QFileDialog.getOpenFileNames(
@@ -171,6 +176,7 @@ class MainWindow(GTK_MainWindow):
     def quit(self, *args, **kwargs):
         """Shutdown"""
         self.logger.debug('GUI shutting down...')
+        config.save()
         self.deleteLater()
 
     def auto_reprocessing_state(self):
