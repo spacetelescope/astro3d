@@ -122,8 +122,8 @@ class LayerItem(QStandardItem):
         self.view = kwargs.pop('view', None)
         logger = kwargs.pop('logger', make_logger('LayerItem'))
         super(LayerItem, self).__init__(*args, **kwargs)
-        if self.__class__.logger is None:
-            self.__class__.logger = logger
+        if LayerItem.logger is None:
+            LayerItem.logger = logger
 
     def __iter__(self):
         for row in range(self.rowCount()):
@@ -279,8 +279,8 @@ class TypeItem(FixedMixin, CheckableItem):
             ),
             Action(
                 text="Merge regions",
-                func=signaldb.MergeMask,
-                args=(self.text(),)
+                func=self.merge_masks,
+                args=()
             ),
         ] + base_actions
         return actions
@@ -295,6 +295,12 @@ class TypeItem(FixedMixin, CheckableItem):
         self.appendRow(region_item)
         region_item.fix_family()
         return region_item
+
+    def merge_masks(self):
+        """Merge all masks"""
+        self.logger.debug('Entered')
+        for region in self:
+            self.logger.debug('Region="{}"'.format(region))
 
 
 class Regions(FixedMixin, CheckableItem):
