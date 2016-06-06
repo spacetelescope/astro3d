@@ -1,7 +1,11 @@
 """Main UI Viewer
 """
+from os.path import dirname
+
 from attrdict import AttrDict
 from ginga.AstroImage import AstroImage
+
+from config import config
 
 from ..util.logger import make_logger
 from ..external.qt import (QtGui, QtCore)
@@ -15,6 +19,28 @@ from qt4 import (
 )
 from qt4.preferences import Preferences
 
+# Supported image formats
+SUPPORT_IMAGE_FORMATS = (
+    'Images ('
+    '*.fits'
+    ' *.jpg'
+    ' *.jpeg*'
+    ' *.png'
+    ' *.gif'
+    ' *.tif*'
+    ' *.bmp'
+    ');;Uncommon ('
+    '*.fpx'
+    ' *.pcd'
+    ' *.pcx'
+    ' *.pixar'
+    ' *.ppm'
+    ' *.sgi'
+    ' *.tga'
+    ' *.xbm'
+    ' *.xpm'
+    ')'
+)
 
 # Shortcuts
 Qt = QtCore.Qt
@@ -48,14 +74,19 @@ class MainWindow(GTK_MainWindow):
         self._create_signals()
 
     def path_from_dialog(self):
-        res = QtGui.QFileDialog.getOpenFileName(self, "Open FITS file",
-                                                ".", "FITS files (*.fits)")
+        res = QtGui.QFileDialog.getOpenFileName(
+            self,
+            "Open image file",
+            config.get('gui', 'working_folder'),
+            SUPPORT_IMAGE_FORMATS
+        )
         if isinstance(res, tuple):
             pathname = res[0]
         else:
             pathname = str(res)
         if len(pathname) != 0:
             self.open_path(pathname)
+            config.set('gui', 'working_folder', dirname(pathname))
 
     def regionpath_from_dialog(self):
         res = QtGui.QFileDialog.getOpenFileNames(
@@ -108,8 +139,9 @@ class MainWindow(GTK_MainWindow):
 
     def open_path(self, pathname):
         """Open the image from pathname"""
+        self.model.read_image(pathname)
         self.image = Image(logger=self.logger)
-        self.image.load_file(pathname)
+        self.image.set_data(self.model.image)
         self.image_update(self.image)
 
     def image_update(self, image):
@@ -121,7 +153,6 @@ class MainWindow(GTK_MainWindow):
             The image.
         """
         self.image_viewer.set_image(image)
-        self.model.image = image.get_data()
         self.setWindowTitle(image.get('name'))
         signaldb.ModelUpdate()
 
@@ -145,6 +176,7 @@ class MainWindow(GTK_MainWindow):
     def quit(self, *args, **kwargs):
         """Shutdown"""
         self.logger.debug('GUI shutting down...')
+        config.save()
         self.deleteLater()
 
     def auto_reprocessing_state(self):
