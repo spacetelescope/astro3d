@@ -3,7 +3,7 @@
 from __future__ import print_function
 
 from ConfigParser import SafeConfigParser as SystemConfigParser
-from os.path import (abspath, dirname, exists, expanduser)
+from os.path import (abspath, dirname, expanduser)
 
 CONFIG_NAME = 'astro3d.cfg'
 
@@ -16,21 +16,24 @@ class Config(SystemConfigParser):
         SystemConfigParser.__init__(self)
         builtin_config = _default_config()
         home_config = expanduser('/'.join(['~', CONFIG_NAME]))
+
+        # List of configuration files.
+        # The most specific should be last in the list.
         config_sources = [
-            ('/'.join(['.', CONFIG_NAME]), True),
-            (home_config, True),
-            (builtin_config, False),
+            builtin_config,
+            home_config,
+            '/'.join(['.', CONFIG_NAME]),
         ]
 
-        config_file, savable = choose_config(config_sources)
-        self.read(config_file)
-        self.save_file = config_file
-        if not savable:
-            self.save_file = home_config
+        used = self.read(config_sources)
+        if len(used) <= 1:
+            self.save_config = home_config
+        else:
+            self.save_config = used[-1]
 
     def save(self):
-        with open(self.save_file, 'wb') as save_file:
-            self.write(save_file)
+        with open(self.save_config, 'wb') as save_config:
+            self.write(save_config)
 
 
 def _default_config():
@@ -38,13 +41,6 @@ def _default_config():
     exec_dir = dirname(abspath(__file__))[:-4]
     exec_dir = '/'.join([exec_dir, 'data'])
     return '/'.join([exec_dir, CONFIG_NAME])
-
-
-def choose_config(candidates):
-    for candidate, savable in candidates:
-        if exists(candidate):
-            return candidate, savable
-    raise IOError('No configuration files found')
 
 
 config = Config()
