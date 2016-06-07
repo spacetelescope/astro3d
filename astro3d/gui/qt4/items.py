@@ -2,9 +2,14 @@
 from __future__ import absolute_import, print_function
 
 from collections import (defaultdict, namedtuple)
+from itertools import count
+
+from astropy.extern import six
 
 from ...util.logger import make_logger
 from ...external.qt import (QtCore, QtGui)
+from ...core.image_utils import combine_region_masks
+from ...core.region_mask import RegionMask
 
 from .. import signaldb
 
@@ -116,6 +121,9 @@ class LayerItem(QStandardItem):
     """
 
     logger = None
+
+    # Use sequence to create unique identifiers
+    _sequence = count(1)
 
     def __init__(self, *args, **kwargs):
         self.value = kwargs.pop('value', None)
@@ -296,11 +304,26 @@ class TypeItem(FixedMixin, CheckableItem):
         region_item.fix_family()
         return region_item
 
+    def add_mask(self, mask, id):
+        region_item = RegionItem(id, value=mask)
+        region_item.setCheckState(Qt.Checked)
+        self.appendRow(region_item)
+        region_item.fix_family()
+        return region_item
+
     def merge_masks(self):
         """Merge all masks"""
-        self.logger.debug('Entered')
-        for region in self:
-            self.logger.debug('Region="{}"'.format(region))
+        regionmasks = []
+        for region in self.available():
+            regionmasks.append(region.value)
+            region.toggle_available()
+
+        if len(regionmasks) == 0:
+            return
+        mergedmask = combine_region_masks(regionmasks)
+        merged = RegionMask(mergedmask, self.text())
+        id = 'merged@' + str(six.advance_iterator(self._sequence))
+        self.add_mask(merged, id)
 
 
 class Regions(FixedMixin, CheckableItem):
@@ -323,34 +346,6 @@ class Regions(FixedMixin, CheckableItem):
             if self.child(type_id).child(region_id).is_available
         )
         return regions
-
-    def add_mask(self, mask, id):
-        """Add a new region from a RegionMask"""
-        type_item = self.types[mask.mask_type]
-        region_item = RegionItem(id, value=mask)
-        region_item.setCheckState(Qt.Checked)
-        type_item.appendRow(region_item)
-        if not type_item.index().isValid():
-            self.appendRow(type_item)
-        region_item.fix_family()
-
-    def add_region_interactive(self, mask_type):
-        """Add a type"""
-        self.logger.debug('Called mask_type="{}"'.format(mask_type))
-        type_item = self.types[mask_type]
-        if not type_item.index().isValid():
-            self.appendRow(type_item)
-        signaldb.NewRegion(type_item)
-
-    def merge_masks(self, mask=None):
-        """Merge mask
-
-        Parameters
-        ----------
-        mask: str
-            The mask to merge. If None, merge all masks.
-        """
-        signaldb.MergeMask(mask)
 
     @property
     def _actions(self):
@@ -378,11 +373,35 @@ class Regions(FixedMixin, CheckableItem):
             ),
             Action(
                 text='Merge all regions',
-                func=signaldb.MergeMask,
-                args=(None,)
+                func=self.merge_masks,
+                args=()
             )
         ] + base_actions
         return actions
+
+    def add_mask(self, mask, id):
+        """Add a new region from a RegionMask"""
+        type_item = self.types[mask.mask_type]
+        region_item = RegionItem(id, value=mask)
+        region_item.setCheckState(Qt.Checked)
+        type_item.appendRow(region_item)
+        if not type_item.index().isValid():
+            self.appendRow(type_item)
+        region_item.fix_family()
+
+    def add_region_interactive(self, mask_type):
+        """Add a type"""
+        self.logger.debug('Called mask_type="{}"'.format(mask_type))
+        type_item = self.types[mask_type]
+        if not type_item.index().isValid():
+            self.appendRow(type_item)
+        signaldb.NewRegion(type_item)
+
+    def merge_masks(self):
+        """Merge masks for all types"""
+        for type_id in range(self.rowCount()):
+            if self.child(type_id).is_available:
+                self.child(type_id).merge_masks()
 
 
 class Textures(FixedMixin, CheckableItem):
