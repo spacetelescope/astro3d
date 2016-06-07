@@ -77,7 +77,7 @@ class MainWindow(GTK_MainWindow):
         res = QtGui.QFileDialog.getOpenFileName(
             self,
             "Open image file",
-            config.get('gui', 'working_folder'),
+            config.get('gui', 'folder_image'),
             SUPPORT_IMAGE_FORMATS
         )
         if isinstance(res, tuple):
@@ -86,17 +86,19 @@ class MainWindow(GTK_MainWindow):
             pathname = str(res)
         if len(pathname) != 0:
             self.open_path(pathname)
-            config.set('gui', 'working_folder', dirname(pathname))
+            config.set('gui', 'folder_image', dirname(pathname))
 
     def regionpath_from_dialog(self):
         res = QtGui.QFileDialog.getOpenFileNames(
             self, "Open Region files",
-            ".", "FITS files (*.fits)"
+            config.get('gui', 'folder_regions'),
+            "FITS files (*.fits)"
         )
         self.logger.debug('res="{}"'.format(res))
         if len(res) > 0:
             self.model.read_maskpathlist(res)
             signaldb.ModelUpdate()
+            config.set('gui', 'folder_regions', dirname(res[0]))
 
     def starpath_from_dialog(self):
         res = QtGui.QFileDialog.getOpenFileName(self, "Open Stellar Catalog",
