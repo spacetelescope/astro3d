@@ -66,6 +66,10 @@ class StageChange(Signal):
     """A stage has changed state"""
 
 
+class MergeMask(Signal):
+    """Merge one or more masks"""
+
+
 # GUI events
 class NewRegion(Signal):
     """New region being created"""
