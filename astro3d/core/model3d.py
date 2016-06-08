@@ -1359,8 +1359,13 @@ class Model3D(object):
 
         return self.stellar_tables_original
 
-    def make_spiral_galaxy_masks(self, smooth_size=11, gas_percentile=55.,
-                                 spiral_percentile=75.):
+    def make_spiral_galaxy_masks(
+            self,
+            smooth_size=11,
+            model_xsize=1000,
+            gas_percentile=55.,
+            spiral_percentile=75.
+    ):
         """
         For a spiral galaxy image, automatically generate texture masks
         for spiral arms and gas.
@@ -1392,6 +1397,10 @@ class Model3D(object):
                           AstropyUserWarning)
             return
 
+        self._resize_scale_factor = float(model_xsize /
+                                          self.data_original.shape[1])
+
+        self._prepare_data()
         self.data = deepcopy(self.data_original_resized)
         self._prepare_masks()
         self._remove_stars()
@@ -1411,6 +1420,7 @@ class Model3D(object):
         gas_threshold = np.percentile(data, gas_percentile)
         gas_mask = np.logical_and(data > gas_threshold, ~spiral_mask)
 
+        new_regions = []
         for mask_type, mask in zip(['spiral', 'gas'],
                                    [spiral_mask, gas_mask]):
             texture_type = self._translate_mask_type(mask_type)
@@ -1422,9 +1432,11 @@ class Model3D(object):
                                             1. / self._resize_scale_factor)
             region_mask = RegionMask(mask, mask_type)
             self.texture_masks_original[texture_type] = [region_mask]
+            new_regions.append(region_mask)
 
         log.info('Automatically generated "spiral" and "gas" masks for '
                  'spiral galaxy.')
+        return new_regions
 
 
 def read_stellar_table(filename, stellar_type):
