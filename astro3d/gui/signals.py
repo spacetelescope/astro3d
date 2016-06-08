@@ -50,24 +50,24 @@ class ProcessForceQuit(Signal):
 
 
 # Data Manipulation
-class OpenFile(Signal):
-    """Open a new data file"""
-
-
-class NewImage(Signal):
-    """New Image is available"""
+class AutoCreateMasks(Signal):
+    """Auto-create gas and spiral masks"""
 
 
 class ModelUpdate(Signal):
     """Update mesh model"""
 
 
+class NewImage(Signal):
+    """New Image is available"""
+
+
+class OpenFile(Signal):
+    """Open a new data file"""
+
+
 class StageChange(Signal):
     """A stage has changed state"""
-
-
-class MergeMask(Signal):
-    """Merge one or more masks"""
 
 
 # GUI events

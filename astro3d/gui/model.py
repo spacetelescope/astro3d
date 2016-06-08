@@ -2,6 +2,7 @@
 
 from __future__ import absolute_import, print_function
 
+from itertools import count
 from os.path import basename
 
 from attrdict import AttrDict
@@ -26,6 +27,9 @@ __all__ = ['Model']
 
 class Model(QStandardItemModel):
     """Data model"""
+
+    # Sequence for unique id creation
+    _sequence = count(1)
 
     def __init__(self, *args, **kwargs):
         logger = kwargs.pop('logger', None)
@@ -56,7 +60,7 @@ class Model(QStandardItemModel):
             'double_sided': False
         })
 
-        # Signals
+        # Signals related to item modification
         self.itemChanged.connect(self._update)
 
         self.columnsInserted.connect(signaldb.ModelUpdate)
@@ -65,6 +69,9 @@ class Model(QStandardItemModel):
         self.rowsInserted.connect(signaldb.ModelUpdate)
         self.rowsMoved.connect(signaldb.ModelUpdate)
         self.rowsRemoved.connect(signaldb.ModelUpdate)
+
+        # Signals related to direct action
+        signaldb.AutoCreateMasks.connect(self.create_gas_spiral_masks)
 
     def __iter__(self):
         self._currentrow = None
@@ -126,37 +133,77 @@ class Model(QStandardItemModel):
         self.cluster_catalogs.add(cluster, id)
 
     def process(self):
-        """Create the 3D model."""
+        """Create the 3D model.
+
+        Returns
+        -------
+        (triset, model3d):
+            A tuple of the 3D mesh and the model3d it was based on.
+        """
         self.logger.debug('Starting processing...')
 
-        # Setup steps in the thread. Between each step,
-        # check to see if stopped.
-        if self.image is None:
-            return
-        m = Model3D(self.image)
+        model3d = self.create_model3d()
+        model3d.make(
+            intensity=self.stages.intensity,
+            textures=self.stages.textures,
+            double_sided=self.stages.double_sided,
+            spiral_galaxy=self.stages.spiral_galaxy
+        )
 
-        for region in self.regions.regions:
-            try:
-                m.add_mask(region)
-            except AttributeError:
-                """Not a RegionMask, ignore"""
-                pass
-
-        for catalog in self.cluster_catalogs.available():
-            m.add_stellar_table(catalog.value, 'star_clusters')
-
-        for catalog in self.stars_catalogs.available():
-            m.add_stellar_table(catalog.value, 'stars')
-
-        m.make(intensity=self.stages.intensity, textures=self.stages.textures,
-               double_sided=self.stages.double_sided,
-               spiral_galaxy=self.stages.spiral_galaxy)
-
-        triset = make_triangles(m.data)
+        triset = make_triangles(model3d.data)
         if self.stages.double_sided:
             triset = concatenate((triset, reflect_triangles(triset)))
         self.triset = triset
-        return (triset, m)
+        return (triset, model3d)
+
+    def create_model3d(self, exclude_regions=None):
+        """Set the Model3d parameters.
+        Create and add all information to the astro3d model
+
+        Parameters
+        ----------
+        exclude_regions: (str, )
+            List of region types to exclude from the model.
+
+        Returns
+        -------
+        model3d: An Model3D
+        """
+
+        # Really need an image.
+        if self.image is None:
+            raise(RuntimeError, 'Cannot created Model3D. No image defined')
+        model3d = Model3D(self.image)
+
+        if exclude_regions is None:
+            exclude_regions = []
+
+        for region in self.regions.regions:
+            if region.mask_type not in exclude_regions:
+                try:
+                    model3d.add_mask(region)
+                except AttributeError:
+                    """Not a RegionMask, ignore"""
+                    pass
+
+        for catalog in self.cluster_catalogs.available():
+            model3d.add_stellar_table(catalog.value, 'star_clusters')
+
+        for catalog in self.stars_catalogs.available():
+            model3d.add_stellar_table(catalog.value, 'stars')
+
+        return model3d
+
+    def create_gas_spiral_masks(self):
+        """Create the gas and spiral masks"""
+        model3d = self.create_model3d(
+            exclude_regions=['gas', 'spiral']
+        )
+        new_regions = model3d.make_spiral_galaxy_masks()
+        id_count = str(self._sequence.next())
+        for region in new_regions:
+            id = 'auto' + region.mask_type + id_count
+            self.regions.add_mask(mask=region, id=id)
 
     def save_all(self, prefix):
         """Save all info to the prefix"""

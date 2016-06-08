@@ -322,7 +322,7 @@ class TypeItem(FixedMixin, CheckableItem):
             return
         mergedmask = combine_region_masks(regionmasks)
         merged = RegionMask(mergedmask, self.text())
-        id = 'merged@' + str(six.advance_iterator(self._sequence))
+        id = 'merged@' + str(self._sequence.next())
         self.add_mask(merged, id)
 
 
@@ -371,11 +371,17 @@ class Regions(FixedMixin, CheckableItem):
                 func=self.add_region_interactive,
                 args=('remove_star',)
             ),
+            ActionSeparator(),
+            Action(
+                text='Autocreate Gas/Spiral masks',
+                func=self.autocreate_gasspiral,
+                args=()
+            ),
             Action(
                 text='Merge all regions',
                 func=self.merge_masks,
                 args=()
-            )
+            ),
         ] + base_actions
         return actions
 
@@ -402,6 +408,10 @@ class Regions(FixedMixin, CheckableItem):
         for type_id in range(self.rowCount()):
             if self.child(type_id).is_available:
                 self.child(type_id).merge_masks()
+
+    def autocreate_gasspiral(self):
+        """Autocreate the gas and spiral arm masks"""
+        signaldb.AutoCreateMasks()
 
 
 class Textures(FixedMixin, CheckableItem):
