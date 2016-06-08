@@ -2,9 +2,10 @@
 from __future__ import absolute_import, print_function
 
 from collections import (defaultdict, namedtuple)
+import copy
 from itertools import count
 
-from astropy.extern import six
+from ginga.canvas.types.image import Image
 
 from ...util.logger import make_logger
 from ...external.qt import (QtCore, QtGui)
@@ -175,6 +176,30 @@ class LayerItem(QStandardItem):
         if self.isEnabled():
             fix_tristate(self.parent())
 
+    def clone(self):
+        """Clone this item
+
+        Returns
+        -------
+        The clone.
+        """
+        new = self.__class__(logger=self.logger)
+        if isinstance(self.view, Image):
+            new.value = self.value
+            new.view = None
+        else:
+            new.view = copy.copy(self.view)
+            new.view.item = new
+            new.value = None
+
+        return new
+
+    def __copy__(self):
+        return self.clone()
+
+    def __deepcopy__(self, memo):
+        return self.clone()
+
 
 class FixedMixin(object):
     """Item cannot be edited"""
@@ -214,6 +239,11 @@ class RegionItem(CheckableItem):
         base_actions = super(RegionItem, self)._actions
         actions = [
             Action(
+                text='Duplicate',
+                func=self.duplicate,
+                args=()
+            ),
+            Action(
                 text='Remove',
                 func=self.remove,
                 args=()
@@ -223,6 +253,13 @@ class RegionItem(CheckableItem):
 
     def remove(self):
         self.parent().removeRow(self.row())
+
+    def duplicate(self):
+        """Duplicate this item and put into model"""
+        new = self.clone()
+        new.setText(self.text() + 'copy' + str(self._sequence.next()))
+        self.parent().appendRow(new)
+        new.fix_family()
 
 
 class ClusterItem(CheckableItem):
