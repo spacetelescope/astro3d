@@ -70,9 +70,6 @@ class Model(QStandardItemModel):
         self.rowsMoved.connect(signaldb.ModelUpdate)
         self.rowsRemoved.connect(signaldb.ModelUpdate)
 
-        # Signals related to direct action
-        signaldb.AutoCreateMasks.connect(self.create_gas_spiral_masks)
-
     def __iter__(self):
         self._currentrow = None
         return self
