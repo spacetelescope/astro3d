@@ -30,15 +30,13 @@ class Parameters(QtGui.QWidget):
 
         self._build_gui()
 
-    def gasspiral(self, *args, **kwargs):
+    def create_gas_spiral_masks(self, *args, **kwargs):
         """Set Gas/Spiral arm esitmator parameters"""
-        self.logger.debug('Entered: args="{}" kwargs="{}"'.format(args, kwargs))
         self.model.create_gas_spiral_masks(
             smooth_size=self.children.smooth_size.get_value(),
             gas_percentile=self.children.gas_percentile.get_value(),
             spiral_percentile=self.children.spiral_percentile.get_value()
         )
-
 
     def _build_gui(self):
         """Build out the GUI"""
@@ -81,7 +79,7 @@ class Parameters(QtGui.QWidget):
 
         gasspiral_bunch.create_masks.add_callback(
             'activated',
-            self.gasspiral
+            self.create_gas_spiral_masks
         )
 
         gasspiral_frame = Widgets.Frame('Gas/Spiral Arm parameters')

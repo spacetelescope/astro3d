@@ -383,4 +383,4 @@ class MainWindow(GTK_MainWindow):
         signaldb.StageChange.connect(self.stagechange)
         signaldb.LayerSelected.connect(self.shape_editor.select_layer)
         signaldb.LayerSelected.connect(self.layer_manager.select_from_object)
-        signaldb.AutoCreateMasks.connect(self.parameters.gasspiral)
+        signaldb.CreateGasSpiralMasks.connect(self.parameters.create_gas_spiral_masks)
