@@ -16,6 +16,7 @@ from qt4 import (
     ViewMesh,
     ShapeEditor,
     OverlayView,
+    Parameters,
 )
 from qt4.preferences import Preferences
 
@@ -236,6 +237,19 @@ class MainWindow(GTK_MainWindow):
         shape_editor_dock.setWidget(self.shape_editor)
         self.addDockWidget(Qt.LeftDockWidgetArea, shape_editor_dock)
         self.shape_editor_dock = shape_editor_dock
+
+        # Parameters
+        self.parameters = Parameters(
+            logger=self.logger,
+            model=self.model
+        )
+        parameters_dock = QtGui.QDockWidget('Parameters', self)
+        parameters_dock.setAllowedAreas(
+            Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea
+        )
+        parameters_dock.setWidget(self.parameters)
+        self.addDockWidget(Qt.LeftDockWidgetArea, parameters_dock)
+        self.parameters_dock = parameters_dock
 
         # Setup all the auxiliary gui.
         self._create_actions()

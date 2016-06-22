@@ -194,15 +194,41 @@ class Model(QStandardItemModel):
 
         return model3d
 
-    def create_gas_spiral_masks(self):
-        """Create the gas and spiral masks"""
+    def create_gas_spiral_masks(
+            self,
+            smooth_size=11,
+            gas_percentile=55.,
+            spiral_percentile=75.
+    ):
+        """Create the gas and spiral masks
+
+        Parameters
+        ----------
+        smooth_size : float or tuple, optional
+            The shape of smoothing filter window.  If ``size`` is an
+            `int`, then then ``size`` will be used for both dimensions.
+
+        gas_percentile : float, optional
+            The percentile of pixel values in the weighted data above
+            which (and below ``spiral_percentile``) to assign to the
+            "gas" mask.  ``gas_percentile`` must be lower than
+            ``spiral_percentile``.
+
+        spiral_percentile : float, optional
+            The percentile of pixel values in the weighted data above
+            which to assign to the "spiral arms" mask.
+        """
         model3d = self.create_model3d(
             exclude_regions=['gas', 'spiral']
         )
-        new_regions = model3d.make_spiral_galaxy_masks()
-        id_count = str(self._sequence.next())
+        new_regions = model3d.make_spiral_galaxy_masks(
+            smooth_size=smooth_size,
+            gas_percentile=gas_percentile,
+            spiral_percentile=spiral_percentile
+        )
+        id_count = str(next(self._sequence))
         for region in new_regions:
-            id = 'auto' + region.mask_type + id_count
+            id = 'auto' + region.mask_type + '@' + id_count
             self.regions.add_mask(mask=region, id=id)
 
     def save_all(self, prefix):
