@@ -200,9 +200,9 @@ class Model(QStandardItemModel):
             exclude_regions=['gas', 'spiral']
         )
         new_regions = model3d.make_spiral_galaxy_masks()
-        id_count = str(self._sequence.next())
+        id_count = str(next(self._sequence))
         for region in new_regions:
-            id = 'auto' + region.mask_type + id_count
+            id = 'auto' + region.mask_type + '@' + id_count
             self.regions.add_mask(mask=region, id=id)
 
     def save_all(self, prefix):

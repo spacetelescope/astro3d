@@ -257,7 +257,7 @@ class RegionItem(CheckableItem):
     def duplicate(self):
         """Duplicate this item and put into model"""
         new = self.clone()
-        new.setText(self.text() + 'copy' + str(self._sequence.next()))
+        new.setText(self.text() + 'copy@' + str(next(self._sequence)))
         self.parent().appendRow(new)
         new.fix_family()
 
@@ -359,7 +359,7 @@ class TypeItem(FixedMixin, CheckableItem):
             return
         mergedmask = combine_region_masks(regionmasks)
         merged = RegionMask(mergedmask, self.text())
-        id = 'merged@' + str(self._sequence.next())
+        id = 'merged@' + str(next(self._sequence))
         self.add_mask(merged, id)
 
 
