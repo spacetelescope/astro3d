@@ -5,9 +5,9 @@ from __future__ import absolute_import, print_function
 from itertools import count
 from os.path import basename
 
-from attrdict import AttrDict
-
 from numpy import concatenate
+
+from ginga.misc.Bunch import Bunch
 
 from ..external.qt import (QtCore, QtGui)
 from ..core.model3d import (Model3D, read_stellar_table)
@@ -53,7 +53,7 @@ class Model(QStandardItemModel):
         root.appendRow(self.textures)
         self._root = root
 
-        self.stages = AttrDict({
+        self.stages = Bunch({
             'intensity': True,
             'textures': True,
             'spiral_galaxy': True,
