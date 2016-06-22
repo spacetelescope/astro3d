@@ -6,9 +6,16 @@ from ginga.gw import Widgets
 from ...external.qt import (QtGui, QtCore)
 from ...util.logger import make_logger
 from .. import signaldb
-from ..helps import instructions
 
 __all__ = ['Parameters']
+
+
+STAGES = {
+    'Intensity':     'intensity',
+    'Textures':      'textures',
+    'Spiral Galaxy': 'spiral_galaxy',
+    'Double Sided':  'double_sided'
+}
 
 
 class Parameters(QtGui.QWidget):
@@ -26,6 +33,7 @@ class Parameters(QtGui.QWidget):
             make_logger('astro3d Shape Editor')
         )
         self.model = kwargs.pop('model')
+        self.parent = kwargs.pop('parent')
         super(Parameters, self).__init__(*args, **kwargs)
 
         self._build_gui()
@@ -38,6 +46,11 @@ class Parameters(QtGui.QWidget):
             spiral_percentile=self.children.spiral_percentile.get_value()
         )
 
+    def set_stage(self, widget, state):
+        stage = STAGES[widget.get_widget().text()]
+        self.model.stages[stage] = state
+        signaldb.ModelUpdate()
+
     def _build_gui(self):
         """Build out the GUI"""
         # Remove old layout
@@ -46,6 +59,46 @@ class Parameters(QtGui.QWidget):
             QtGui.QWidget().setLayout(self.layout())
         self.children = Bunch()
         spacer = Widgets.Label('')
+
+        # Processing stages
+        captions = (
+            ('Textures', 'checkbutton'),
+            ('Intensity', 'checkbutton'),
+            ('Spiral Galaxy', 'checkbutton'),
+            ('Double Sided', 'checkbutton'),
+            ('AutoProcess', 'checkbutton'),
+            ('Reprocess', 'button')
+        )
+        stages_widget, stages_bunch = Widgets.build_info(captions)
+        self.children.update(stages_bunch)
+
+        for widget in stages_bunch:
+            try:
+                def_state = self.model.stages[widget]
+            except KeyError:
+                continue
+            else:
+                w = stages_bunch[widget]
+                w.set_state(def_state)
+                w.add_callback(
+                    'activated',
+                    self.set_stage
+                )
+
+        w = stages_bunch['autoprocess']
+        w.set_state(signaldb.ModelUpdate.enabled)
+        w.add_callback(
+            'activated',
+            lambda w, state: signaldb.ModelUpdate.set_enabled(state)
+        )
+
+        stages_bunch.reprocess.add_callback(
+            'activated',
+            lambda w: self.parent.force_update()
+        )
+
+        stages_frame = Widgets.Frame('Processing')
+        stages_frame.set_widget(stages_widget)
 
         # Gas/Spiral parameters
         captions = (
@@ -89,6 +142,12 @@ class Parameters(QtGui.QWidget):
         layout = QtGui.QVBoxLayout()
         layout.setContentsMargins(QtCore.QMargins(20, 20, 20, 20))
         layout.setSpacing(1)
-        layout.addWidget(gasspiral_frame.get_widget(), stretch=0)
+        layout.addWidget(stages_frame.get_widget(), stretch=0)
         layout.addWidget(spacer.get_widget(), stretch=1)
+        layout.addWidget(gasspiral_frame.get_widget(), stretch=0)
+        layout.addWidget(spacer.get_widget(), stretch=2)
         self.setLayout(layout)
+
+    def callbackme(self, *args, **kwargs):
+        self.logger.debug('Callback: args="{}" kwargs="{}"'.format(args, kwargs))
+        self.logger.debug('dir(w): "{}"'.format(dir(args[0])))
