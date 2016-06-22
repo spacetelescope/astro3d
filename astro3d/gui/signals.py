@@ -50,7 +50,7 @@ class ProcessForceQuit(Signal):
 
 
 # Data Manipulation
-class AutoCreateMasks(Signal):
+class CreateGasSpiralMasks(Signal):
     """Auto-create gas and spiral masks"""
 
 

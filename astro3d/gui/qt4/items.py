@@ -411,7 +411,7 @@ class Regions(FixedMixin, CheckableItem):
             ActionSeparator(),
             Action(
                 text='Autocreate Gas/Spiral masks',
-                func=self.autocreate_gasspiral,
+                func=signaldb.CreateGasSpiralMasks,
                 args=()
             ),
             Action(
@@ -445,10 +445,6 @@ class Regions(FixedMixin, CheckableItem):
         for type_id in range(self.rowCount()):
             if self.child(type_id).is_available:
                 self.child(type_id).merge_masks()
-
-    def autocreate_gasspiral(self):
-        """Autocreate the gas and spiral arm masks"""
-        signaldb.AutoCreateMasks()
 
 
 class Textures(FixedMixin, CheckableItem):

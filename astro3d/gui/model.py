@@ -56,8 +56,8 @@ class Model(QStandardItemModel):
         self.stages = AttrDict({
             'intensity': True,
             'textures': True,
-            'spiral_galaxy': False,
-            'double_sided': False
+            'spiral_galaxy': True,
+            'double_sided': True
         })
 
         # Signals related to item modification

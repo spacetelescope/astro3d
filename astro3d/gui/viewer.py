@@ -241,6 +241,7 @@ class MainWindow(GTK_MainWindow):
         # Parameters
         self.parameters = Parameters(
             logger=self.logger,
+            parent=self,
             model=self.model
         )
         parameters_dock = QtGui.QDockWidget('Parameters', self)
@@ -337,10 +338,10 @@ class MainWindow(GTK_MainWindow):
 
 
         # Preferences
-        prefs_menu = Preferences('Preferences')
-        prefs_menu.addAction(self.actions.auto_reprocess)
-        self._prefs_menu = prefs_menu.for_menubar(parent=self)
-        menubar.addMenu(self._prefs_menu)
+        #prefs_menu = Preferences('Preferences')
+        #prefs_menu.addAction(self.actions.auto_reprocess)
+        #self._prefs_menu = prefs_menu.for_menubar(parent=self)
+        #menubar.addMenu(self._prefs_menu)
         # Note: _prefs_menu must be kept in scope. Not sure why
         # but guess is that when it is reparented into the
         # application menu, it can drop out of scope and be
@@ -360,11 +361,11 @@ class MainWindow(GTK_MainWindow):
         view_menu.addAction(self.actions.preview_toggle)
         view_menu.addAction(self.layer_dock.toggleViewAction())
 
-        stage_menu = menubar.addMenu('Stages')
-        for name in STAGES:
-            stage_menu.addAction(self.actions[STAGES[name]])
-        stage_menu.addSeparator()
-        stage_menu.addAction(self.actions.reprocess)
+        #stage_menu = menubar.addMenu('Stages')
+        #for name in STAGES:
+        #    stage_menu.addAction(self.actions[STAGES[name]])
+        #stage_menu.addSeparator()
+        #stage_menu.addAction(self.actions.reprocess)
 
     def _create_toolbars(self):
         """Setup the main toolbars"""
@@ -383,4 +384,4 @@ class MainWindow(GTK_MainWindow):
         signaldb.StageChange.connect(self.stagechange)
         signaldb.LayerSelected.connect(self.shape_editor.select_layer)
         signaldb.LayerSelected.connect(self.layer_manager.select_from_object)
-        signaldb.AutoCreateMasks.connect(self.parameters.gasspiral)
+        signaldb.CreateGasSpiralMasks.connect(self.parameters.create_gas_spiral_masks)
