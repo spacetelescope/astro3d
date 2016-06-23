@@ -48,7 +48,7 @@ class Parameters(QtGui.QWidget):
 
     def set_stage(self, widget, state):
         stage = STAGES[widget.get_widget().text()]
-        self.model.stages[stage] = state
+        self.model.params[stage] = state
         signaldb.ModelUpdate()
 
     def _build_gui(self):
@@ -74,7 +74,7 @@ class Parameters(QtGui.QWidget):
 
         for widget in stages_bunch:
             try:
-                def_state = self.model.stages[widget]
+                def_state = self.model.params[widget]
             except KeyError:
                 continue
             else:

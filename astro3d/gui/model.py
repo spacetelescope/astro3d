@@ -16,6 +16,8 @@ from ..core.meshes import (make_triangles, reflect_triangles)
 from ..util.logger import make_logger
 from . import signaldb
 from .qt4.items import (Regions, Textures, Clusters, Stars)
+from .config import config
+
 
 # Shortcuts
 QStandardItemModel = QtGui.QStandardItemModel
@@ -53,12 +55,11 @@ class Model(QStandardItemModel):
         root.appendRow(self.textures)
         self._root = root
 
-        self.stages = Bunch({
-            'intensity': True,
-            'textures': True,
-            'spiral_galaxy': True,
-            'double_sided': True
-        })
+        # Load initial values.
+        self.params = Bunch()
+        self.params.update(
+            {p: config.get('model', p) for p in config.options('model')}
+        )
 
         # Signals related to item modification
         self.itemChanged.connect(self._update)
@@ -140,15 +141,10 @@ class Model(QStandardItemModel):
         self.logger.debug('Starting processing...')
 
         model3d = self.create_model3d()
-        model3d.make(
-            intensity=self.stages.intensity,
-            textures=self.stages.textures,
-            double_sided=self.stages.double_sided,
-            spiral_galaxy=self.stages.spiral_galaxy
-        )
+        model3d.make(**self.params)
 
         triset = make_triangles(model3d.data)
-        if self.stages.double_sided:
+        if self.params.double_sided:
             triset = concatenate((triset, reflect_triangles(triset)))
         self.triset = triset
         return (triset, model3d)
