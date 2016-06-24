@@ -55,7 +55,7 @@ def build_widgets(store, callback=None, extra=None):
         else:
             captions_notbool.append((
                 idx, 'label',
-                idx, 'entry'
+                idx, 'entryset'
             ))
     captions = captions + captions_notbool + extra
     container, widget_list = build_info(captions)
