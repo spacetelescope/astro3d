@@ -241,6 +241,13 @@ class Model(QStandardItemModel):
         model3d.write_all_stellar_tables(prefix)
         model3d.write_stl(prefix)
 
+    def quit(self):
+        """Close down the model."""
+        params = self.params
+        for section in params:
+            for param in params[section]:
+                config.set(section, param, str(self.params[section][param]))
+
     def _update_from_index(self, index_ul, index_br):
         """Update model due to an item change
 

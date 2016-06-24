@@ -163,6 +163,7 @@ class MainWindow(GTK_MainWindow):
     def quit(self, *args, **kwargs):
         """Shutdown"""
         self.logger.debug('GUI shutting down...')
+        self.model.quit()
         config.save()
         self.deleteLater()
 
