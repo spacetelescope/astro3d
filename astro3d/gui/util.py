@@ -9,7 +9,7 @@ from . import signaldb
 __all__ = ['build_widgets']
 
 
-def build_widgets(store, callback=None):
+def build_widgets(store, callback=None, extra=None):
     """Build Ginga widgets from simple captions
 
     Based off of ginga.gw.Widgets.build_info,
@@ -28,6 +28,11 @@ def build_widgets(store, callback=None):
         takes the new value and places it back
         into the store.
 
+    extra: (name, gui_type, ...)
+        Extra widgets defined in the caption
+        format. No special processing is
+        done beyond the creation of the widgets.
+
     Returns
     -------
     widget: The Ginga widget
@@ -38,6 +43,8 @@ def build_widgets(store, callback=None):
     """
     if callback is None:
         callback = value_update
+    if extra is None:
+        extra = []
 
     captions = []
     captions_notbool = []
@@ -50,7 +57,7 @@ def build_widgets(store, callback=None):
                 idx, 'label',
                 idx, 'entry'
             ))
-    captions = captions + captions_notbool
+    captions = captions + captions_notbool + extra
     container, widget_list = build_info(captions)
     for idx in store:
         value = store[idx]

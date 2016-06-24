@@ -7,16 +7,10 @@ from ...external.qt import (QtGui, QtCore)
 from ...util.logger import make_logger
 from .. import signaldb
 from ..util import build_widgets
+from ..config import config
+
 
 __all__ = ['Parameters']
-
-
-STAGES = {
-    'Intensity':     'intensity',
-    'Textures':      'textures',
-    'Spiral Galaxy': 'spiral_galaxy',
-    'Double Sided':  'double_sided'
-}
 
 
 class Parameters(QtGui.QWidget):
@@ -47,11 +41,6 @@ class Parameters(QtGui.QWidget):
             spiral_percentile=self.children.spiral_percentile.get_value()
         )
 
-    def set_stage(self, widget, state):
-        stage = STAGES[widget.get_widget().text()]
-        self.model.params[stage] = state
-        signaldb.ModelUpdate()
-
     def _build_gui(self):
         """Build out the GUI"""
         self.logger.debug('Called.')
@@ -59,10 +48,13 @@ class Parameters(QtGui.QWidget):
         spacer = Widgets.Label('')
 
         # Processing parameters
-        params_widget, params_bunch = build_widgets(self.model.params)
+        captions = [('autoprocess', 'checkbutton'),
+                    ('Reprocess', 'button')]
+        params_widget, params_bunch = build_widgets(
+            self.model.params.stages,
+            extra=captions)
         self.children.update(params_bunch)
 
-        """
         w = params_bunch['autoprocess']
         w.set_state(signaldb.ModelUpdate.enabled)
         w.add_callback(
@@ -74,10 +66,21 @@ class Parameters(QtGui.QWidget):
             'activated',
             lambda w: self.parent.force_update()
         )
-        """
 
         params_frame = Widgets.Frame('Processing')
         params_frame.set_widget(params_widget)
+
+        # Model parameters
+        model_widget, model_bunch = build_widgets(
+            self.model.params.model
+        )
+        self.children.update(model_bunch)
+
+        model_frame = Widgets.Frame()
+        model_frame.set_widget(model_widget)
+        model_expander = Widgets.Expander('Model Params')
+        model_expander.set_widget(model_frame)
+        self.children['model_expander'] = model_expander
 
         # Gas/Spiral parameters
         captions = (
@@ -122,6 +125,8 @@ class Parameters(QtGui.QWidget):
         layout.setContentsMargins(QtCore.QMargins(20, 20, 20, 20))
         layout.setSpacing(1)
         layout.addWidget(params_frame.get_widget(), stretch=0)
+        layout.addWidget(spacer.get_widget(), stretch=1)
+        layout.addWidget(model_expander.get_widget(), stretch=0)
         layout.addWidget(spacer.get_widget(), stretch=1)
         layout.addWidget(gasspiral_frame.get_widget(), stretch=0)
         layout.addWidget(spacer.get_widget(), stretch=2)

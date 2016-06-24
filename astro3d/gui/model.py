@@ -56,10 +56,15 @@ class Model(QStandardItemModel):
         self._root = root
 
         # Load initial values.
-        self.params = Bunch()
-        self.params.update(
-            {p: config.get('model', p) for p in config.options('model')}
-        )
+        params = Bunch({
+            'stages': Bunch(),
+            'model': Bunch(),
+        })
+        for section in params:
+            params[section].update(
+                {p: config.get(section, p) for p in config.options(section)}
+            )
+        self.params = params
 
         # Signals related to item modification
         self.itemChanged.connect(self._update)
@@ -140,11 +145,13 @@ class Model(QStandardItemModel):
         """
         self.logger.debug('Starting processing...')
 
+        make_params = self.params.stages.copy()
+        make_params.update(self.params.model)
         model3d = self.create_model3d()
-        model3d.make(**self.params)
+        model3d.make(**make_params)
 
         triset = make_triangles(model3d.data)
-        if self.params.double_sided:
+        if self.params.stages.double_sided:
             triset = concatenate((triset, reflect_triangles(triset)))
         self.triset = triset
         return (triset, model3d)
