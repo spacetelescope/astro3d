@@ -5,7 +5,6 @@ from os.path import dirname
 from attrdict import AttrDict
 from ginga.AstroImage import AstroImage
 
-from config import config
 
 from ..util.logger import make_logger
 from ..external.qt import (QtGui, QtCore)
@@ -18,7 +17,8 @@ from qt4 import (
     OverlayView,
     Parameters,
 )
-from qt4.preferences import Preferences
+from .config import config
+
 
 # Supported image formats
 SUPPORT_IMAGE_FORMATS = (
@@ -49,14 +49,6 @@ GTK_MainWindow = QtGui.QMainWindow
 
 
 __all__ = ['MainWindow']
-
-
-STAGES = {
-    'Intensity':     'intensity',
-    'Textures':      'textures',
-    'Spiral Galaxy': 'spiral_galaxy',
-    'Double-sided':  'double_sided'
-}
 
 
 class Image(AstroImage):
@@ -157,14 +149,6 @@ class MainWindow(GTK_MainWindow):
         """
         self.image_viewer.set_image(image)
         self.setWindowTitle(image.get('name'))
-        signaldb.ModelUpdate()
-
-    def stagechange(self, *args, **kwargs):
-        """Act on a Stage toggle form the UI"""
-        self.logger.debug('args="{}" kwargs="{}"'.format(args, kwargs))
-
-        stage = STAGES[self.sender().text()]
-        self.model.stages[stage] = args[0]
         signaldb.ModelUpdate()
 
     def force_update(self):
@@ -313,14 +297,6 @@ class MainWindow(GTK_MainWindow):
         self.mesh_viewer.closed.connect(preview_toggle.setChecked)
         self.actions.preview_toggle = preview_toggle
 
-        for name in STAGES:
-            action = STAGES[name]
-            qaction = QtGui.QAction(name, self)
-            qaction.setCheckable(True)
-            qaction.setChecked(self.model.stages[action])
-            qaction.toggled.connect(self.stagechange)
-            self.actions[action] = qaction
-
         reprocess = QtGui.QAction('Reprocess', self)
         reprocess.setShortcut('Shift+Ctrl+R')
         reprocess.setStatusTip('Reprocess the model')
@@ -336,17 +312,6 @@ class MainWindow(GTK_MainWindow):
             menubar = self.menuBar()
         self.menubar = menubar
 
-
-        # Preferences
-        #prefs_menu = Preferences('Preferences')
-        #prefs_menu.addAction(self.actions.auto_reprocess)
-        #self._prefs_menu = prefs_menu.for_menubar(parent=self)
-        #menubar.addMenu(self._prefs_menu)
-        # Note: _prefs_menu must be kept in scope. Not sure why
-        # but guess is that when it is reparented into the
-        # application menu, it can drop out of scope and be
-        # removed.
-
         # File menu
         file_menu = menubar.addMenu('&File')
         file_menu.addAction(self.actions.open)
@@ -360,12 +325,6 @@ class MainWindow(GTK_MainWindow):
         view_menu = menubar.addMenu('View')
         view_menu.addAction(self.actions.preview_toggle)
         view_menu.addAction(self.layer_dock.toggleViewAction())
-
-        #stage_menu = menubar.addMenu('Stages')
-        #for name in STAGES:
-        #    stage_menu.addAction(self.actions[STAGES[name]])
-        #stage_menu.addSeparator()
-        #stage_menu.addAction(self.actions.reprocess)
 
     def _create_toolbars(self):
         """Setup the main toolbars"""
@@ -381,7 +340,8 @@ class MainWindow(GTK_MainWindow):
         signaldb.NewImage.connect(self.image_update)
         signaldb.UpdateMesh.connect(self.mesh_viewer.update_mesh)
         signaldb.ProcessStart.connect(self.mesh_viewer.process)
-        signaldb.StageChange.connect(self.stagechange)
         signaldb.LayerSelected.connect(self.shape_editor.select_layer)
         signaldb.LayerSelected.connect(self.layer_manager.select_from_object)
-        signaldb.CreateGasSpiralMasks.connect(self.parameters.create_gas_spiral_masks)
+        signaldb.CreateGasSpiralMasks.connect(
+            self.parameters.create_gas_spiral_masks
+        )

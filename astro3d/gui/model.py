@@ -5,9 +5,9 @@ from __future__ import absolute_import, print_function
 from itertools import count
 from os.path import basename
 
-from attrdict import AttrDict
-
 from numpy import concatenate
+
+from ginga.misc.Bunch import Bunch
 
 from ..external.qt import (QtCore, QtGui)
 from ..core.model3d import (Model3D, read_stellar_table)
@@ -16,6 +16,8 @@ from ..core.meshes import (make_triangles, reflect_triangles)
 from ..util.logger import make_logger
 from . import signaldb
 from .qt4.items import (Regions, Textures, Clusters, Stars)
+from .config import config
+
 
 # Shortcuts
 QStandardItemModel = QtGui.QStandardItemModel
@@ -53,12 +55,16 @@ class Model(QStandardItemModel):
         root.appendRow(self.textures)
         self._root = root
 
-        self.stages = AttrDict({
-            'intensity': True,
-            'textures': True,
-            'spiral_galaxy': True,
-            'double_sided': True
+        # Load initial values.
+        params = Bunch({
+            'stages': Bunch(),
+            'model': Bunch(),
         })
+        for section in params:
+            params[section].update(
+                {p: config.get(section, p) for p in config.options(section)}
+            )
+        self.params = params
 
         # Signals related to item modification
         self.itemChanged.connect(self._update)
@@ -139,16 +145,13 @@ class Model(QStandardItemModel):
         """
         self.logger.debug('Starting processing...')
 
+        make_params = self.params.stages.copy()
+        make_params.update(self.params.model)
         model3d = self.create_model3d()
-        model3d.make(
-            intensity=self.stages.intensity,
-            textures=self.stages.textures,
-            double_sided=self.stages.double_sided,
-            spiral_galaxy=self.stages.spiral_galaxy
-        )
+        model3d.make(**make_params)
 
         triset = make_triangles(model3d.data)
-        if self.stages.double_sided:
+        if self.params.stages.double_sided:
             triset = concatenate((triset, reflect_triangles(triset)))
         self.triset = triset
         return (triset, model3d)
