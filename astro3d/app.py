@@ -65,13 +65,6 @@ class Application(Controller):
 
     def _argparse(self, argv):
         parser = ArgumentParser()
-        parser.add_argument(
-            '-D', '--disable_autoprocessing',
-            help='Disable automatic 3D generation',
-            action='store_true'
-        )
-        args = parser.parse_args(argv)
-        signaldb.ModelUpdate.set_enabled(not args.disable_autoprocessing)
 
     def _create_signals(self):
         signaldb.logger = self.logger

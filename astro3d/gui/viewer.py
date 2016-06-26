@@ -63,6 +63,11 @@ class MainWindow(GTK_MainWindow):
             logger = make_logger('astro3d viewer')
         self.logger = logger
         self.model = model
+
+        signaldb.ModelUpdate.set_enabled(
+            config.get('gui', 'autoprocess')
+        )
+
         self._build_gui()
         self._create_signals()
 
@@ -171,6 +176,7 @@ class MainWindow(GTK_MainWindow):
         """Shutdown"""
         self.logger.debug('GUI shutting down...')
         self.model.quit()
+        config.set('gui', 'autoprocess', str(signaldb.ModelUpdate.enabled))
         config.save()
         self.deleteLater()
 
