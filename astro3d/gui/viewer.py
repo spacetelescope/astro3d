@@ -63,6 +63,11 @@ class MainWindow(GTK_MainWindow):
             logger = make_logger('astro3d viewer')
         self.logger = logger
         self.model = model
+
+        signaldb.ModelUpdate.set_enabled(
+            config.get('gui', 'autoprocess')
+        )
+
         self._build_gui()
         self._create_signals()
 
@@ -94,21 +99,25 @@ class MainWindow(GTK_MainWindow):
             config.set('gui', 'folder_regions', dirname(res[0]))
 
     def starpath_from_dialog(self):
-        res = QtGui.QFileDialog.getOpenFileName(self, "Open Stellar Catalog",
-                                                ".")
+        res = QtGui.QFileDialog.getOpenFileName(
+            self,
+            "Open Stellar Catalog",
+            config.get('gui', 'folder_regions')
+        )
         if isinstance(res, tuple):
             pathname = res[0]
         else:
             pathname = str(res)
         if len(pathname) != 0:
             self.model.read_star_catalog(pathname)
+            config.set('gui', 'folder_regions', dirname(res[0]))
             signaldb.ModelUpdate()
 
     def clusterpath_from_dialog(self):
         res = QtGui.QFileDialog.getOpenFileName(
             self,
             "Open Star Cluster Catalog",
-            "."
+            config.get('gui', 'folder_regions')
         )
         if isinstance(res, tuple):
             pathname = res[0]
@@ -116,6 +125,7 @@ class MainWindow(GTK_MainWindow):
             pathname = str(res)
         if len(pathname) != 0:
             self.model.read_cluster_catalog(pathname)
+            config.set('gui', 'folder_regions', dirname(res[0]))
             signaldb.ModelUpdate()
 
     def path_by_drop(self, viewer, paths):
@@ -126,11 +136,13 @@ class MainWindow(GTK_MainWindow):
         """Specify folder to save all info"""
         result = QtGui.QFileDialog.getSaveFileName(
             self,
-            'Specify prefix to save all as'
+            'Specify prefix to save all as',
+            config.get('gui', 'folder_save')
         )
         self.logger.debug('result="{}"'.format(result))
         if len(result) > 0:
             self.model.save_all(result)
+            config.set('gui', 'folder_save',dirname(result))
 
     def open_path(self, pathname):
         """Open the image from pathname"""
@@ -164,6 +176,7 @@ class MainWindow(GTK_MainWindow):
         """Shutdown"""
         self.logger.debug('GUI shutting down...')
         self.model.quit()
+        config.set('gui', 'autoprocess', str(signaldb.ModelUpdate.enabled))
         config.save()
         self.deleteLater()
 
