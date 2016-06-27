@@ -1,1 +1,1 @@
-from signal_slot import *
+from .signal_slot import *
