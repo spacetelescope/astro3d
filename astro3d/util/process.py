@@ -25,16 +25,15 @@ class MeshThread(threading.Thread):
     def run(self):
         que = Queue()
         mesh_process = MeshProcess(args=(que, self.controller.model))
+        mesh_process.daemon = True
         mesh_process.start()
 
-        while not self.stopped:
+        while mesh_process.is_alive() and not self.stopped:
             try:
                 triset, model3d = que.get(False)
                 signaldb.ProcessFinish(triset, model3d)
-                return
             except QueueEmpty:
                 sleep(0.5)
-                continue
 
         # Terminate process
         que.cancel_join_thread()
@@ -52,6 +51,8 @@ class MeshProcess(Process):
         self.logger = self.model.logger
 
     def run(self):
-        self.logger.debug('MeshProcess: running...')
-        triset = self.model.process()
-        self.que.put(triset, False)
+        try:
+            triset = self.model.process()
+            self.que.put(triset, False)
+        finally:
+            self.que.close()
