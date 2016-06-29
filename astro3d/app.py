@@ -40,6 +40,7 @@ class Application(Controller):
         self.viewer.activateWindow()
 
     def quit(self, *args, **kwargs):
+        self.process_force_quit()
         self.logger.debug("Attempting to shut down the application...")
 
     def process(self, *args, **kwargs):
