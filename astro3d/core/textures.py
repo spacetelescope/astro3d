@@ -347,6 +347,7 @@ def dots_texture_image(shape, profile, diameter, height, locations=None,
 
     if int(diameter) != diameter:
         raise ValueError('diameter must be an integer')
+    diameter = int(diameter)
 
     if locations is None:
         if grid_func is None or grid_spacing is None:
@@ -357,7 +358,7 @@ def dots_texture_image(shape, profile, diameter, height, locations=None,
     dot_shape = (diameter, diameter)
     dot = np.zeros(dot_shape)
     yy, xx = np.indices(dot_shape)
-    radius = (diameter - 1) / 2
+    radius = (diameter - 1) // 2
     r = np.sqrt((xx - radius)**2 + (yy - radius)**2)
     idx = np.where(r < radius)
 
@@ -370,6 +371,9 @@ def dots_texture_image(shape, profile, diameter, height, locations=None,
 
     data = np.zeros(shape)
     for (x, y) in locations:
+        x = np.rint(x).astype(int)
+        y = np.rint(y).astype(int)
+
         # exclude points too close to the edge
         if not (x < radius or x > (shape[1] - radius - 1) or
                 y < radius or y > (shape[0] - radius - 1)):
@@ -677,10 +681,10 @@ def make_starlike_models(image, model_type, sources, radius_a=10, radius_b=5,
 
     yy, xx = np.indices(image.shape)
     models = []
-    for source in sources:
+    for i, source in enumerate(sources):
         xcen = source['xcentroid']
         ycen = source['ycentroid']
-        radius = radius_a + (radius_b * fluxes / max_flux)
+        radius = radius_a + (radius_b * fluxes[i] / max_flux)
         base_height = starlike_model_base_height(
             image, model_type, xcen, ycen, radius, depth, slope,
             base_percentile=base_percentile, image_indices=(yy, xx))
