@@ -1359,13 +1359,8 @@ class Model3D(object):
 
         return self.stellar_tables_original
 
-    def make_spiral_galaxy_masks(
-            self,
-            smooth_size=11,
-            model_xsize=1000,
-            gas_percentile=55.,
-            spiral_percentile=75.
-    ):
+    def make_spiral_galaxy_masks(self, smooth_size=11, model_xsize=1000,
+                                 gas_percentile=55., spiral_percentile=75.):
         """
         For a spiral galaxy image, automatically generate texture masks
         for spiral arms and gas.
