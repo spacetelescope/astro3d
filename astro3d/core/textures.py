@@ -677,10 +677,10 @@ def make_starlike_models(image, model_type, sources, radius_a=10, radius_b=5,
 
     yy, xx = np.indices(image.shape)
     models = []
-    for source in sources:
+    for i, source in enumerate(sources):
         xcen = source['xcentroid']
         ycen = source['ycentroid']
-        radius = radius_a + (radius_b * fluxes / max_flux)
+        radius = radius_a + (radius_b * fluxes[i] / max_flux)
         base_height = starlike_model_base_height(
             image, model_type, xcen, ycen, radius, depth, slope,
             base_percentile=base_percentile, image_indices=(yy, xx))
