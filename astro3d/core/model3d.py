@@ -1403,9 +1403,11 @@ class Model3D(object):
 
         bulge_mask = self.texture_masks[texture_type]
         x, y = self._find_galaxy_center(bulge_mask)
-        data = self.data * image_utils.radial_weight_map(self.data.shape,
-                                                         (y, x))
-        data[bulge_mask] = 0.    # exclude the bulge mask region
+        rwm = image_utils.radial_weight_map(self.data.shape, (y, x))
+        minval = rwm[~bulge_mask].min()
+        rwm[bulge_mask] = 0.     # exclude the bulge mask region
+        rwm /= minval      # min weight value outside of bulge is now 1.
+        data = self.data * rwm
 
         # define the "spiral arms" mask
         spiral_threshold = np.percentile(data, spiral_percentile)
