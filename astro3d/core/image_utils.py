@@ -246,8 +246,36 @@ def radial_distance(shape, position):
     return np.sqrt(xx**2 + yy**2)
 
 
-def radial_weight_map(shape, position, alpha=0.8, r_min=100, r_max=450,
-                      fill_value=0.1):
+def radial_weight_map(shape, position, alpha=0.8):
+    """
+    Return a radial weight map used to enhance the faint spiral arms in
+    the outskirts of a galaxy image.
+
+    Parameters
+    ----------
+    shape : tuple
+        The ``(ny, nx)`` shape of the output array.
+
+    position : tuple
+        The ``(y, x)`` position corresponding to zero distance.
+
+    alpha : float, optional
+        The power scaling factor applied to the radial distance.
+
+    Returns
+    -------
+    result : `~numpy.ndarray`
+        A 2D array of given ``shape`` representing the radial weight
+        map.
+    """
+
+    r = radial_distance(shape, position)
+    r2 = r ** alpha
+    return r2
+
+
+def legacy_radial_weight_map(shape, position, alpha=0.8, r_min=100, r_max=450,
+                             fill_value=0.1):
     """
     Return a radial weight map used to enhance the faint spiral arms in
     the outskirts of a galaxy image.
