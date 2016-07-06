@@ -11,9 +11,9 @@ License: MIT
 
 """
 from __future__ import print_function
+from collections import namedtuple
 import inspect
 import warnings
-from weakref import WeakSet, WeakKeyDictionary
 
 from .logger import make_logger
 
@@ -22,6 +22,7 @@ __all__ = ['Signal',
            'Signals',
            'SignalsNotAClass']
 
+Slot = namedtuple('Slot', ['func', 'single_shot'])
 
 class Signal(object):
     def __init__(self, logger=None, *args):
@@ -36,8 +37,8 @@ class Signal(object):
             Remaining arguments will be functions to connect
             to this signal.
         """
-        self._functions = WeakSet()
-        self._methods = WeakKeyDictionary()
+        self._slots = set()
+        self._methods = dict()
         self._enabled = True
         self._states = []
         if logger is None:
@@ -71,40 +72,46 @@ class Signal(object):
         # Call the slots.
         try:
             to_be_removed = []
-            for func in self._functions.copy():
+            for slot in self._slots.copy():
                 try:
-                    func(*args, **kwargs)
+                    slot.func(*args, **kwargs)
                 except RuntimeError:
                     Warning.warn(
                         'Signal {}: Signals func->RuntimeError: func "{}" will be removed.'.format(
                             self.__class__.__name_,
-                            func
+                            slot.func
                         )
                     )
-                    to_be_removed.append(func)
+                    to_be_removed.append(slot)
+                finally:
+                    if slot.single_shot:
+                        to_be_removed.append(slot)
 
             for remove in to_be_removed:
-                self._functions.discard(remove)
+                self._slots.discard(remove)
 
             # Call handler methods
             to_be_removed = []
             emitters = self._methods.copy()
-            for obj, funcs in emitters.items():
-                for func in funcs.copy():
+            for obj, slots in emitters.items():
+                for slot in slots.copy():
                     try:
-                        func(obj, *args, **kwargs)
+                        slot.func(obj, *args, **kwargs)
                     except RuntimeError:
                         warnings.warn(
                             'Signal {}: Signals methods->RuntimeError, obj.func "{}.{}" will be removed'.format(
                                 self.__class__.__new__,
                                 obj,
-                                func
+                                slot.func
                             )
                         )
-                        to_be_removed.append((obj, func))
+                        to_be_removed.append((obj, slot))
+                    finally:
+                        if slot.single_shot:
+                            to_be_removed.append((obj, slot))
 
-            for obj, func in to_be_removed:
-                self._methods[obj].discard(func)
+            for obj, slot in to_be_removed:
+                self._methods[obj].discard(slot)
         finally:
             self.set_enabled(True)
 
@@ -130,35 +137,67 @@ class Signal(object):
     def reset_enabled(self):
             self._enabled = self._states.pop()
 
-    def connect(self, slot):
+    def connect(self, func, single_shot=False):
+        """Connect a function to the signal
+        Parameters
+        ----------
+        func: function or method
+            The function/method to call when the signal is activated
+
+        single_shot: bool
+            If True, the function/method is removed after being called.
+        """
         self.logger.debug(
-            'Signal {}: Connecting slot:"{}"'.format(
+            'Signal {}: Connecting function:"{}"'.format(
                 self.__class__.__name__,
-                slot
+                func
             )
         )
-        if inspect.ismethod(slot):
-            if slot.__self__ not in self._methods:
-                self._methods[slot.__self__] = set()
+        if inspect.ismethod(func):
+            if func.__self__ not in self._methods:
+                self._methods[func.__self__] = set()
 
-            self._methods[slot.__self__].add(slot.__func__)
+            slot = Slot(
+                func=func.__func__,
+                single_shot=single_shot
+            )
+            self._methods[func.__self__].add(slot)
 
         else:
-            self._functions.add(slot)
+            slot = Slot(
+                func=func,
+                single_shot=single_shot
+            )
+            self._slots.add(slot)
 
-    def disconnect(self, slot):
+    def disconnect(self, func):
         self.logger.debug(
-            'Signal {}: Disconnecting slot:"{}"'.format(
+            'Signal {}: Disconnecting func:"{}"'.format(
                 self.__class__.__name__,
-                slot
+                func
             )
         )
-        if inspect.ismethod(slot):
-            if slot.__self__ in self._methods:
-                self._methods[slot.__self__].remove(slot.__func__)
+        if inspect.ismethod(func):
+            if func.__self__ in self._methods:
+                slots = [
+                    slot
+                    for slot in self._methods[func.__self__]
+                    if slot.func == func
+                ]
+                try:
+                    self._methods[func.__self__].remove(slots[0])
+                except IndexError:
+                    pass
         else:
-            if slot in self._functions:
-                self._functions.remove(slot)
+            slots = [
+                slot
+                for slot in self._slots
+                if slot.func == func
+            ]
+            try:
+                self._functions.remove(slots[0])
+            except IndexError:
+                pass
 
     def clear(self):
         self.logger.debug(
@@ -166,7 +205,7 @@ class Signal(object):
                 self.__class__.__name__
             )
         )
-        self._functions.clear()
+        self._slots.clear()
         self._methods.clear()
 
 
@@ -226,11 +265,15 @@ if __name__ == '__main__':
         def __init__(self, model):
             self.model = model
             model.changed.connect(self.model_changed)
+            model.changed.connect(self.single_shot, single_shot=True)
 
         def model_changed(self, *args, **kwargs):
             print('    args: "{}"'.format(args))
             print('    kwargs: "{}"'.format(kwargs))
             print("   New value:", self.model.get_value())
+
+        def single_shot(self, *args, **kwargs):
+            print('    Single shot')
 
     print("Beginning Tests:")
     model = Model(10)
@@ -260,3 +303,12 @@ if __name__ == '__main__':
 
     model.changed.connect(bar)
     model.set_value(50)
+
+    print('Setting single_shot')
+
+    def bar_once():
+        print('    bar_once')
+
+    model.changed.connect(bar_once, single_shot=True)
+    model.set_value(60)
+    model.set_value(70)
