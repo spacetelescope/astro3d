@@ -24,8 +24,9 @@ __all__ = ['Signal',
 
 Slot = namedtuple('Slot', ['func', 'single_shot'])
 
+
 class Signal(object):
-    def __init__(self, logger=None, *args):
+    def __init__(self, *args, **kwargs):
         """Setup a signal
 
         Parameters
@@ -41,8 +42,7 @@ class Signal(object):
         self._methods = dict()
         self._enabled = True
         self._states = []
-        if logger is None:
-            logger = make_logger('Signal')
+        logger = kwargs.pop('logger', make_logger('Signal'))
         self.logger = logger
 
         for arg in args:
@@ -178,15 +178,28 @@ class Signal(object):
             )
         )
         if inspect.ismethod(func):
+            self.logger.debug(
+                'func is a method: "{}"'.format(func)
+            )
             if func.__self__ in self._methods:
+                self.logger.debug(
+                    'class "{}" is in list'.format(func.__self__)
+                )
+                self.logger.debug(
+                    'methods="{}"'.format(self._methods[func.__self__])
+                )
                 slots = [
                     slot
                     for slot in self._methods[func.__self__]
-                    if slot.func == func
+                    if slot.func == func.__func__
                 ]
+                self.logger.debug(
+                    'slots="{}"'.format(slots)
+                )
                 try:
                     self._methods[func.__self__].remove(slots[0])
                 except IndexError:
+                    self.logger.debug('slot not found.')
                     pass
         else:
             slots = [
@@ -195,7 +208,7 @@ class Signal(object):
                 if slot.func == func
             ]
             try:
-                self._functions.remove(slots[0])
+                self._slots.remove(slots[0])
             except IndexError:
                 pass
 
@@ -247,68 +260,160 @@ class Signals(dict):
         else:
             raise SignalsNotAClass
 
-# Sample usage:
-if __name__ == '__main__':
-    class Model(object):
-        def __init__(self, value):
-            self.__value = value
-            self.changed = Signal()
+# ------
+# Tests
+# ------
 
-        def set_value(self, value):
-            self.__value = value
-            self.changed()  # Emit signal
 
-        def get_value(self):
-            return self.__value
+def test_signal_slot():
+
+    from functools import partial
+
+    def return_args(returns, *args, **kwargs):
+        returns.update({
+            'args': args,
+            'kwargs': kwargs
+        })
 
     class View(object):
-        def __init__(self, model):
-            self.model = model
-            model.changed.connect(self.model_changed)
-            model.changed.connect(self.single_shot, single_shot=True)
+        def __init__(self):
+            self.clear()
 
-        def model_changed(self, *args, **kwargs):
-            print('    args: "{}"'.format(args))
-            print('    kwargs: "{}"'.format(kwargs))
-            print("   New value:", self.model.get_value())
+        def clear(self):
+            self.args = None
+            self.kwargs = None
 
-        def single_shot(self, *args, **kwargs):
-            print('    Single shot')
+        def set(self, *args, **kwargs):
+            self.args = args
+            self.kwargs = kwargs
 
-    print("Beginning Tests:")
-    model = Model(10)
-    view1 = View(model)
-    view2 = View(model)
-    view3 = View(model)
+    # Basic structures
+    signal_to_func = Signal()
+    assert len(signal_to_func._slots) == 0
+    assert len(signal_to_func._methods) == 0
 
-    print("Setting value to 20...")
-    model.set_value(20)
+    # Assign a slot
+    returns = {}
+    slot = partial(return_args, returns)
+    signal_to_func.connect(slot)
+    signal_to_func()
+    assert len(returns) > 0
+    assert len(returns['args']) == 0
+    assert len(returns['kwargs']) == 0
 
-    print("Deleting a view, and setting value to 30...")
-    del view1
-    model.set_value(30)
+    # Signal with arguments
+    returns.clear()
+    an_arg = 'an arg'
+    signal_to_func(an_arg)
+    assert len(returns['args']) > 0
+    assert returns['args'][0] == an_arg
+    signal_to_func(a_kwarg=an_arg)
+    assert len(returns['kwargs']) > 0
+    assert returns['kwargs']['a_kwarg'] == an_arg
 
-    print('Calling changed with arguments:')
-    model.changed('an arg')
-    model.changed('nother arg', help='me')
+    # Signal with methods
+    signal_to_method = Signal()
+    view = View()
+    signal_to_method.connect(view.set)
+    signal_to_method()
+    assert len(view.args) == 0
+    assert len(view.kwargs) == 0
 
-    print("Clearing all listeners, and setting value to 40...")
-    model.changed.clear()
-    model.set_value(40)
+    # Signal with methods and arguments
+    view.clear()
+    signal_to_method(an_arg)
+    assert view.args[0] == an_arg
+    view.clear()
+    signal_to_method(a_kwarg=an_arg)
+    assert view.kwargs['a_kwarg'] == an_arg
 
-    print("Testing non-member function...")
+    # Delete some slots
+    returns.clear()
+    signal_to_func.disconnect(slot)
+    signal_to_func(an_arg, a_kwarg=an_arg)
+    assert len(returns) == 0
+    view.clear()
+    signal_to_method.disconnect(view.set)
+    signal_to_method(an_arg, a_kwarg=an_arg)
+    assert view.args is None
+    assert view.kwargs is None
 
-    def bar():
-        print("   Calling Non Class Function!")
+    # Test initialization
+    a_signal = Signal(slot, view.set)
+    returns.clear()
+    view.clear()
+    a_signal(an_arg, a_kwarg=an_arg)
+    assert returns['args'][0] == an_arg
+    assert returns['kwargs']['a_kwarg'] == an_arg
+    assert view.args[0] == an_arg
+    assert view.kwargs['a_kwarg'] == an_arg
 
-    model.changed.connect(bar)
-    model.set_value(50)
+    # Clear a signal
+    a_signal.clear()
+    returns.clear()
+    view.clear()
+    a_signal(an_arg, a_kwarg=an_arg)
+    assert len(returns) == 0
+    assert view.args is None
+    assert view.kwargs is None
 
-    print('Setting single_shot')
+    # Enable/disable
+    a_signal = Signal(slot, view.set)
+    assert a_signal.enabled
 
-    def bar_once():
-        print('    bar_once')
+    a_signal.set_enabled(False)
+    assert not a_signal.enabled
+    returns.clear()
+    view.clear()
+    a_signal(an_arg, a_kwarg=an_arg)
+    assert len(returns) == 0
+    assert view.args is None
+    assert view.kwargs is None
 
-    model.changed.connect(bar_once, single_shot=True)
-    model.set_value(60)
-    model.set_value(70)
+    a_signal.set_enabled(True)
+    assert a_signal.enabled
+    a_signal(an_arg, a_kwarg=an_arg)
+    assert returns['args'][0] == an_arg
+    assert returns['kwargs']['a_kwarg'] == an_arg
+    assert view.args[0] == an_arg
+    assert view.kwargs['a_kwarg'] == an_arg
+
+    a_signal.set_enabled(False, push=True)
+    assert not a_signal.enabled
+    returns.clear()
+    view.clear()
+    a_signal(an_arg, a_kwarg=an_arg)
+    assert len(returns) == 0
+    assert view.args is None
+    assert view.kwargs is None
+
+    a_signal.reset_enabled()
+    assert a_signal.enabled
+    a_signal(an_arg, a_kwarg=an_arg)
+    assert returns['args'][0] == an_arg
+    assert returns['kwargs']['a_kwarg'] == an_arg
+    assert view.args[0] == an_arg
+    assert view.kwargs['a_kwarg'] == an_arg
+
+    # Single shots
+    a_signal = Signal()
+    a_signal.connect(slot, single_shot=True)
+    a_signal.connect(view.set, single_shot=True)
+    returns.clear()
+    view.clear()
+    a_signal(an_arg, a_kwarg=an_arg)
+    assert returns['args'][0] == an_arg
+    assert returns['kwargs']['a_kwarg'] == an_arg
+    assert view.args[0] == an_arg
+    assert view.kwargs['a_kwarg'] == an_arg
+
+    returns.clear()
+    view.clear()
+    a_signal(an_arg, a_kwarg=an_arg)
+    assert len(returns) == 0
+    assert view.args is None
+    assert view.kwargs is None
+
+
+if __name__ == '__main__':
+    test_signal_slot()
