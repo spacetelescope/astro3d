@@ -9,7 +9,7 @@ from ..util.register_leaf_classes import (RegisterLeafClasses)
 
 @six.add_metaclass(RegisterLeafClasses)
 class Signal(signal_slot.Signal):
-    """astro3d siglans"""
+    """astro3d signals"""
 
 
 class Signals(signal_slot.Signals):
@@ -74,9 +74,6 @@ class StageChange(Signal):
 class NewRegion(Signal):
     """New region being created"""
 
-
-class UpdateMesh(Signal):
-    """Update Mesh view"""
 
 class LayerSelected(Signal):
     """Layers have been selected/deselected"""

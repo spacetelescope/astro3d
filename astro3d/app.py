@@ -62,7 +62,6 @@ class Application(Controller):
         if mesh is not None:
             self.model.model3d = model3d
             self.model.mesh = mesh
-            signaldb.UpdateMesh(mesh)
 
     def _argparse(self, argv):
         parser = ArgumentParser()

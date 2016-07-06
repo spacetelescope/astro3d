@@ -29,7 +29,7 @@ class ViewMesh(GLViewWidget):
         """Display while new mesh is processing"""
         self.remove_mesh()
 
-    def update_mesh(self, mesh):
+    def update_mesh(self, mesh, model3d):
         self.remove_mesh()
         scaling = mesh[:, 1:].max(axis=0)[0]
         distance = sqrt(scaling[0]**2 + scaling[1]**2)

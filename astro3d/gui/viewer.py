@@ -1,5 +1,6 @@
 """Main UI Viewer
 """
+from functools import partial
 from os.path import dirname
 
 from attrdict import AttrDict
@@ -141,8 +142,12 @@ class MainWindow(GTK_MainWindow):
         )
         self.logger.debug('result="{}"'.format(result))
         if len(result) > 0:
-            self.model.save_all(result)
-            config.set('gui', 'folder_save',dirname(result))
+            signaldb.ProcessFinish.connect(
+                partial(self.save, result),
+                single_shot=True
+            )
+            config.set('gui', 'folder_save', dirname(result))
+            self.force_update()
 
     def open_path(self, pathname):
         """Open the image from pathname"""
@@ -162,6 +167,31 @@ class MainWindow(GTK_MainWindow):
         self.image_viewer.set_image(image)
         self.setWindowTitle(image.get('name'))
         signaldb.ModelUpdate()
+
+    def save(self, prefix, mesh=None, model3d=None):
+        """Save all info to the prefix
+
+        Parameters
+        ----------
+        prefix: str
+            The path prefix to save all the model files to.
+
+        mesh: dict
+            Not used, but required due to being called
+            by the ProcessFinish signal.
+
+        model3d: Model3D
+            The model which created the mesh.
+            If None, use the inherent model3d.
+        """
+        if model3d is None:
+            try:
+                model3d = self.model.model3d
+            except AttributeError:
+                return
+        model3d.write_all_masks(prefix)
+        model3d.write_all_stellar_tables(prefix)
+        model3d.write_stl(prefix)
 
     def force_update(self):
         signaldb.ModelUpdate.set_enabled(True, push=True)
@@ -352,7 +382,7 @@ class MainWindow(GTK_MainWindow):
 
         signaldb.Quit.connect(self.quit)
         signaldb.NewImage.connect(self.image_update)
-        signaldb.UpdateMesh.connect(self.mesh_viewer.update_mesh)
+        signaldb.ProcessFinish.connect(self.mesh_viewer.update_mesh)
         signaldb.ProcessStart.connect(self.mesh_viewer.process)
         signaldb.LayerSelected.connect(self.shape_editor.select_layer)
         signaldb.LayerSelected.connect(self.layer_manager.select_from_object)
