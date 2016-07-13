@@ -1160,6 +1160,7 @@ class Model3D(object):
             The maximum value in the intensity image, which controls the
             final model height.  This is the height of the intensity map
             *before* the textures, including the spiral galaxy central
+            cusp, are applied.
 
         model_base_height : float, optional
             The height of the model structural base.  See
