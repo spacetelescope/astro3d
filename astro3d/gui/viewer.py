@@ -280,6 +280,15 @@ class MainWindow(GTK_MainWindow):
         self.addDockWidget(Qt.LeftDockWidgetArea, parameters_dock)
         self.parameters_dock = parameters_dock
 
+        # The process busy dialog.
+        process_busy = QtGui.QProgressDialog(
+            'Creating Model',
+            'Abort',
+            0, 0
+        )
+        process_busy.setWindowModality(Qt.WindowModal)
+        self.process_busy = process_busy
+
         # Setup all the auxiliary gui.
         self._create_actions()
         self._create_menus()
@@ -382,8 +391,14 @@ class MainWindow(GTK_MainWindow):
 
         signaldb.Quit.connect(self.quit)
         signaldb.NewImage.connect(self.image_update)
-        signaldb.ProcessFinish.connect(self.mesh_viewer.update_mesh)
         signaldb.ProcessStart.connect(self.mesh_viewer.process)
+        #signaldb.ModelUpdate.connect(
+        #    lambda *args, **kwargs: self.process_busy.show()
+        #)
+        signaldb.ProcessFinish.connect(self.mesh_viewer.update_mesh)
+        #signaldb.ProcessFinish.connect(
+        #    lambda *args, **kwargs: self.process_busy.hide()
+        #)
         signaldb.LayerSelected.connect(self.shape_editor.select_layer)
         signaldb.LayerSelected.connect(self.layer_manager.select_from_object)
         signaldb.CreateGasSpiralMasks.connect(

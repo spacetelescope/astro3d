@@ -15,6 +15,7 @@ from ..core.region_mask import RegionMask
 from ..core.meshes import (make_triangles, reflect_triangles)
 from ..util.logger import make_logger
 from . import signaldb
+from .qt4.process import MeshThread
 from .qt4.items import (Regions, Textures, Clusters, Stars)
 from .config import config
 
@@ -47,6 +48,7 @@ class Model(QStandardItemModel):
         self.textures = Textures()
         self.cluster_catalogs = Clusters()
         self.stars_catalogs = Stars()
+        self.process_thread = None
 
         root = self.invisibleRootItem()
         root.appendRow(self.regions)
@@ -148,13 +150,7 @@ class Model(QStandardItemModel):
         make_params = self.params.stages.copy()
         make_params.update(self.params.model)
         model3d = self.create_model3d()
-        model3d.make(**make_params)
-
-        triset = make_triangles(model3d.data)
-        if self.params.stages.double_sided:
-            triset = concatenate((triset, reflect_triangles(triset)))
-        self.triset = triset
-        return (triset, model3d)
+        self.process_thread = MeshThread(model3d, make_params)
 
     def create_model3d(self, exclude_regions=None):
         """Set the Model3d parameters.
