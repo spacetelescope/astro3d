@@ -65,9 +65,7 @@ class MainWindow(GTK_MainWindow):
         self.logger = logger
         self.model = model
 
-        signaldb.ModelUpdate.set_enabled(
-            config.get('gui', 'autoprocess')
-        )
+        signaldb.ModelUpdate.set_enabled(False)
 
         self._build_gui()
         self._create_signals()
@@ -206,7 +204,6 @@ class MainWindow(GTK_MainWindow):
         """Shutdown"""
         self.logger.debug('GUI shutting down...')
         self.model.quit()
-        config.set('gui', 'autoprocess', str(signaldb.ModelUpdate.enabled))
         config.save()
         self.deleteLater()
 
