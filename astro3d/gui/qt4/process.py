@@ -75,7 +75,6 @@ class MeshWorker(QtCore.QObject):
             self.finished.emit((triset, self.model3d))
 
     def _abort(self):
-        print('Worker has received the abort.')
         self._aborted = True
         self.aborted.emit()
 

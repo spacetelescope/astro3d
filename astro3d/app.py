@@ -47,6 +47,7 @@ class Application(Controller):
         """Do the processing."""
         self.logger.debug('Starting processing...')
         self.process_force_quit()
+        signaldb.ProcessStart()
         self.model.process()
 
     def process_force_quit(self, *args, **kwargs):

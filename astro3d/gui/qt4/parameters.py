@@ -48,23 +48,15 @@ class Parameters(QtGui.QWidget):
         spacer = Widgets.Label('')
 
         # Processing parameters
-        captions = [('autoprocess', 'checkbutton'),
-                    ('Reprocess', 'button')]
+        captions = [('Save Model', 'button')]
         params_widget, params_bunch = build_widgets(
             self.model.params.stages,
             extra=captions)
         self.children.update(params_bunch)
 
-        w = params_bunch['autoprocess']
-        w.set_state(signaldb.ModelUpdate.enabled)
-        w.add_callback(
+        params_bunch.save_model.add_callback(
             'activated',
-            lambda w, state: signaldb.ModelUpdate.set_enabled(state)
-        )
-
-        params_bunch.reprocess.add_callback(
-            'activated',
-            lambda w: self.parent.force_update()
+            lambda w: self.parent.save_all_from_dialog()
         )
 
         params_frame = Widgets.Frame('Processing')

@@ -286,7 +286,7 @@ class MainWindow(GTK_MainWindow):
             'Abort',
             0, 0
         )
-        process_busy.setWindowModality(Qt.WindowModal)
+        process_busy.setWindowModality(Qt.ApplicationModal)
         self.process_busy = process_busy
 
         # Setup all the auxiliary gui.
@@ -392,15 +392,18 @@ class MainWindow(GTK_MainWindow):
         signaldb.Quit.connect(self.quit)
         signaldb.NewImage.connect(self.image_update)
         signaldb.ProcessStart.connect(self.mesh_viewer.process)
-        #signaldb.ModelUpdate.connect(
-        #    lambda *args, **kwargs: self.process_busy.show()
-        #)
+        signaldb.ProcessStart.connect(
+            lambda: self.process_busy.setValue(1)
+        )
         signaldb.ProcessFinish.connect(self.mesh_viewer.update_mesh)
-        #signaldb.ProcessFinish.connect(
-        #    lambda *args, **kwargs: self.process_busy.hide()
-        #)
+        signaldb.ProcessFinish.connect(
+            lambda x, y: self.process_busy.reset()
+        )
+        signaldb.ProcessForceQuit(self.process_busy.reset)
         signaldb.LayerSelected.connect(self.shape_editor.select_layer)
         signaldb.LayerSelected.connect(self.layer_manager.select_from_object)
         signaldb.CreateGasSpiralMasks.connect(
             self.parameters.create_gas_spiral_masks
         )
+
+        self.process_busy.canceled.connect(signaldb.ProcessForceQuit)
