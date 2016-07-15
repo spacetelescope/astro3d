@@ -1,8 +1,9 @@
 from math import sqrt
 
-from ...external.qt import QtCore
-
 from pyqtgraph.opengl import (GLGridItem, GLMeshItem, GLViewWidget, MeshData)
+
+from ...external.qt import QtCore
+from .. import signaldb
 
 # Shortcuts
 Qt = QtCore.Qt

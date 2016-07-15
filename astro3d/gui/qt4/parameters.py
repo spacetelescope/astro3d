@@ -33,6 +33,10 @@ class Parameters(QtGui.QWidget):
 
         self._build_gui()
 
+    def preview_model(self):
+        self.parent.mesh_viewer.setVisible(True)
+        self.parent.force_update()
+
     def create_gas_spiral_masks(self, *args, **kwargs):
         """Set Gas/Spiral arm esitmator parameters"""
         self.model.create_gas_spiral_masks(
@@ -48,7 +52,8 @@ class Parameters(QtGui.QWidget):
         spacer = Widgets.Label('')
 
         # Processing parameters
-        captions = [('Save Model', 'button')]
+        captions = [('Save Model', 'button'),
+                    ('Preview Model', 'button')]
         params_widget, params_bunch = build_widgets(
             self.model.params.stages,
             extra=captions)
@@ -57,6 +62,12 @@ class Parameters(QtGui.QWidget):
         params_bunch.save_model.add_callback(
             'activated',
             lambda w: self.parent.save_all_from_dialog()
+        )
+
+        params_bunch.preview_model.add_callback(
+            'activated',
+            lambda w: self.preview_model()
+
         )
 
         params_frame = Widgets.Frame('Processing')
@@ -123,7 +134,3 @@ class Parameters(QtGui.QWidget):
         layout.addWidget(gasspiral_frame.get_widget(), stretch=0)
         layout.addWidget(spacer.get_widget(), stretch=2)
         self.setLayout(layout)
-
-    def callbackme(self, *args, **kwargs):
-        self.logger.debug('Callback: args="{}" kwargs="{}"'.format(args, kwargs))
-        self.logger.debug('dir(w): "{}"'.format(dir(args[0])))
