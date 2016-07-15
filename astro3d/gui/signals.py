@@ -9,7 +9,7 @@ from ..util.register_leaf_classes import (RegisterLeafClasses)
 
 @six.add_metaclass(RegisterLeafClasses)
 class Signal(signal_slot.Signal):
-    """Specview signals"""
+    """astro3d signals"""
 
 
 class Signals(signal_slot.Signals):
@@ -25,7 +25,7 @@ class Signals(signal_slot.Signals):
             with warnings.catch_warnings():
                 warnings.simplefilter('ignore')
                 for signal in signal_class:
-                    self.add(signal, logger)
+                    self.add(signal, logger=logger)
 
 
 # Specific Signal Definitions
@@ -74,9 +74,6 @@ class StageChange(Signal):
 class NewRegion(Signal):
     """New region being created"""
 
-
-class UpdateMesh(Signal):
-    """Update Mesh view"""
 
 class LayerSelected(Signal):
     """Layers have been selected/deselected"""

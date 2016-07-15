@@ -1,5 +1,6 @@
 """Main UI Viewer
 """
+from functools import partial
 from os.path import dirname
 
 from attrdict import AttrDict
@@ -64,9 +65,7 @@ class MainWindow(GTK_MainWindow):
         self.logger = logger
         self.model = model
 
-        signaldb.ModelUpdate.set_enabled(
-            config.get('gui', 'autoprocess')
-        )
+        signaldb.ModelUpdate.set_enabled(False)
 
         self._build_gui()
         self._create_signals()
@@ -141,8 +140,12 @@ class MainWindow(GTK_MainWindow):
         )
         self.logger.debug('result="{}"'.format(result))
         if len(result) > 0:
-            self.model.save_all(result)
-            config.set('gui', 'folder_save',dirname(result))
+            signaldb.ProcessFinish.connect(
+                partial(self.save, result),
+                single_shot=True
+            )
+            config.set('gui', 'folder_save', dirname(result))
+            self.force_update()
 
     def open_path(self, pathname):
         """Open the image from pathname"""
@@ -163,6 +166,31 @@ class MainWindow(GTK_MainWindow):
         self.setWindowTitle(image.get('name'))
         signaldb.ModelUpdate()
 
+    def save(self, prefix, mesh=None, model3d=None):
+        """Save all info to the prefix
+
+        Parameters
+        ----------
+        prefix: str
+            The path prefix to save all the model files to.
+
+        mesh: dict
+            Not used, but required due to being called
+            by the ProcessFinish signal.
+
+        model3d: Model3D
+            The model which created the mesh.
+            If None, use the inherent model3d.
+        """
+        if model3d is None:
+            try:
+                model3d = self.model.model3d
+            except AttributeError:
+                return
+        model3d.write_all_masks(prefix)
+        model3d.write_all_stellar_tables(prefix)
+        model3d.write_stl(prefix)
+
     def force_update(self):
         signaldb.ModelUpdate.set_enabled(True, push=True)
         try:
@@ -176,7 +204,6 @@ class MainWindow(GTK_MainWindow):
         """Shutdown"""
         self.logger.debug('GUI shutting down...')
         self.model.quit()
-        config.set('gui', 'autoprocess', str(signaldb.ModelUpdate.enabled))
         config.save()
         self.deleteLater()
 
@@ -249,6 +276,15 @@ class MainWindow(GTK_MainWindow):
         parameters_dock.setWidget(self.parameters)
         self.addDockWidget(Qt.LeftDockWidgetArea, parameters_dock)
         self.parameters_dock = parameters_dock
+
+        # The process busy dialog.
+        process_busy = QtGui.QProgressDialog(
+            'Creating Model',
+            'Abort',
+            0, 0
+        )
+        process_busy.setWindowModality(Qt.ApplicationModal)
+        self.process_busy = process_busy
 
         # Setup all the auxiliary gui.
         self._create_actions()
@@ -352,10 +388,19 @@ class MainWindow(GTK_MainWindow):
 
         signaldb.Quit.connect(self.quit)
         signaldb.NewImage.connect(self.image_update)
-        signaldb.UpdateMesh.connect(self.mesh_viewer.update_mesh)
         signaldb.ProcessStart.connect(self.mesh_viewer.process)
+        signaldb.ProcessStart.connect(
+            lambda: self.process_busy.setValue(1)
+        )
+        signaldb.ProcessFinish.connect(self.mesh_viewer.update_mesh)
+        signaldb.ProcessFinish.connect(
+            lambda x, y: self.process_busy.reset()
+        )
+        signaldb.ProcessForceQuit(self.process_busy.reset)
         signaldb.LayerSelected.connect(self.shape_editor.select_layer)
         signaldb.LayerSelected.connect(self.layer_manager.select_from_object)
         signaldb.CreateGasSpiralMasks.connect(
             self.parameters.create_gas_spiral_masks
         )
+
+        self.process_busy.canceled.connect(signaldb.ProcessForceQuit)
