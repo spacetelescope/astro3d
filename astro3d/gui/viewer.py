@@ -10,7 +10,7 @@ from ginga.AstroImage import AstroImage
 from ..util.logger import make_logger
 from ..external.qt import (QtGui, QtCore)
 from . import signaldb
-from qt4 import (
+from .qt4 import (
     LayerManager,
     ImageView,
     ViewMesh,
