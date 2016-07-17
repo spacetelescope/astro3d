@@ -94,9 +94,11 @@ class MeshThread(object):
         mesh_worker.finished.connect(
             lambda x: worker_thread.quit()
         )
-        mesh_worker.aborted.connect(self.mesh_worker_fail)
+        mesh_worker.aborted.connect(
+            lambda: self.mesh_worker_fail('Processing aborted.')
+        )
         mesh_worker.exception.connect(
-            lambda x: self.mesh_worker_fail()
+            lambda e: self.mesh_worker_fail('Processing error', e)
         )
         signaldb.ProcessForceQuit.connect(
             self.mesh_worker.abort.emit,
@@ -115,6 +117,6 @@ class MeshThread(object):
         self.worker_thread.deleteLater()
         self.mesh_worker.deleteLater()
 
-    def mesh_worker_fail(self):
+    def mesh_worker_fail(self, message='', error_text=''):
         self.worker_thread.quit()
-        signaldb.ProcessFail()
+        signaldb.ProcessFail(message, error_text)

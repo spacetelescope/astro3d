@@ -17,6 +17,7 @@ from .qt4 import (
     ShapeEditor,
     OverlayView,
     Parameters,
+    InfoBox,
 )
 from .config import config
 
@@ -286,6 +287,9 @@ class MainWindow(GTK_MainWindow):
         process_busy.setWindowModality(Qt.ApplicationModal)
         self.process_busy = process_busy
 
+        # General Info Dialog
+        self.info_box = InfoBox()
+
         # Setup all the auxiliary gui.
         self._create_actions()
         self._create_menus()
@@ -397,10 +401,13 @@ class MainWindow(GTK_MainWindow):
             lambda x, y: self.process_busy.reset()
         )
         signaldb.ProcessForceQuit.connect(self.process_busy.reset)
-        signaldb.ProcessFail.connect(self.process_busy.reset)
-        signaldb.ProcessFail.connect(partial(
-            signaldb.ProcessFinish.clear, single_shot=True
-        ))
+        signaldb.ProcessFail.connect(
+            lambda text, error: self.process_busy.reset()
+        )
+        signaldb.ProcessFail.connect(
+            lambda text, error: signaldb.ProcessFinish.clear(single_shot=True)
+        )
+        signaldb.ProcessFail.connect(self.info_box.show_error)
         signaldb.LayerSelected.connect(self.shape_editor.select_layer)
         signaldb.LayerSelected.connect(self.layer_manager.select_from_object)
         signaldb.CreateGasSpiralMasks.connect(

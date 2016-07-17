@@ -151,8 +151,8 @@ class Model(QStandardItemModel):
         make_params.update(self.params.model)
         try:
             model3d = self.create_model3d()
-        except RuntimeError:
-            signaldb.ProcessFail()
+        except RuntimeError as e:
+            signaldb.ProcessFail('Processing failure.', e)
         else:
             self.process_thread = MeshThread(model3d, make_params)
 
