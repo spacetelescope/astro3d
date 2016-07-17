@@ -94,9 +94,9 @@ class MeshThread(object):
         mesh_worker.finished.connect(
             lambda x: worker_thread.quit()
         )
-        mesh_worker.aborted.connect(worker_thread.quit)
+        mesh_worker.aborted.connect(self.mesh_worker_fail)
         mesh_worker.exception.connect(
-            lambda x: worker_thread.quit()
+            lambda x: self.mesh_worker_fail()
         )
         signaldb.ProcessForceQuit.connect(
             self.mesh_worker.abort.emit,
@@ -111,8 +111,10 @@ class MeshThread(object):
         signaldb.ProcessFinish(triset, model3d)
 
     def cleanup(self):
-        signaldb.ProcessForceQuit.disconnect(
-            self.mesh_worker.abort.emit
-        )
+        signaldb.ProcessForceQuit.clear(single_shot=True)
         self.worker_thread.deleteLater()
         self.mesh_worker.deleteLater()
+
+    def mesh_worker_fail(self):
+        self.worker_thread.quit()
+        signaldb.ProcessFail()

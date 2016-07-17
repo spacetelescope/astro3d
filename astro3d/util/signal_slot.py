@@ -212,14 +212,39 @@ class Signal(object):
             except IndexError:
                 pass
 
-    def clear(self):
+    def clear(self, single_shot=False):
+        """Clear slots
+
+        Parameters
+        ----------
+        single_shot: bool
+            If True, only remove single shot
+            slots.
+        """
         self.logger.debug(
             'Signal {}: Clearing slots'.format(
                 self.__class__.__name__
             )
         )
-        self._slots.clear()
-        self._methods.clear()
+        if not single_shot:
+            self._slots.clear()
+            self._methods.clear()
+        else:
+            to_be_removed = []
+            for slot in self._slots.copy():
+                if slot.single_shot:
+                    to_be_removed.append(slot)
+            for remove in to_be_removed:
+                self._slots.discard(remove)
+
+            to_be_removed = []
+            emitters = self._methods.copy()
+            for obj, slots in emitters.items():
+                for slot in slots.copy():
+                    if slot.single_shot:
+                        to_be_removed.append((obj, slot))
+            for obj, slot in to_be_removed:
+                self._methods[obj].discard(slot)
 
 
 class SignalsErrorBase(Exception):
@@ -407,6 +432,18 @@ def test_signal_slot():
     assert view.args[0] == an_arg
     assert view.kwargs['a_kwarg'] == an_arg
 
+    returns.clear()
+    view.clear()
+    a_signal(an_arg, a_kwarg=an_arg)
+    assert len(returns) == 0
+    assert view.args is None
+    assert view.kwargs is None
+
+    # Clearing single shots
+    a_signal = Signal()
+    a_signal.connect(slot, single_shot=True)
+    a_signal.connect(view.set, single_shot=True)
+    a_signal.clear(single_shot=True)
     returns.clear()
     view.clear()
     a_signal(an_arg, a_kwarg=an_arg)

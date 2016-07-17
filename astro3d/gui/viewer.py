@@ -396,7 +396,11 @@ class MainWindow(GTK_MainWindow):
         signaldb.ProcessFinish.connect(
             lambda x, y: self.process_busy.reset()
         )
-        signaldb.ProcessForceQuit(self.process_busy.reset)
+        signaldb.ProcessForceQuit.connect(self.process_busy.reset)
+        signaldb.ProcessFail.connect(self.process_busy.reset)
+        signaldb.ProcessFail.connect(partial(
+            signaldb.ProcessFinish.clear, single_shot=True
+        ))
         signaldb.LayerSelected.connect(self.shape_editor.select_layer)
         signaldb.LayerSelected.connect(self.layer_manager.select_from_object)
         signaldb.CreateGasSpiralMasks.connect(
