@@ -67,7 +67,7 @@ class Signal(object):
             return
 
         # No recursive signalling
-        self.set_enabled(False)
+        self.set_enabled(False, push=True)
 
         # Call the slots.
         try:
@@ -113,7 +113,7 @@ class Signal(object):
             for obj, slot in to_be_removed:
                 self._methods[obj].discard(slot)
         finally:
-            self.set_enabled(True)
+            self.reset_enabled()
 
     @property
     def enabled(self):
