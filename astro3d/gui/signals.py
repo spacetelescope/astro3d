@@ -49,6 +49,9 @@ class ProcessForceQuit(Signal):
     """Force quit mesh processing"""
 
 
+class ProcessFail(Signal):
+    """Process has failed, expect no result"""
+
 # Data Manipulation
 class CreateGasSpiralMasks(Signal):
     """Auto-create gas and spiral masks"""

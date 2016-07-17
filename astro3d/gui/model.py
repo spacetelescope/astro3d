@@ -149,8 +149,12 @@ class Model(QStandardItemModel):
 
         make_params = self.params.stages.copy()
         make_params.update(self.params.model)
-        model3d = self.create_model3d()
-        self.process_thread = MeshThread(model3d, make_params)
+        try:
+            model3d = self.create_model3d()
+        except RuntimeError as e:
+            signaldb.ProcessFail('Processing failure.', e)
+        else:
+            self.process_thread = MeshThread(model3d, make_params)
 
     def create_model3d(self, exclude_regions=None):
         """Set the Model3d parameters.
