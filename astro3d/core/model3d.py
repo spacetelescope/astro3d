@@ -1225,8 +1225,8 @@ class Model3D(object):
         self._double_sided = double_sided
         self._spiral_galaxy = spiral_galaxy
 
-        self._resize_scale_factor = float(model_xsize /
-                                          self.data_original.shape[1])
+        self._resize_scale_factor = (float(model_xsize) /
+                                     self.data_original.shape[1])
 
         self._prepare_data()
         self._prepare_masks()
@@ -1393,8 +1393,8 @@ class Model3D(object):
                           AstropyUserWarning)
             return
 
-        self._resize_scale_factor = float(model_xsize /
-                                          self.data_original.shape[1])
+        self._resize_scale_factor = (float(model_xsize) /
+                                     self.data_original.shape[1])
 
         self._prepare_data()
         self.data = deepcopy(self.data_original_resized)
