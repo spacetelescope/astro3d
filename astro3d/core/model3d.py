@@ -123,6 +123,7 @@ class Model3D(object):
             The name of the FITS file.
         """
 
+        log.info('Reading FITS data from "{0}"'.format(filename))
         data = fits.getdata(filename)
         if data is None:
             raise ValueError('data not found in the FITS file')
@@ -131,6 +132,7 @@ class Model3D(object):
             raise ValueError('data is not a 2D image or a 3D RGB cube')
 
         if data.ndim == 3:    # RGB cube
+            log.info('Converting RGB FITS cube to 2D data array')
             data = data[0] * 0.299 + data[1] * 0.587 + data[2] * 0.144
             data = image_utils.remove_nonfinite(data)
 
@@ -148,6 +150,7 @@ class Model3D(object):
             The name of the RGB file.
         """
 
+        log.info('Reading RGB data from "{0}"'.format(filename))
         data = np.array(Image.open(filename).convert('L'),
                         dtype=np.float32)[::-1]
         return cls(data)
@@ -206,7 +209,6 @@ class Model3D(object):
             self.region_masks_original[mtype].append(mask)
         else:
             self.texture_masks_original[mtype].append(mask)
-        log.info('Mask type "{0}" loaded.'.format(mask_type))
         return mask_type
 
     def read_mask(self, filename):
@@ -235,8 +237,7 @@ class Model3D(object):
         region_mask = RegionMask.from_fits(
             filename, required_shape=self.data_original.shape)
         mask_type = self.add_mask(region_mask)
-        log.info('Mask type "{0}" loaded from "{1}"'.format(mask_type,
-                                                            filename))
+        log.info('Loaded "{0}" mask from "{1}"'.format(mask_type, filename))
         return mask_type
 
     def read_all_masks(self, pathname):
@@ -300,12 +301,30 @@ class Model3D(object):
                                                      mask_type)
                 mask.write(filename)
 
+    def add_stellar_table(self, table, stellar_type):
+        """
+        Add a table of stars or star clusters from a table.
+
+        The table must contain ``'xcentroid'`` and ``'ycentroid'``
+        columns and a ``'flux'`` and/or ``'magnitude'`` column.
+
+        Parameters
+        ----------
+        table : ~astropy.Table
+            The table
+
+        stellar_type : {'stars', 'star_clusters'}
+            The type of the table.
+        """
+
+        self.stellar_tables_original[stellar_type] = table
+
     def read_stellar_table(self, filename, stellar_type):
         """
         Read a table of stars or star clusters from a file.
 
-        The table must have ``'xcentroid``, ``'ycentroid'``, and
-        ``'flux'`` columns.
+        The table must contain ``'xcentroid'`` and ``'ycentroid'``
+        columns and a ``'flux'`` and/or ``'magnitude'`` column.
 
         Parameters
         ----------
@@ -318,24 +337,6 @@ class Model3D(object):
 
         table = read_stellar_table(filename, stellar_type)
         self.add_stellar_table(table, stellar_type)
-        log.info('Read "{0}" table from "{1}"'.format(stellar_type, filename))
-
-    def add_stellar_table(self, table, stellar_type):
-        """
-        Add a table of stars or star clusters from a table
-
-        The table must have ``'xcentroid``, ``'ycentroid'``, and
-        ``'flux'`` columns.
-
-        Parameters
-        ----------
-        table : ~astropy.Table
-            The table
-
-        stellar_type : {'stars', 'star_clusters'}
-            The type of the table.
-        """
-        self.stellar_tables_original[stellar_type] = table
 
     def read_star_clusters(self, filename):
         """
@@ -453,6 +454,8 @@ class Model3D(object):
         """
         Resize the input data.
         """
+
+        log.info('Preparing data (resizing).')
 
         self.data_original_resized = image_utils.resize_image(
             image_utils.remove_nonfinite(self.data_original),
@@ -1445,8 +1448,8 @@ def read_stellar_table(filename, stellar_type):
     """
     Read a table of stars or star clusters from a file.
 
-    The table must have ``'xcentroid``, ``'ycentroid'``, and
-    ``'flux'`` columns.
+    The table must contain ``'xcentroid'`` and ``'ycentroid'`` columns
+    and a ``'flux'`` and/or ``'magnitude'`` column.
 
     Parameters
     ----------
@@ -1458,11 +1461,15 @@ def read_stellar_table(filename, stellar_type):
 
     Returns
     -------
-    Astropy.table.Table
+    result : `~astropy.table.Table`
+        A table of stellar-like sources.
+
+    Notes
+    -----
+    This function is called only by the GUI.
     """
 
     table = Table.read(filename, format='ascii')
     table.keep_columns(['xcentroid', 'ycentroid', 'flux'])
-    log.info('Read "{0}" table from "{1}"'.format(stellar_type, filename))
-
+    log.info('Loaded "{0}" table from "{1}"'.format(stellar_type, filename))
     return table
