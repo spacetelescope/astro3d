@@ -665,6 +665,8 @@ class Model3D(object):
         log.info('Suppressing the background.')
         texture_masks = [self.texture_masks[i] for i in self.texture_masks]
         mask = image_utils.combine_masks(texture_masks)
+        zero_mask = (self.data == 0.)
+        mask = np.logical_or(mask, zero_mask)
         background_level = np.percentile(self.data[~mask], percentile)
         bkgrd_mask = self.data < background_level
         self.data[bkgrd_mask] = self.data[bkgrd_mask] * factor
