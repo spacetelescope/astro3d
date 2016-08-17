@@ -686,7 +686,7 @@ class Model3D(object):
         """
 
         log.info('Smoothing the image with a 2D median filter of size '
-                 '{0}.'.format(size))
+                 '{0} pixels.'.format(size))
         self.data = ndimage.filters.median_filter(self.data, size=size)
 
     def _normalize_image(self, max_value=1.0):
@@ -730,7 +730,7 @@ class Model3D(object):
         else:
             label = np.argmax(segm.areas[1:]) + 1    # exclude label=0
 
-        log.info('label: {0}'.format(label))
+        log.info('Extracting source label: {0}'.format(label))
         segm.keep_labels(label)
         segm_mask = segm.data.astype(bool)
         self.data *= segm_mask
