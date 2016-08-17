@@ -1030,12 +1030,28 @@ class Model3D(object):
 
                 return base_height
 
-    def _apply_textures(self):
-        """Apply all textures to the model."""
+    def _apply_textures(self, star_texture_depth=3.,
+                        star_texture_base_percentile=0.)
+        """
+        Apply all textures to the model.
+
+        Parameters
+        ----------
+        star_texture_depth : float, optional
+            The maximum depth of the crater-like bowl of the star
+            texture.
+
+        star_texture_base_percentile : float in the range of [0, 100], optional
+            The percentile of the image data values within the stellar
+            texture (where the texture is non-zero) used to define the
+            base height of the model texture.
+        """
 
         if self._has_textures:
             self._add_masked_textures()
-            self._apply_stellar_textures()
+            self._apply_stellar_textures(
+                depth=star_texture_depth,
+                base_percentile=star_texture_base_percentile)
             self._apply_spiral_central_cusp()
 
     def _make_model_base(self, base_height=18.18, filter_size=10,
@@ -1095,6 +1111,7 @@ class Model3D(object):
              suppress_background_factor=0.2, smooth_size1=11,
              smooth_size2=15, minvalue_to_zero=0.02, crop_data_threshold=0.,
              crop_data_pad_width=20, model_height=200,
+             star_texture_depth=3., star_texture_base_percentile=0.,
              model_base_height=18.18, model_base_filter_size=10,
              model_base_min_value=1.83, model_base_fill_holes=True):
         """
@@ -1173,6 +1190,15 @@ class Model3D(object):
             final model height.  This is the height of the intensity map
             *before* the textures, including the spiral galaxy central
             cusp, are applied.
+
+        star_texture_depth : float, optional
+            The maximum depth of the crater-like bowl of the star
+            texture.
+
+        star_texture_base_percentile : float in the range of [0, 100], optional
+            The percentile of the image data values within the stellar
+            texture (where the texture is non-zero) used to define the
+            base height of the model texture.
 
         model_base_height : float, optional
             The height of the model structural base.  See
@@ -1264,7 +1290,10 @@ class Model3D(object):
                         pad_width=crop_data_pad_width, resize=True)
         self._make_model_height(model_height=model_height)
         self.data_intensity = deepcopy(self.data)
-        self._apply_textures()
+
+        self._apply_textures(
+            star_texture_depth=star_texture_depth,
+            star_texture_base_percentile=star_texture_base_percentile)
         self._make_model_base(base_height=model_base_height,
                               filter_size=model_base_filter_size,
                               min_value=model_base_min_value,
