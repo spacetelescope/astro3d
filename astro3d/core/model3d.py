@@ -123,6 +123,7 @@ class Model3D(object):
             The name of the FITS file.
         """
 
+        log.info('Reading FITS data from "{0}"'.format(filename))
         data = fits.getdata(filename)
         if data is None:
             raise ValueError('data not found in the FITS file')
@@ -131,6 +132,7 @@ class Model3D(object):
             raise ValueError('data is not a 2D image or a 3D RGB cube')
 
         if data.ndim == 3:    # RGB cube
+            log.info('Converting RGB FITS cube to 2D data array')
             data = data[0] * 0.299 + data[1] * 0.587 + data[2] * 0.144
             data = image_utils.remove_nonfinite(data)
 
@@ -148,6 +150,7 @@ class Model3D(object):
             The name of the RGB file.
         """
 
+        log.info('Reading RGB data from "{0}"'.format(filename))
         data = np.array(Image.open(filename).convert('L'),
                         dtype=np.float32)[::-1]
         return cls(data)
@@ -206,7 +209,6 @@ class Model3D(object):
             self.region_masks_original[mtype].append(mask)
         else:
             self.texture_masks_original[mtype].append(mask)
-        log.info('Mask type "{0}" loaded.'.format(mask_type))
         return mask_type
 
     def read_mask(self, filename):
@@ -235,8 +237,7 @@ class Model3D(object):
         region_mask = RegionMask.from_fits(
             filename, required_shape=self.data_original.shape)
         mask_type = self.add_mask(region_mask)
-        log.info('Mask type "{0}" loaded from "{1}"'.format(mask_type,
-                                                            filename))
+        log.info('Loaded "{0}" mask from "{1}"'.format(mask_type, filename))
         return mask_type
 
     def read_all_masks(self, pathname):
@@ -300,12 +301,30 @@ class Model3D(object):
                                                      mask_type)
                 mask.write(filename)
 
+    def add_stellar_table(self, table, stellar_type):
+        """
+        Add a table of stars or star clusters from a table.
+
+        The table must contain ``'xcentroid'`` and ``'ycentroid'``
+        columns and a ``'flux'`` and/or ``'magnitude'`` column.
+
+        Parameters
+        ----------
+        table : ~astropy.Table
+            The table
+
+        stellar_type : {'stars', 'star_clusters'}
+            The type of the table.
+        """
+
+        self.stellar_tables_original[stellar_type] = table
+
     def read_stellar_table(self, filename, stellar_type):
         """
         Read a table of stars or star clusters from a file.
 
-        The table must have ``'xcentroid``, ``'ycentroid'``, and
-        ``'flux'`` columns.
+        The table must contain ``'xcentroid'`` and ``'ycentroid'``
+        columns and a ``'flux'`` and/or ``'magnitude'`` column.
 
         Parameters
         ----------
@@ -318,24 +337,6 @@ class Model3D(object):
 
         table = read_stellar_table(filename, stellar_type)
         self.add_stellar_table(table, stellar_type)
-        log.info('Read "{0}" table from "{1}"'.format(stellar_type, filename))
-
-    def add_stellar_table(self, table, stellar_type):
-        """
-        Add a table of stars or star clusters from a table
-
-        The table must have ``'xcentroid``, ``'ycentroid'``, and
-        ``'flux'`` columns.
-
-        Parameters
-        ----------
-        table : ~astropy.Table
-            The table
-
-        stellar_type : {'stars', 'star_clusters'}
-            The type of the table.
-        """
-        self.stellar_tables_original[stellar_type] = table
 
     def read_star_clusters(self, filename):
         """
@@ -453,6 +454,8 @@ class Model3D(object):
         """
         Resize the input data.
         """
+
+        log.info('Preparing data (resizing).')
 
         self.data_original_resized = image_utils.resize_image(
             image_utils.remove_nonfinite(self.data_original),
@@ -662,6 +665,8 @@ class Model3D(object):
         log.info('Suppressing the background.')
         texture_masks = [self.texture_masks[i] for i in self.texture_masks]
         mask = image_utils.combine_masks(texture_masks)
+        zero_mask = (self.data == 0.)
+        mask = np.logical_or(mask, zero_mask)
         background_level = np.percentile(self.data[~mask], percentile)
         bkgrd_mask = self.data < background_level
         self.data[bkgrd_mask] = self.data[bkgrd_mask] * factor
@@ -681,7 +686,7 @@ class Model3D(object):
         """
 
         log.info('Smoothing the image with a 2D median filter of size '
-                 '{0}.'.format(size))
+                 '{0} pixels.'.format(size))
         self.data = ndimage.filters.median_filter(self.data, size=size)
 
     def _normalize_image(self, max_value=1.0):
@@ -725,7 +730,7 @@ class Model3D(object):
         else:
             label = np.argmax(segm.areas[1:]) + 1    # exclude label=0
 
-        log.info('label: {0}'.format(label))
+        log.info('Extracting source label: {0}'.format(label))
         segm.keep_labels(label)
         segm_mask = segm.data.astype(bool)
         self.data *= segm_mask
@@ -873,7 +878,8 @@ class Model3D(object):
             self._texture_layer[mask] = texture_data[mask]
         self.data += self._texture_layer
 
-    def _apply_stellar_textures(self, radius_a=10., radius_b=5., slope=1.0):
+    def _apply_stellar_textures(self, radius_a=10., radius_b=5., slope=1.0,
+                                depth=3., base_percentile=0.):
         """
         Apply stellar textures (stars and star clusters) to the image.
 
@@ -896,15 +902,21 @@ class Model3D(object):
 
         slope : float, optional
             The slope of the star texture sides.
+
+        depth : float
+            The maximum depth of the crater-like bowl of the star
+            texture.
+
+        base_percentile : float in the range of [0, 100], optional
+            The percentile of the image data values within the source
+            texture (where the texture is non-zero) used to define the
+            base height of the model texture.  If `None`, then the model
+            base_height will be zero.
         """
 
         if self._has_intensity:
-            base_percentile = 75.
-            depth = 3.
             data = self.data
         else:
-            base_percentile = None
-            depth = 10.
             data = np.zeros_like(self.data)
 
         if len(self.stellar_tables) == 0:
@@ -1018,12 +1030,28 @@ class Model3D(object):
 
                 return base_height
 
-    def _apply_textures(self):
-        """Apply all textures to the model."""
+    def _apply_textures(self, star_texture_depth=3.,
+                        star_texture_base_percentile=0.)
+        """
+        Apply all textures to the model.
+
+        Parameters
+        ----------
+        star_texture_depth : float, optional
+            The maximum depth of the crater-like bowl of the star
+            texture.
+
+        star_texture_base_percentile : float in the range of [0, 100], optional
+            The percentile of the image data values within the stellar
+            texture (where the texture is non-zero) used to define the
+            base height of the model texture.
+        """
 
         if self._has_textures:
             self._add_masked_textures()
-            self._apply_stellar_textures()
+            self._apply_stellar_textures(
+                depth=star_texture_depth,
+                base_percentile=star_texture_base_percentile)
             self._apply_spiral_central_cusp()
 
     def _make_model_base(self, base_height=18.18, filter_size=10,
@@ -1083,6 +1111,7 @@ class Model3D(object):
              suppress_background_factor=0.2, smooth_size1=11,
              smooth_size2=15, minvalue_to_zero=0.02, crop_data_threshold=0.,
              crop_data_pad_width=20, model_height=200,
+             star_texture_depth=3., star_texture_base_percentile=0.,
              model_base_height=18.18, model_base_filter_size=10,
              model_base_min_value=1.83, model_base_fill_holes=True):
         """
@@ -1161,6 +1190,15 @@ class Model3D(object):
             final model height.  This is the height of the intensity map
             *before* the textures, including the spiral galaxy central
             cusp, are applied.
+
+        star_texture_depth : float, optional
+            The maximum depth of the crater-like bowl of the star
+            texture.
+
+        star_texture_base_percentile : float in the range of [0, 100], optional
+            The percentile of the image data values within the stellar
+            texture (where the texture is non-zero) used to define the
+            base height of the model texture.
 
         model_base_height : float, optional
             The height of the model structural base.  See
@@ -1252,7 +1290,10 @@ class Model3D(object):
                         pad_width=crop_data_pad_width, resize=True)
         self._make_model_height(model_height=model_height)
         self.data_intensity = deepcopy(self.data)
-        self._apply_textures()
+
+        self._apply_textures(
+            star_texture_depth=star_texture_depth,
+            star_texture_base_percentile=star_texture_base_percentile)
         self._make_model_base(base_height=model_base_height,
                               filter_size=model_base_filter_size,
                               min_value=model_base_min_value,
@@ -1445,8 +1486,8 @@ def read_stellar_table(filename, stellar_type):
     """
     Read a table of stars or star clusters from a file.
 
-    The table must have ``'xcentroid``, ``'ycentroid'``, and
-    ``'flux'`` columns.
+    The table must contain ``'xcentroid'`` and ``'ycentroid'`` columns
+    and a ``'flux'`` and/or ``'magnitude'`` column.
 
     Parameters
     ----------
@@ -1458,11 +1499,15 @@ def read_stellar_table(filename, stellar_type):
 
     Returns
     -------
-    Astropy.table.Table
+    result : `~astropy.table.Table`
+        A table of stellar-like sources.
+
+    Notes
+    -----
+    This function is called only by the GUI.
     """
 
     table = Table.read(filename, format='ascii')
     table.keep_columns(['xcentroid', 'ycentroid', 'flux'])
-    log.info('Read "{0}" table from "{1}"'.format(stellar_type, filename))
-
+    log.info('Loaded "{0}" table from "{1}"'.format(stellar_type, filename))
     return table

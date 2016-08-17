@@ -78,7 +78,7 @@ def resize_image(data, scale_factor):
     ny, nx = data.shape
 
     if scale_factor == 1:
-        log.info('The array (ny * nx) = ({0}x{1}) was not resized.'
+        log.info('The array (ny x nx) = ({0}x{1}) was not resized.'
                  .format(ny, nx))
         return data
 
@@ -96,7 +96,7 @@ def resize_image(data, scale_factor):
     # data = imresize(data, (y_size, x_size)).astype(data.dtype)
 
     log.info('The array was resized from {0}x{1} to {2}x{3} '
-             '(ny * nx).'.format(ny, nx, y_size, x_size))
+             '(ny x nx).'.format(ny, nx, y_size, x_size))
 
     return data
 

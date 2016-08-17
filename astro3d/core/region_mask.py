@@ -111,6 +111,4 @@ class RegionMask(object):
         mask_type = header['MASKTYPE']
         region_mask = cls(mask, mask_type, required_shape=required_shape,
                           shape=shape)
-        log.info('Read {0} (mask type="{1}").'.format(filename, mask_type))
-
         return region_mask
