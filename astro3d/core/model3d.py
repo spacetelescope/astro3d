@@ -878,7 +878,8 @@ class Model3D(object):
             self._texture_layer[mask] = texture_data[mask]
         self.data += self._texture_layer
 
-    def _apply_stellar_textures(self, radius_a=10., radius_b=5., slope=1.0):
+    def _apply_stellar_textures(self, radius_a=10., radius_b=5., slope=1.0,
+                                depth=3., base_percentile=0.):
         """
         Apply stellar textures (stars and star clusters) to the image.
 
@@ -901,15 +902,21 @@ class Model3D(object):
 
         slope : float, optional
             The slope of the star texture sides.
+
+        depth : float
+            The maximum depth of the crater-like bowl of the star
+            texture.
+
+        base_percentile : float in the range of [0, 100], optional
+            The percentile of the image data values within the source
+            texture (where the texture is non-zero) used to define the
+            base height of the model texture.  If `None`, then the model
+            base_height will be zero.
         """
 
         if self._has_intensity:
-            base_percentile = 75.
-            depth = 3.
             data = self.data
         else:
-            base_percentile = None
-            depth = 10.
             data = np.zeros_like(self.data)
 
         if len(self.stellar_tables) == 0:
