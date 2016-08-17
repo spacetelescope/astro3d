@@ -1031,7 +1031,7 @@ class Model3D(object):
                 return base_height
 
     def _apply_textures(self, star_texture_depth=3.,
-                        star_texture_base_percentile=0.)
+                        star_texture_base_percentile=0.):
         """
         Apply all textures to the model.
 
