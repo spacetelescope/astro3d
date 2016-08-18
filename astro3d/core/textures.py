@@ -182,19 +182,13 @@ def random_points(shape, spacing):
     return np.transpose(np.vstack([x, y]))
 
 
-def lines_texture_image(shape, profile, thickness, height, spacing,
-                        orientation=0., mask=None):
+class LinesTexture(object):
     """
-    Create a texture image consisting of a regularly-spaced set of lines.
-
-    If a ``mask`` image is input, then texture is applied only to the
-    regions where the ``mask`` is `True`.
+    Class to create a texture image consisting of a regularly-spaced set
+    of lines.
 
     Parameters
     ----------
-    shape : tuple
-        The shape of the output image.
-
     profile : {'linear', 'spherical'}
         The line profile. ``'linear'`` produces a "^"-shaped line
         profile.  ``'spherical'`` produces a rounded cylindrical or
@@ -218,57 +212,66 @@ def lines_texture_image(shape, profile, thickness, height, spacing,
         The counterclockwise rotation angle (in degrees) for the lines.
         The default ``orientation`` of 0 degrees corresponds to
         horizontal lines (i.e. lines along rows) in the output image.
-
-    mask : `~numpy.ndarray` (bool)
-        A 2D boolean mask.  If input, the texture will be applied where
-        the ``mask`` is `True`.  ``mask`` must have the same shape as
-        the input ``shape``.
-
-    Returns
-    -------
-    data : `~numpy.ndarray`
-        An image containing the "lines" texture.
-
-    Examples
-    --------
-    Texture image for the NGC 602 dust region:
-
-    >>> dust_tx = lines_texture_image(
-    ...     profile='linear', thickness=15, height=5.25, spacing=25,
-    ...     orientation=0, mask=dust_mask)
     """
 
-    # start at the image center and then offset lines in both directions
-    xc = shape[1] / 2
-    yc = shape[1] / 2
-    x = np.arange(shape[1]) - xc
-    y = np.arange(shape[0]) - yc
-    xp, yp = np.meshgrid(x, y)
+    def __init__(self, profile, thickness, height, spacing, orientation=0.):
+        self.profile = profile
+        self.thickness = thickness
+        self.height = height
+        self.spacing = spacing
+        self.orientation = orientation
 
-    angle = np.pi * orientation/180.
-    s, c = np.sin(angle), np.cos(angle)
-    # x = c*xp + s*yp    # unused
-    y = -s*xp + c*yp
+    def __call__(self, shape, mask=mask):
+        """
+        Create a texture image of lines.
 
-    # compute maximum possible offsets
-    noffsets = int(np.sqrt(xc**2 + yc**2) / spacing)
-    offsets = spacing * (np.arange(noffsets*2 + 1) - noffsets)
+        Parameters
+        ----------
+        shape : tuple
+            The shape of the output image.
 
-    # loop over all offsets
-    data = np.zeros(shape)
-    h_thick = (thickness - 1) / 2.
-    for offset in offsets:
-        y_diff = y - offset
-        idx = np.where((y_diff > -h_thick) & (y_diff < h_thick))
-        if idx:
-            if profile == "spherical":
-                data[idx] = ((height / h_thick) *
-                             np.sqrt(h_thick**2 - y_diff[idx]**2))
-            elif profile == "linear":
-                data[idx] = ((height / h_thick) *
-                             (h_thick - np.abs(y_diff[idx])))
+        mask : bool `~numpy.ndarray`, optional
+            A 2D boolean mask.  If input, the texture will be applied
+            where the ``mask`` is `True`.  ``mask`` must have the same
+            shape as the input ``shape``.
 
-    return mask_texture_image(data, mask)
+        Returns
+        -------
+        data : `~numpy.ndarray`
+            An image containing the line texture.
+        """
+
+        # start at the image center and then offset lines in both directions
+        xc = shape[1] / 2
+        yc = shape[1] / 2
+        x = np.arange(shape[1]) - xc
+        y = np.arange(shape[0]) - yc
+        xp, yp = np.meshgrid(x, y)
+
+        angle = np.pi * self.orientation/180.
+        s, c = np.sin(angle), np.cos(angle)
+        # x = c*xp + s*yp    # unused
+        y = -s*xp + c*yp
+
+        # compute maximum possible offsets
+        noffsets = int(np.sqrt(xc**2 + yc**2) / self.spacing)
+        offsets = self.spacing * (np.arange(noffsets*2 + 1) - noffsets)
+
+        # loop over all offsets
+        data = np.zeros(shape)
+        h_thick = (self.thickness - 1) / 2.
+        for offset in offsets:
+            y_diff = y - offset
+            idx = np.where((y_diff > -h_thick) & (y_diff < h_thick))
+            if idx:
+                if self.profile == "spherical":
+                    data[idx] = ((self.height / h_thick) *
+                                np.sqrt(h_thick**2 - y_diff[idx]**2))
+                elif self.profile == "linear":
+                    data[idx] = ((self.height / h_thick) *
+                                (h_thick - np.abs(y_diff[idx])))
+
+        return mask_texture_image(data, mask)
 
 
 class DotsTexture(object):
@@ -345,7 +348,7 @@ class DotsTexture(object):
 
     def __call__(self, shape, mask=None):
         """
-        Create a dot texture image.
+        Create a texture image of dots.
 
         Parameters
         ----------
