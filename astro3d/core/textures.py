@@ -12,12 +12,12 @@ from astropy.modeling.models import Disk2D
 from astropy.utils.exceptions import AstropyUserWarning
 
 
-__doctest_skip__ = ['lines_texture_image', 'dots_texture_image']
+__doctest_skip__ = ['LinesTexture', 'DotsTexture']
 
 
-def apply_texture_mask(texture_image, mask):
+def mask_texture_image(texture_image, mask):
     """
-    Apply textures only to the masked region of an image.
+    Mask a texture image.
 
     Parameters
     ----------
@@ -33,6 +33,9 @@ def apply_texture_mask(texture_image, mask):
     data : `~numpy.ndarray`
         An image containing the masked textures.
     """
+
+    if mask is None:
+        return texture_image
 
     if texture_image.shape != mask.shape:
         raise ValueError('texture_image and mask must have the same shape')
@@ -88,16 +91,13 @@ def combine_textures_max(texture1, texture2):
     return data
 
 
-def square_grid(shape, spacing, offset=0):
+class SquareGrid(object):
     """
-    Generate ``(x, y)`` coordinates for a regular square grid over a
-    given image shape.
+    Class to generate ``(x, y)`` coordinates for a regular square grid
+    over a given image shape.
 
     Parameters
     ----------
-    shape : tuple
-        The shape of the image over which to create the grid.
-
     spacing : float
         The spacing in pixels between the centers of adjacent squares.
         This is the same as the square size.
@@ -105,28 +105,41 @@ def square_grid(shape, spacing, offset=0):
     offset : float, optional
         An optional offset to apply in both the ``x`` and ``y``
         directions from the nominal starting position of ``(0, 0)``.
-
-    Returns
-    -------
-    coords : `~numpy.ndarray`
-        A ``N x 2`` array where each row contains the ``x`` and ``y``
-        coordinates of the square centers.
     """
 
-    y, x = np.mgrid[offset:shape[0]:spacing, offset:shape[1]:spacing]
-    return np.transpose(np.vstack([x.ravel(), y.ravel()]))
+    def __init__(self, spacing, offset=0):
+        self.spacing = spacing
+        self.offset = offset
+
+    def __call__(self, shape):
+        """
+        Generate ``(x, y)`` coordinates for a regular square grid over a
+        given image shape.
+
+        Parameters
+        ----------
+        shape : tuple
+            The shape of the image over which to create the grid.
+
+        Returns
+        -------
+        coords : `~numpy.ndarray`
+            A ``N x 2`` array where each row contains the ``x`` and ``y``
+            coordinates of the square centers.
+        """
+
+        y, x = np.mgrid[self.offset:shape[0]:self.spacing,
+                        self.offset:shape[1]:self.spacing]
+        return np.transpose(np.vstack([x.ravel(), y.ravel()]))
 
 
-def hexagonal_grid(shape, spacing, offset=0):
+class HexagonalGrid(object):
     """
-    Generate ``(x, y)`` coordinates for a hexagonal grid over a given
-    image shape.
+    Class to generate ``(x, y)`` coordinates for a hexagonal grid over a
+    given image shape.
 
     Parameters
     ----------
-    shape : tuple
-        The shape of the image over which to create the grid.
-
     spacing : float
         The spacing in pixels between the centers of adjacent hexagons.
         This is also the "size" of the hexagon, as measured perpendicular
@@ -135,63 +148,84 @@ def hexagonal_grid(shape, spacing, offset=0):
     offset : float, optional
         An optional offset to apply in both the ``x`` and ``y``
         directions from the nominal starting position of ``(0, 0)``.
-
-    Returns
-    -------
-    coords : `~numpy.ndarray`
-        A ``N x 2`` array where each row contains the ``x`` and ``y``
-        coordinates of the hexagon centers.
     """
 
-    x_spacing = 2. * spacing / np.sqrt(3.)
-    y, x = np.mgrid[offset:shape[0]:spacing, offset:shape[1]:x_spacing]
-    # shift the odd rows by half of the x_spacing
-    for i in range(1, len(x), 2):
-        x[i] += 0.5 * x_spacing
-    return np.transpose(np.vstack([x.ravel(), y.ravel()]))
+    def __init__(self, spacing, offset=0):
+        self.spacing = spacing
+        self.offset = offset
+
+    def __call__(self, shape):
+        """
+        Generate ``(x, y)`` coordinates for a hexagonal grid over a
+        given image shape.
+
+        Parameters
+        ----------
+        shape : tuple
+            The shape of the image over which to create the grid.
+
+        Returns
+        -------
+        coords : `~numpy.ndarray`
+            A ``N x 2`` array where each row contains the ``x`` and ``y``
+            coordinates of the hexagon centers.
+        """
+
+        x_spacing = 2. * self.spacing / np.sqrt(3.)
+        y, x = np.mgrid[self.offset:shape[0]:self.spacing,
+                        self.offset:shape[1]:x_spacing]
+        # shift the odd rows by half of the x_spacing
+        for i in range(1, len(x), 2):
+            x[i] += 0.5 * x_spacing
+        return np.transpose(np.vstack([x.ravel(), y.ravel()]))
 
 
-def random_points(shape, spacing):
+class RandomPoints(object):
     """
-    Generate ``(x, y)`` coordinates at random positions over a given
-    image shape.
+    Class to generate ``(x, y)`` coordinates at random positions over a
+    given image shape.
 
     Parameters
     ----------
-    shape : tuple
-        The shape of the image over which to create the random points.
-
     spacing : float
         The "average" spacing between the random positions.
         Specifically, ``spacing`` defines the number of random positions
         as ``shape[0] * shape[1] / spacing**2``.
-
-    Returns
-    -------
-    coords : `~numpy.ndarray`
-        A ``N x 2`` array where each row contains the ``x`` and ``y``
-        coordinates of the random positions.
     """
 
-    npts = shape[0] * shape[1] / spacing**2
-    x = np.random.random(npts) * shape[1]
-    y = np.random.random(npts) * shape[0]
-    return np.transpose(np.vstack([x, y]))
+    def __init__(self, spacing):
+        self.spacing = spacing
+
+    def __call__(self, shape):
+        """
+        Generate ``(x, y)`` coordinates at random positions over a given
+        image shape.
+
+        Parameters
+        ----------
+        shape : tuple
+            The shape of the image over which to create the random points.
+
+        Returns
+        -------
+        coords : `~numpy.ndarray`
+            A ``N x 2`` array where each row contains the ``x`` and ``y``
+            coordinates of the random positions.
+        """
+
+        npts = shape[0] * shape[1] / self.spacing**2
+        x = np.random.random(npts) * shape[1]
+        y = np.random.random(npts) * shape[0]
+        return np.transpose(np.vstack([x, y]))
 
 
-def lines_texture_image(shape, profile, thickness, height, spacing,
-                        orientation=0., mask=None):
+class LinesTexture(object):
     """
-    Create a texture image consisting of a regularly-spaced set of lines.
-
-    If a ``mask`` image is input, then texture is applied only to the
-    regions where the ``mask`` is `True`.
+    Class to create a texture image consisting of a regularly-spaced set
+    of lines.
 
     Parameters
     ----------
-    shape : tuple
-        The shape of the output image.
-
     profile : {'linear', 'spherical'}
         The line profile. ``'linear'`` produces a "^"-shaped line
         profile.  ``'spherical'`` produces a rounded cylindrical or
@@ -215,85 +249,83 @@ def lines_texture_image(shape, profile, thickness, height, spacing,
         The counterclockwise rotation angle (in degrees) for the lines.
         The default ``orientation`` of 0 degrees corresponds to
         horizontal lines (i.e. lines along rows) in the output image.
-
-    mask : `~numpy.ndarray` (bool)
-        A 2D boolean mask.  If input, the texture will be applied where
-        the ``mask`` is `True`.  ``mask`` must have the same shape as
-        the input ``shape``.
-
-    Returns
-    -------
-    data : `~numpy.ndarray`
-        An image containing the "lines" texture.
-
-    Examples
-    --------
-    Texture image for the NGC 602 dust region:
-
-    >>> dust_tx = lines_texture_image(
-    ...     profile='linear', thickness=15, height=5.25, spacing=25,
-    ...     orientation=0, mask=dust_mask)
     """
 
-    # start at the image center and then offset lines in both directions
-    xc = shape[1] / 2
-    yc = shape[1] / 2
-    x = np.arange(shape[1]) - xc
-    y = np.arange(shape[0]) - yc
-    xp, yp = np.meshgrid(x, y)
+    def __init__(self, profile, thickness, height, spacing, orientation=0.):
+        self.profile = profile
+        self.thickness = thickness
+        self.height = height
+        self.spacing = spacing
+        self.orientation = orientation
 
-    angle = np.pi * orientation/180.
-    s, c = np.sin(angle), np.cos(angle)
-    # x = c*xp + s*yp    # unused
-    y = -s*xp + c*yp
+    def __call__(self, shape, mask=None):
+        """
+        Create a texture image of lines.
 
-    # compute maximum possible offsets
-    noffsets = int(np.sqrt(xc**2 + yc**2) / spacing)
-    offsets = spacing * (np.arange(noffsets*2 + 1) - noffsets)
+        Parameters
+        ----------
+        shape : tuple
+            The shape of the output image.
 
-    # loop over all offsets
-    data = np.zeros(shape)
-    h_thick = (thickness - 1) / 2.
-    for offset in offsets:
-        y_diff = y - offset
-        idx = np.where((y_diff > -h_thick) & (y_diff < h_thick))
-        if idx:
-            if profile == "spherical":
-                data[idx] = ((height / h_thick) *
-                             np.sqrt(h_thick**2 - y_diff[idx]**2))
-            elif profile == "linear":
-                data[idx] = ((height / h_thick) *
-                             (h_thick - np.abs(y_diff[idx])))
+        mask : bool `~numpy.ndarray`, optional
+            A 2D boolean mask.  If input, the texture will be applied
+            where the ``mask`` is `True`.  ``mask`` must have the same
+            shape as the input ``shape``.
 
-    if mask is None:
-        return data
-    else:
-        return apply_texture_mask(data, mask)
+        Returns
+        -------
+        data : `~numpy.ndarray`
+            An image containing the line texture.
+        """
+
+        # start at the image center and then offset lines in both directions
+        xc = shape[1] / 2
+        yc = shape[1] / 2
+        x = np.arange(shape[1]) - xc
+        y = np.arange(shape[0]) - yc
+        xp, yp = np.meshgrid(x, y)
+
+        angle = np.pi * self.orientation/180.
+        s, c = np.sin(angle), np.cos(angle)
+        # x = c*xp + s*yp    # unused
+        y = -s*xp + c*yp
+
+        # compute maximum possible offsets
+        noffsets = int(np.sqrt(xc**2 + yc**2) / self.spacing)
+        offsets = self.spacing * (np.arange(noffsets*2 + 1) - noffsets)
+
+        # loop over all offsets
+        data = np.zeros(shape)
+        h_thick = (self.thickness - 1) / 2.
+        for offset in offsets:
+            y_diff = y - offset
+            idx = np.where((y_diff > -h_thick) & (y_diff < h_thick))
+            if idx:
+                if self.profile == "spherical":
+                    data[idx] = ((self.height / h_thick) *
+                                 np.sqrt(h_thick**2 - y_diff[idx]**2))
+                elif self.profile == "linear":
+                    data[idx] = ((self.height / h_thick) *
+                                 (h_thick - np.abs(y_diff[idx])))
+
+        return mask_texture_image(data, mask)
 
 
-def dots_texture_image(shape, profile, diameter, height, locations=None,
-                       grid_func=None, grid_spacing=None, mask=None):
+class DotsTexture(object):
     """
-    Create a texture image consisting of dots centered at the given
-    locations.
+    Class to create a texture image consisting of dots centered at the
+    given locations.
 
-    If two dots overlap (i.e. the ``locations`` separations are smaller
-    than the dot size), then the greater data value of the two is taken,
-    not the sum.  This ensures the maximum ``height`` of the dot
-    textures.
+    If two dots overlap (i.e. their separations are smaller than the dot
+    size), then the greater data value of the two is taken, not the sum.
+    This ensures that the maximum height of the dot textures is the
+    input ``height``.
 
-    Either ``locations`` or both ``grid_func`` and ``grid_spacing`` need
-    to be specified.  If all are input, then ``locations`` takes
-    precedence.
-
-    If a ``mask`` image is input, then texture is applied only to the
-    regions where the ``mask`` is `True`.
+    Either ``locations`` or ``grid`` needs to be input.  If both are
+    input, then ``locations`` takes precedence.
 
     Parameters
     ----------
-    shape : tuple
-        The shape of the output image.
-
     profile : {'linear', 'spherical'}
         The dot profile. ``'linear'`` produces a cone-shaped dot
         profile.  ``'spherical'`` produces a hemispherical or
@@ -312,84 +344,87 @@ def dots_texture_image(shape, profile, diameter, height, locations=None,
 
     locations : `~numpy.ndarray`, optional
         A ``Nx2`` `~numpy.ndarray` where each row contains the ``x`` and
-        ``y`` coordinate positions.  Either ``locations`` or both
-        ``grid_func`` and ``grid_spacing`` need to be specified.  If all
-        are input, then ``locations`` takes precedence.
+        ``y`` coordinate positions.  Either ``locations`` or ``grid``
+        needs to be specified.  If both are input, then ``locations``
+        takes precedence.
 
-    grid_func : callable, optional
-        The function used to generate the ``(x, y)`` positions of the
-        dots.  Either ``locations`` or both ``grid_func`` and
-        ``grid_spacing`` need to be specified.  If all are input, then
-        ``locations`` takes precedence.
-
-    grid_spacing : float, optional
-        The spacing in pixels between the grid points.  Either
-        ``locations`` or both ``grid_func`` and ``grid_spacing`` need to
-        be specified.  If all are input, then ``locations`` takes
+    grid : callable, optional
+        The function or callable object used to generate the ``(x, y)``
+        positions of the dots.  Either ``locations`` or ``grid`` needs
+        to be specified.  If both are input, then ``locations`` takes
         precedence.
-
-    mask : `~numpy.ndarray` (bool)
-        A 2D boolean mask.  If input, the texture will be applied where
-        the ``mask`` is `True`.  ``mask`` must have the same shape as
-        the input ``shape``.
-
-    Returns
-    -------
-    data : `~numpy.ndarray`
-        An image containing the dot texture.
-
-    Examples
-    --------
-    >>> shape = (1000, 1000)
-    >>> dots_texture_image(shape, 'linear', 7, 3,
-    ...                    locations=hexagonal_grid(shape, 10))
     """
 
-    if int(diameter) != diameter:
-        raise ValueError('diameter must be an integer')
-    diameter = int(diameter)
+    def __init__(self, profile, diameter, height, locations=None, grid=None):
+        if int(diameter) != diameter:
+            raise ValueError('diameter must be an integer')
+        diameter = int(diameter)
 
-    if locations is None:
-        if grid_func is None or grid_spacing is None:
-            raise ValueError('locations or both grid_func and grid_spacing '
-                             'must be input')
-        locations = grid_func(shape, grid_spacing)
+        if locations is None:
+            if grid is None:
+                raise ValueError('locations or grid must be input')
+        self.locations = locations
+        self.grid = grid
 
-    dot_shape = (diameter, diameter)
-    dot = np.zeros(dot_shape)
-    yy, xx = np.indices(dot_shape)
-    radius = (diameter - 1) // 2
-    r = np.sqrt((xx - radius)**2 + (yy - radius)**2)
-    idx = np.where(r < radius)
+        dot_shape = (diameter, diameter)
+        dot = np.zeros(dot_shape)
+        yy, xx = np.indices(dot_shape)
+        radius = (diameter - 1) // 2
+        r = np.sqrt((xx - radius)**2 + (yy - radius)**2)
+        idx = np.where(r < radius)
 
-    if profile == 'spherical':
-        dot[idx] = (height / radius) * np.sqrt(radius**2 - r[idx]**2)
-    elif profile == 'linear':
-        dot[idx] = (height / radius) * np.abs(radius - r[idx])
-    else:
-        raise ValueError('profile must be "spherical" or "linear"')
+        if profile == 'spherical':
+            dot[idx] = (height / radius) * np.sqrt(radius**2 - r[idx]**2)
+        elif profile == 'linear':
+            dot[idx] = (height / radius) * np.abs(radius - r[idx])
+        else:
+            raise ValueError('profile must be "spherical" or "linear"')
 
-    data = np.zeros(shape)
-    for (x, y) in locations:
-        x = np.rint(x).astype(int)
-        y = np.rint(y).astype(int)
+        self.dot = dot
+        self.radius = radius
 
-        # exclude points too close to the edge
-        if not (x < radius or x > (shape[1] - radius - 1) or
-                y < radius or y > (shape[0] - radius - 1)):
-            # replace pixel values in the output texture image only
-            # where the values are larger in the new dot (i.e. the new dot
-            # pixels are not summed with the texture image, but are
-            # assigned the greater value of the new dot and the texture
-            # image)
-            region = data[y-radius:y+radius+1, x-radius:x+radius+1]
-            dot_mask = (dot > region)
-            region[dot_mask] = dot[dot_mask]
+    def __call__(self, shape, mask=None):
+        """
+        Create a texture image of dots.
 
-    if mask is None:
-        return data
-    else:
-        return apply_texture_mask(data, mask)
+        Parameters
+        ----------
+        shape : tuple
+            The shape of the output image.
+
+        mask : bool `~numpy.ndarray`, optional
+            A 2D boolean mask.  If input, the texture will be applied
+            where the ``mask`` is `True`.  ``mask`` must have the same
+            shape as the input ``shape``.
+
+        Returns
+        -------
+        data : `~numpy.ndarray`
+            An image containing the dot texture.
+        """
+
+        if self.locations is None:
+            self.locations = self.grid(shape)
+
+        data = np.zeros(shape)
+        for (x, y) in self.locations:
+            x = np.rint(x).astype(int)
+            y = np.rint(y).astype(int)
+
+            # exclude points too close to the edge
+            if not (x < self.radius or x > (shape[1] - self.radius - 1) or
+                    y < self.radius or y > (shape[0] - self.radius - 1)):
+                # replace pixel values in the output texture image only
+                # where the values are larger in the new dot (i.e. the new dot
+                # pixels are not summed with the texture image, but are
+                # assigned the greater value of the new dot and the texture
+                # image)
+                cutout = data[y-self.radius:y+self.radius+1,
+                              x-self.radius:x+self.radius+1]
+                dot_mask = (self.dot > cutout)
+                cutout[dot_mask] = self.dot[dot_mask]
+
+        return mask_texture_image(data, mask)
 
 
 class StarTexture(Fittable2DModel):
@@ -504,12 +539,14 @@ class StarClusterTexture(Fittable2DModel):
         star1 = StarTexture(x1, y1, radius, depth, base_height, slope)(x, y)
         star2 = StarTexture(x2, y2, radius, depth, base_height, slope)(x, y)
         star3 = StarTexture(x3, y3, radius, depth, base_height, slope)(x, y)
+
         # Disk2D is used to fill the central "hole", which needs to be
         # nonzero to prevent a possible central spike when applied to the
         # image.  ``min_height`` is added to keep the texture values > 0
         # even if base_height is zero.
         min_height = 0.0001
         disk = Disk2D(base_height + min_height, x_0, y_0, radius)(x, y)
+
         return np.maximum(np.maximum(np.maximum(star1, star2), star3), disk)
 
 
