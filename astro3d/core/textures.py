@@ -91,16 +91,13 @@ def combine_textures_max(texture1, texture2):
     return data
 
 
-def square_grid(shape, spacing, offset=0):
+class SquareGrid(object):
     """
-    Generate ``(x, y)`` coordinates for a regular square grid over a
-    given image shape.
+    Class to generate ``(x, y)`` coordinates for a regular square grid
+    over a given image shape.
 
     Parameters
     ----------
-    shape : tuple
-        The shape of the image over which to create the grid.
-
     spacing : float
         The spacing in pixels between the centers of adjacent squares.
         This is the same as the square size.
@@ -108,28 +105,41 @@ def square_grid(shape, spacing, offset=0):
     offset : float, optional
         An optional offset to apply in both the ``x`` and ``y``
         directions from the nominal starting position of ``(0, 0)``.
-
-    Returns
-    -------
-    coords : `~numpy.ndarray`
-        A ``N x 2`` array where each row contains the ``x`` and ``y``
-        coordinates of the square centers.
     """
 
-    y, x = np.mgrid[offset:shape[0]:spacing, offset:shape[1]:spacing]
-    return np.transpose(np.vstack([x.ravel(), y.ravel()]))
+    def __init__(self, spacing, offset=0):
+        self.spacing = spacing
+        self.offset = offset
+
+    def __call__(self, shape):
+        """
+        Generate ``(x, y)`` coordinates for a regular square grid over a
+        given image shape.
+
+        Parameters
+        ----------
+        shape : tuple
+            The shape of the image over which to create the grid.
+
+        Returns
+        -------
+        coords : `~numpy.ndarray`
+            A ``N x 2`` array where each row contains the ``x`` and ``y``
+            coordinates of the square centers.
+        """
+
+        y, x = np.mgrid[self.offset:shape[0]:self.spacing,
+                        self.offset:shape[1]:self.spacing]
+        return np.transpose(np.vstack([x.ravel(), y.ravel()]))
 
 
-def hexagonal_grid(shape, spacing, offset=0):
+class HexagonalGrid(object):
     """
-    Generate ``(x, y)`` coordinates for a hexagonal grid over a given
-    image shape.
+    Class to generate ``(x, y)`` coordinates for a hexagonal grid over a
+    given image shape.
 
     Parameters
     ----------
-    shape : tuple
-        The shape of the image over which to create the grid.
-
     spacing : float
         The spacing in pixels between the centers of adjacent hexagons.
         This is also the "size" of the hexagon, as measured perpendicular
@@ -138,20 +148,36 @@ def hexagonal_grid(shape, spacing, offset=0):
     offset : float, optional
         An optional offset to apply in both the ``x`` and ``y``
         directions from the nominal starting position of ``(0, 0)``.
-
-    Returns
-    -------
-    coords : `~numpy.ndarray`
-        A ``N x 2`` array where each row contains the ``x`` and ``y``
-        coordinates of the hexagon centers.
     """
 
-    x_spacing = 2. * spacing / np.sqrt(3.)
-    y, x = np.mgrid[offset:shape[0]:spacing, offset:shape[1]:x_spacing]
-    # shift the odd rows by half of the x_spacing
-    for i in range(1, len(x), 2):
-        x[i] += 0.5 * x_spacing
-    return np.transpose(np.vstack([x.ravel(), y.ravel()]))
+    def __init__(self, spacing, offset=0):
+        self.spacing = spacing
+        self.offset = offset
+
+    def __call__(self, shape):
+        """
+        Generate ``(x, y)`` coordinates for a hexagonal grid over a
+        given image shape.
+
+        Parameters
+        ----------
+        shape : tuple
+            The shape of the image over which to create the grid.
+
+        Returns
+        -------
+        coords : `~numpy.ndarray`
+            A ``N x 2`` array where each row contains the ``x`` and ``y``
+            coordinates of the hexagon centers.
+        """
+
+        x_spacing = 2. * self.spacing / np.sqrt(3.)
+        y, x = np.mgrid[self.offset:shape[0]:self.spacing,
+                        self.offset:shape[1]:x_spacing]
+        # shift the odd rows by half of the x_spacing
+        for i in range(1, len(x), 2):
+            x[i] += 0.5 * x_spacing
+        return np.transpose(np.vstack([x.ravel(), y.ravel()]))
 
 
 def random_points(shape, spacing):
@@ -221,7 +247,7 @@ class LinesTexture(object):
         self.spacing = spacing
         self.orientation = orientation
 
-    def __call__(self, shape, mask=mask):
+    def __call__(self, shape, mask=None):
         """
         Create a texture image of lines.
 
@@ -266,10 +292,10 @@ class LinesTexture(object):
             if idx:
                 if self.profile == "spherical":
                     data[idx] = ((self.height / h_thick) *
-                                np.sqrt(h_thick**2 - y_diff[idx]**2))
+                                 np.sqrt(h_thick**2 - y_diff[idx]**2))
                 elif self.profile == "linear":
                     data[idx] = ((self.height / h_thick) *
-                                (h_thick - np.abs(y_diff[idx])))
+                                 (h_thick - np.abs(y_diff[idx])))
 
         return mask_texture_image(data, mask)
 
