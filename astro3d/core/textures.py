@@ -12,7 +12,7 @@ from astropy.modeling.models import Disk2D
 from astropy.utils.exceptions import AstropyUserWarning
 
 
-__doctest_skip__ = ['lines_texture_image', 'dots_texture_image']
+__doctest_skip__ = ['LinesTexture', 'DotsTexture']
 
 
 def mask_texture_image(texture_image, mask):
@@ -180,32 +180,43 @@ class HexagonalGrid(object):
         return np.transpose(np.vstack([x.ravel(), y.ravel()]))
 
 
-def random_points(shape, spacing):
+class RandomPoints(object):
     """
-    Generate ``(x, y)`` coordinates at random positions over a given
-    image shape.
+    Class to generate ``(x, y)`` coordinates at random positions over a
+    given image shape.
 
     Parameters
     ----------
-    shape : tuple
-        The shape of the image over which to create the random points.
-
     spacing : float
         The "average" spacing between the random positions.
         Specifically, ``spacing`` defines the number of random positions
         as ``shape[0] * shape[1] / spacing**2``.
-
-    Returns
-    -------
-    coords : `~numpy.ndarray`
-        A ``N x 2`` array where each row contains the ``x`` and ``y``
-        coordinates of the random positions.
     """
 
-    npts = shape[0] * shape[1] / spacing**2
-    x = np.random.random(npts) * shape[1]
-    y = np.random.random(npts) * shape[0]
-    return np.transpose(np.vstack([x, y]))
+    def __init__(self, spacing):
+        self.spacing = spacing
+
+    def __call__(self, shape):
+        """
+        Generate ``(x, y)`` coordinates at random positions over a given
+        image shape.
+
+        Parameters
+        ----------
+        shape : tuple
+            The shape of the image over which to create the random points.
+
+        Returns
+        -------
+        coords : `~numpy.ndarray`
+            A ``N x 2`` array where each row contains the ``x`` and ``y``
+            coordinates of the random positions.
+        """
+
+        npts = shape[0] * shape[1] / self.spacing**2
+        x = np.random.random(npts) * shape[1]
+        y = np.random.random(npts) * shape[0]
+        return np.transpose(np.vstack([x, y]))
 
 
 class LinesTexture(object):
@@ -528,12 +539,14 @@ class StarClusterTexture(Fittable2DModel):
         star1 = StarTexture(x1, y1, radius, depth, base_height, slope)(x, y)
         star2 = StarTexture(x2, y2, radius, depth, base_height, slope)(x, y)
         star3 = StarTexture(x3, y3, radius, depth, base_height, slope)(x, y)
+
         # Disk2D is used to fill the central "hole", which needs to be
         # nonzero to prevent a possible central spike when applied to the
         # image.  ``min_height`` is added to keep the texture values > 0
         # even if base_height is zero.
         min_height = 0.0001
         disk = Disk2D(base_height + min_height, x_0, y_0, radius)(x, y)
+
         return np.maximum(np.maximum(np.maximum(star1, star2), star3), disk)
 
 
