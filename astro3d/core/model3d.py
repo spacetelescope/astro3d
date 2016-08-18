@@ -9,19 +9,18 @@ import glob
 import warnings
 from functools import partial
 from distutils.version import LooseVersion
-
 from scipy import ndimage
 import numpy as np
 from PIL import Image
-
 from astropy import log
 from astropy.io import fits
 from astropy.table import Table
 from astropy.utils.exceptions import AstropyUserWarning
 import photutils
-
-from . import textures
 from . import image_utils
+from .textures import (DotsTexture, LinesTexture, HexagonalGrid,
+                       make_starlike_textures, apply_textures,
+                       starlike_model_base_height, make_cusp_model)
 from .meshes import write_mesh
 from .region_mask import RegionMask
 
@@ -102,15 +101,15 @@ class Model3D(object):
         self.stellar_tables_original = {}
 
         self.textures = {}
-        self.textures['small_dots'] = partial(
-            textures.dots_texture_image, profile='spherical', diameter=9.0,
-            height=4.0, grid_func=textures.hexagonal_grid, grid_spacing=7.0)
-        self.textures['dots'] = partial(
-            textures.dots_texture_image, profile='spherical', diameter=9.0,
-            height=4.0, grid_func=textures.hexagonal_grid, grid_spacing=11.0)
-        self.textures['lines'] = partial(
-            textures.lines_texture_image, profile='linear', thickness=13,
-            height=7.8, spacing=20, orientation=0)
+        self.textures['small_dots'] = DotsTexture(
+            profile='spherical', diameter=9.0, height=4.0,
+            grid=HexagonalGrid(spacing=7.0))
+        self.textures['dots'] = DotsTexture(
+            profile='spherical', diameter=9.0, height=4.0,
+            grid=HexagonalGrid(spacing=11.0))
+        self.textures['lines'] = LinesTexture(
+            profile='linear', thickness=13, height=7.8, spacing=20,
+            orientation=0)
 
     @classmethod
     def from_fits(cls, filename):
@@ -925,18 +924,18 @@ class Model3D(object):
                 self.data = self._texture_layer
         else:
             log.info('Adding stellar-like textures.')
-            self._stellar_texture_layer = textures.make_starlike_textures(
+            self._stellar_texture_layer = make_starlike_textures(
                 data, self.stellar_tables, radius_a=radius_a,
                 radius_b=radius_b, depth=depth, slope=slope,
                 base_percentile=base_percentile)
 
             if self._has_intensity:
-                self.data = textures.apply_textures(
-                    self.data, self._stellar_texture_layer)
+                self.data = apply_textures(self.data,
+                                           self._stellar_texture_layer)
             else:
                 log.info('Discarding data intensity')
-                self.data = textures.apply_textures(
-                    self._texture_layer, self._stellar_texture_layer)
+                self.data = apply_textures(self._texture_layer,
+                                           self._stellar_texture_layer)
 
     def _find_galaxy_center(self, mask=None):
         """
@@ -1013,19 +1012,19 @@ class Model3D(object):
                 x, y = self._find_galaxy_center(bulge_mask)
 
                 if base_height_only:
-                    base_height = textures.starlike_model_base_height(
+                    base_height = starlike_model_base_height(
                         self.data, 'stars', x, y, radius, depth, slope,
                         base_percentile=base_percentile)
                 else:
-                    cusp_model = textures.make_cusp_model(
+                    cusp_model = make_cusp_model(
                         self.data, x, y, radius=radius, depth=depth,
                         slope=slope, base_percentile=base_percentile)
                     base_height = cusp_model.base_height
 
                     yy, xx = np.indices(self.data.shape)
                     self._cusp_texture_layer = cusp_model(xx, yy)
-                    self.data = textures.apply_textures(
-                        self.data, self._cusp_texture_layer)
+                    self.data = apply_textures(self.data,
+                                               self._cusp_texture_layer)
                     log.info('Placed cusp texture at the galaxy center.')
 
                 return base_height
