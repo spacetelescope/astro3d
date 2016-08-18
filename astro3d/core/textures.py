@@ -15,9 +15,9 @@ from astropy.utils.exceptions import AstropyUserWarning
 __doctest_skip__ = ['lines_texture_image', 'dots_texture_image']
 
 
-def apply_texture_mask(texture_image, mask):
+def mask_texture_image(texture_image, mask):
     """
-    Apply textures only to the masked region of an image.
+    Mask a texture image.
 
     Parameters
     ----------
@@ -33,6 +33,9 @@ def apply_texture_mask(texture_image, mask):
     data : `~numpy.ndarray`
         An image containing the masked textures.
     """
+
+    if mask is None:
+        return texture_image
 
     if texture_image.shape != mask.shape:
         raise ValueError('texture_image and mask must have the same shape')
@@ -265,35 +268,24 @@ def lines_texture_image(shape, profile, thickness, height, spacing,
                 data[idx] = ((height / h_thick) *
                              (h_thick - np.abs(y_diff[idx])))
 
-    if mask is None:
-        return data
-    else:
-        return apply_texture_mask(data, mask)
+    return mask_texture_image(data, mask)
 
 
-def dots_texture_image(shape, profile, diameter, height, locations=None,
-                       grid_func=None, grid_spacing=None, mask=None):
+class DotsTexture(object):
     """
-    Create a texture image consisting of dots centered at the given
-    locations.
+    Class to create a texture image consisting of dots centered at the
+    given locations.
 
-    If two dots overlap (i.e. the ``locations`` separations are smaller
-    than the dot size), then the greater data value of the two is taken,
-    not the sum.  This ensures the maximum ``height`` of the dot
-    textures.
+    If two dots overlap (i.e. their separations are smaller than the dot
+    size), then the greater data value of the two is taken, not the sum.
+    This ensures that the maximum height of the dot textures is the
+    input ``height``.
 
-    Either ``locations`` or both ``grid_func`` and ``grid_spacing`` need
-    to be specified.  If all are input, then ``locations`` takes
-    precedence.
-
-    If a ``mask`` image is input, then texture is applied only to the
-    regions where the ``mask`` is `True`.
+    Either ``locations`` or ``grid`` needs to be input.  If both are
+    input, then ``locations`` takes precedence.
 
     Parameters
     ----------
-    shape : tuple
-        The shape of the output image.
-
     profile : {'linear', 'spherical'}
         The dot profile. ``'linear'`` produces a cone-shaped dot
         profile.  ``'spherical'`` produces a hemispherical or
@@ -312,84 +304,87 @@ def dots_texture_image(shape, profile, diameter, height, locations=None,
 
     locations : `~numpy.ndarray`, optional
         A ``Nx2`` `~numpy.ndarray` where each row contains the ``x`` and
-        ``y`` coordinate positions.  Either ``locations`` or both
-        ``grid_func`` and ``grid_spacing`` need to be specified.  If all
-        are input, then ``locations`` takes precedence.
+        ``y`` coordinate positions.  Either ``locations`` or ``grid``
+        needs to be specified.  If both are input, then ``locations``
+        takes precedence.
 
-    grid_func : callable, optional
-        The function used to generate the ``(x, y)`` positions of the
-        dots.  Either ``locations`` or both ``grid_func`` and
-        ``grid_spacing`` need to be specified.  If all are input, then
-        ``locations`` takes precedence.
-
-    grid_spacing : float, optional
-        The spacing in pixels between the grid points.  Either
-        ``locations`` or both ``grid_func`` and ``grid_spacing`` need to
-        be specified.  If all are input, then ``locations`` takes
+    grid : callable, optional
+        The function or callable object used to generate the ``(x, y)``
+        positions of the dots.  Either ``locations`` or ``grid`` needs
+        to be specified.  If both are input, then ``locations`` takes
         precedence.
-
-    mask : `~numpy.ndarray` (bool)
-        A 2D boolean mask.  If input, the texture will be applied where
-        the ``mask`` is `True`.  ``mask`` must have the same shape as
-        the input ``shape``.
-
-    Returns
-    -------
-    data : `~numpy.ndarray`
-        An image containing the dot texture.
-
-    Examples
-    --------
-    >>> shape = (1000, 1000)
-    >>> dots_texture_image(shape, 'linear', 7, 3,
-    ...                    locations=hexagonal_grid(shape, 10))
     """
 
-    if int(diameter) != diameter:
-        raise ValueError('diameter must be an integer')
-    diameter = int(diameter)
+    def __init__(self, profile, diameter, height, locations=None, grid=None):
+        if int(diameter) != diameter:
+            raise ValueError('diameter must be an integer')
+        diameter = int(diameter)
 
-    if locations is None:
-        if grid_func is None or grid_spacing is None:
-            raise ValueError('locations or both grid_func and grid_spacing '
-                             'must be input')
-        locations = grid_func(shape, grid_spacing)
+        if locations is None:
+            if grid is None:
+                raise ValueError('locations or grid must be input')
+        self.locations = locations
+        self.grid = grid
 
-    dot_shape = (diameter, diameter)
-    dot = np.zeros(dot_shape)
-    yy, xx = np.indices(dot_shape)
-    radius = (diameter - 1) // 2
-    r = np.sqrt((xx - radius)**2 + (yy - radius)**2)
-    idx = np.where(r < radius)
+        dot_shape = (diameter, diameter)
+        dot = np.zeros(dot_shape)
+        yy, xx = np.indices(dot_shape)
+        radius = (diameter - 1) // 2
+        r = np.sqrt((xx - radius)**2 + (yy - radius)**2)
+        idx = np.where(r < radius)
 
-    if profile == 'spherical':
-        dot[idx] = (height / radius) * np.sqrt(radius**2 - r[idx]**2)
-    elif profile == 'linear':
-        dot[idx] = (height / radius) * np.abs(radius - r[idx])
-    else:
-        raise ValueError('profile must be "spherical" or "linear"')
+        if profile == 'spherical':
+            dot[idx] = (height / radius) * np.sqrt(radius**2 - r[idx]**2)
+        elif profile == 'linear':
+            dot[idx] = (height / radius) * np.abs(radius - r[idx])
+        else:
+            raise ValueError('profile must be "spherical" or "linear"')
 
-    data = np.zeros(shape)
-    for (x, y) in locations:
-        x = np.rint(x).astype(int)
-        y = np.rint(y).astype(int)
+        self.dot = dot
+        self.radius = radius
 
-        # exclude points too close to the edge
-        if not (x < radius or x > (shape[1] - radius - 1) or
-                y < radius or y > (shape[0] - radius - 1)):
-            # replace pixel values in the output texture image only
-            # where the values are larger in the new dot (i.e. the new dot
-            # pixels are not summed with the texture image, but are
-            # assigned the greater value of the new dot and the texture
-            # image)
-            region = data[y-radius:y+radius+1, x-radius:x+radius+1]
-            dot_mask = (dot > region)
-            region[dot_mask] = dot[dot_mask]
+    def __call__(self, shape, mask=None):
+        """
+        Create a dot texture image.
 
-    if mask is None:
-        return data
-    else:
-        return apply_texture_mask(data, mask)
+        Parameters
+        ----------
+        shape : tuple
+            The shape of the output image.
+
+        mask : bool `~numpy.ndarray`, optional
+            A 2D boolean mask.  If input, the texture will be applied
+            where the ``mask`` is `True`.  ``mask`` must have the same
+            shape as the input ``shape``.
+
+        Returns
+        -------
+        data : `~numpy.ndarray`
+            An image containing the dot texture.
+        """
+
+        if self.locations is None:
+            self.locations = self.grid(shape)
+
+        data = np.zeros(shape)
+        for (x, y) in self.locations:
+            x = np.rint(x).astype(int)
+            y = np.rint(y).astype(int)
+
+            # exclude points too close to the edge
+            if not (x < self.radius or x > (shape[1] - self.radius - 1) or
+                    y < self.radius or y > (shape[0] - self.radius - 1)):
+                # replace pixel values in the output texture image only
+                # where the values are larger in the new dot (i.e. the new dot
+                # pixels are not summed with the texture image, but are
+                # assigned the greater value of the new dot and the texture
+                # image)
+                cutout = data[y-self.radius:y+self.radius+1,
+                              x-self.radius:x+self.radius+1]
+                dot_mask = (self.dot > cutout)
+                cutout[dot_mask] = self.dot[dot_mask]
+
+        return mask_texture_image(data, mask)
 
 
 class StarTexture(Fittable2DModel):
