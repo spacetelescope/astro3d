@@ -88,6 +88,8 @@ class Model3D(object):
     def __init__(self, data, image_size=1000):
         self.data_original = np.asanyarray(data)
         self.image_size = image_size
+        self._resize_scale_factor = self._calc_scale_factor(
+            self.data_original.shape, self.image_size)
         self._model_complete = False
 
         self.texture_order = ['small_dots', 'dots', 'lines']
@@ -454,19 +456,37 @@ class Model3D(object):
                        double_sided=self._double_sided, stl_format=stl_format,
                        clobber=clobber)
 
-    def _calc_scale_factor(self, critical_aspect=1.15):
+    @staticmethod
+    def _calc_scale_factor(shape, target_size, critical_aspect=1.15):
         """
         Calculate the scale factor for image resizing.
+
+        Parameters
+        ----------
+        shape : 2-tuple of int
+            The shape of the array to be resized.
+
+        target_size : int
+            The target size of the resized array.
+
+        critical_aspect : float, optional
+            The y/x aspect ratio limit greater than which the
+            ``target_size`` is applied to the y axis instead of the x
+            axis.
+
+        Returns
+        -------
+        resize_factor : float
+            The image resizing scale factor.
         """
 
-        ny, nx = self.data_original.shape
+        ny, nx = shape
         if (float(ny) / nx) >= critical_aspect:
             long_axis = 0
         else:
             long_axis = 1
 
-        self._resize_scale_factor = (float(self.image_size) /
-                                     self.data_original.shape[long_axis])
+        return float(target_size) / shape[long_axis]
 
     def _prepare_data(self):
         """
@@ -830,8 +850,8 @@ class Model3D(object):
             self.stellar_tables[stellar_type] = table
 
         if resize:
-            scale_factor = float(self.data_original_resized.shape[1] /
-                                 self.data.shape[1])
+            scale_factor = self._calc_scale_factor(self.data.shape,
+                                                   self.image_size)
             self.data = image_utils.resize_image(
                 self.data, scale_factor)
             for mask_type, mask in self.texture_masks.items():
