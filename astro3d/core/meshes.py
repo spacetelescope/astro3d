@@ -224,12 +224,6 @@ def scale_triangles(triangles, mm_per_pixel=0.242):
     """
 
     triangles[:, 1:, :] *= mm_per_pixel
-    model_xsize = triangles[:, 1:, 0].ptp()
-    model_ysize = triangles[:, 1:, 1].ptp()
-    model_zsize = triangles[:, 1:, 2].ptp()
-    log.info('Model size: x={0} mm, y={1} mm, z={2} mm'.format(
-        model_xsize, model_ysize, model_zsize))
-
     return triangles
 
 
@@ -357,6 +351,12 @@ def write_mesh(image, filename_prefix, mm_per_pixel=0.242, double_sided=False,
 
     if double_sided:
         triangles = np.concatenate((triangles, reflect_triangles(triangles)))
+
+    model_xsize = triangles[:, 1:, 0].ptp()
+    model_ysize = triangles[:, 1:, 1].ptp()
+    model_zsize = triangles[:, 1:, 2].ptp()
+    log.info('Model size: x={0} mm, y={1} mm, z={2} mm'.format(
+        model_xsize, model_ysize, model_zsize))
 
     if stl_format == 'binary':
         write_func = write_binary_stl
