@@ -3,12 +3,10 @@ from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 from functools import reduce
 from copy import deepcopy
-import warnings
 from PIL import Image
 import numpy as np
-from astropy.convolution import convolve
 from astropy import log
-from astropy.utils.exceptions import AstropyUserWarning
+from astropy.convolution import convolve
 
 
 def remove_nonfinite(data):
@@ -57,9 +55,6 @@ def resize_image(data, scale_factor):
     The array is resized by the same factor in each dimension,
     preserving the original aspect ratio.
 
-    Given that 3D printing cannot handle fine resolution, any loss of
-    resolution is ultimately unimportant.
-
     Parameters
     ----------
     data : array-like
@@ -81,12 +76,6 @@ def resize_image(data, scale_factor):
         log.info('The array (ny x nx) = ({0}x{1}) was not resized.'
                  .format(ny, nx))
         return data
-
-    ny, nx = data.shape
-    if (float(ny) / nx) >= 1.5:
-        warnings.warn('The image is >= 1.5x taller than wide.  For 3D '
-                      'printing, it should be rotated such that the longest '
-                      'axis is in the x direction.', AstropyUserWarning)
 
     y_size = int(round(ny * scale_factor))
     x_size = int(round(nx * scale_factor))

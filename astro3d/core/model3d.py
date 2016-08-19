@@ -7,7 +7,6 @@ from collections import defaultdict
 from copy import deepcopy, copy
 import glob
 import warnings
-from functools import partial
 from distutils.version import LooseVersion
 from scipy import ndimage
 import numpy as np
@@ -43,6 +42,14 @@ class Model3D(object):
     ----------
     data : array-like
         The input 2D array from which to create a 3D model.
+
+    image_size : int, optional
+        The size in pixels of the x axis of the model image, provided
+        that the y axis is longer than 1.15x the x axis.  Otherwise,
+        ``image_size`` will be the size of the y axis.
+
+    mm_per_pixel : float, optional
+        The physical scale of the model.
 
     Examples
     --------
@@ -81,8 +88,12 @@ class Model3D(object):
     >>> model.write_all_stellar_tables(filename_prefix)    # all at once
     """
 
-    def __init__(self, data):
+    def __init__(self, data, image_size=1000, mm_per_pixel=0.24224):
         self.data_original = np.asanyarray(data)
+        self.image_size = image_size
+        self.mm_per_pixel = mm_per_pixel
+        self._resize_scale_factor = self._calc_scale_factor(
+            self.data_original.shape, self.image_size)
         self._model_complete = False
 
         self.texture_order = ['small_dots', 'dots', 'lines']
@@ -402,7 +413,7 @@ class Model3D(object):
             except KeyError:
                 pass
 
-    def write_stl(self, filename_prefix, x_size_mm=275, split_model=True,
+    def write_stl(self, filename_prefix, mm_per_pixel=None, split_model=True,
                   stl_format='binary', clobber=False):
         """
         Write the 3D model to a STL file(s).
@@ -414,8 +425,9 @@ class Model3D(object):
             will be '<filename_prefix>.stl'.  If ``split_image=True``,
             then the filename will be '<filename_prefix>_part[1|2].stl'.
 
-        x_size_mm : int, optional
-            The x size of the model in mm.
+        mm_per_pixel : float, optional
+            The physical scale of the model.  The default is set by the
+            ``Model3D`` class.
 
         split_model : bool, optional
             If `True`, then split the model into two halves, a bottom
@@ -436,18 +448,55 @@ class Model3D(object):
                           'the STL file.', AstropyUserWarning)
             return
 
+        if mm_per_pixel is None:
+            mm_per_pixel = self.mm_per_pixel
+
         if split_model:
             model1, model2 = image_utils.split_image(self.data, axis=0)
             write_mesh(model1, filename_prefix + '_part1',
-                       x_size_mm=x_size_mm, double_sided=self._double_sided,
+                       mm_per_pixel=mm_per_pixel,
+                       double_sided=self._double_sided,
                        stl_format=stl_format, clobber=clobber)
             write_mesh(model2, filename_prefix + '_part2',
-                       x_size_mm=x_size_mm, double_sided=self._double_sided,
+                       mm_per_pixel=mm_per_pixel,
+                       double_sided=self._double_sided,
                        stl_format=stl_format, clobber=clobber)
         else:
-            write_mesh(self.data, filename_prefix, x_size_mm=x_size_mm,
+            write_mesh(self.data, filename_prefix, mm_per_pixel=mm_per_pixel,
                        double_sided=self._double_sided, stl_format=stl_format,
                        clobber=clobber)
+
+    @staticmethod
+    def _calc_scale_factor(shape, target_size, critical_aspect=1.15):
+        """
+        Calculate the scale factor for image resizing.
+
+        Parameters
+        ----------
+        shape : 2-tuple of int
+            The shape of the array to be resized.
+
+        target_size : int
+            The target size of the resized array.
+
+        critical_aspect : float, optional
+            The y/x aspect ratio limit greater than which the
+            ``target_size`` is applied to the y axis instead of the x
+            axis.
+
+        Returns
+        -------
+        resize_factor : float
+            The image resizing scale factor.
+        """
+
+        ny, nx = shape
+        if (float(ny) / nx) >= critical_aspect:
+            long_axis = 0
+        else:
+            long_axis = 1
+
+        return float(target_size) / shape[long_axis]
 
     def _prepare_data(self):
         """
@@ -811,8 +860,8 @@ class Model3D(object):
             self.stellar_tables[stellar_type] = table
 
         if resize:
-            scale_factor = float(self.data_original_resized.shape[1] /
-                                 self.data.shape[1])
+            scale_factor = self._calc_scale_factor(self.data.shape,
+                                                   self.image_size)
             self.data = image_utils.resize_image(
                 self.data, scale_factor)
             for mask_type, mask in self.texture_masks.items():
@@ -823,7 +872,7 @@ class Model3D(object):
                                                 scale_factor)
         return slc
 
-    def _make_model_height(self, model_height=200):
+    def _make_model_height(self, model_height=55.):
         """
         Scale the image to the final model height prior to adding the
         textures.
@@ -835,11 +884,11 @@ class Model3D(object):
         Parameters
         ----------
         model_height : float, optional
-            The maximum value in the intensity image, which controls the
-            final model height.  This is the height of the intensity map
-            *before* the textures, including the spiral galaxy central
-            cusp, are applied.
+            The the height (in mm) of the model *before* the textures,
+            including the spiral galaxy central cusp, are applied.
         """
+
+        model_height = model_height / self.mm_per_pixel    # pixels
 
         # clip the image at the cusp base_height
         if self._spiral_galaxy:
@@ -1053,11 +1102,11 @@ class Model3D(object):
                 base_percentile=star_texture_base_percentile)
             self._apply_spiral_central_cusp()
 
-    def _make_model_base(self, base_height=18.18, filter_size=10,
-                         min_value=1.83, fill_holes=True):
+    def _make_model_base(self, base_height=5.0, filter_size=10,
+                         min_thickness=0.5, fill_holes=True):
         """
         Make a structural base for the model and replace zeros with
-        ``min_value``.
+        a value corresponding to the minimum physical thickness.
 
         For two-sided models, this is used to create a stronger base,
         which prevents the model from shaking back and forth due to
@@ -1068,25 +1117,27 @@ class Model3D(object):
         Parameters
         ----------
         base_height : float, optional
-            The height of the model structural base.
+            The height (in mm) of the model structural base.
 
         filter_size : int, optional
             The size of the binary dilation filter.
 
-        min_value : float, optional
-            The minimum value that the final image can have, e.g.
-            prevents printing zeros.  The default value of 1.83
-            corresponds to 0.5 mm (which will be doubled to 1 mm for a
-            double-sided model).
+        min_thickness : float, optional
+            The minimum thickess (in mm) that the final model can have
+            (e.g. to prevent printing zeros).  The default value is 0.5
+            mm, which will be doubled to 1 mm for a double-sided model.
 
         fill_holes : bool, optional
             Whether to fill interior holes (e.g. between spiral galaxy
             arms) with the ``base_height``.  Otherwise a "thin" region
-            of height ``min_value`` will be placed around the interior
+            of the ``min_thickness`` will be placed around the interior
             of the hole.
         """
 
         log.info('Making model base.')
+
+        base_height = base_height / self.mm_per_pixel    # pixels
+
         if self._double_sided and self._has_intensity:
             data_mask = self.data.astype(bool)
             selem = np.ones((filter_size, filter_size))
@@ -1101,18 +1152,19 @@ class Model3D(object):
         else:
             self._base_layer = base_height
         self.data += self._base_layer
+
+        min_value = min_thickness / self.mm_per_pixel    # pixels
         self.data[self.data < min_value] = min_value
 
     def make(self, intensity=True, textures=True, double_sided=False,
-             spiral_galaxy=False, model_xsize=1000,
-             compress_bulge_percentile=0., compress_bulge_factor=0.05,
-             suppress_background_percentile=90.,
+             spiral_galaxy=False, compress_bulge_percentile=0.,
+             compress_bulge_factor=0.05, suppress_background_percentile=90.,
              suppress_background_factor=0.2, smooth_size1=11,
              smooth_size2=15, minvalue_to_zero=0.02, crop_data_threshold=0.,
-             crop_data_pad_width=20, model_height=200,
+             crop_data_pad_width=20, model_height=55.,
              star_texture_depth=3., star_texture_base_percentile=0.,
-             model_base_height=18.18, model_base_filter_size=10,
-             model_base_min_value=1.83, model_base_fill_holes=True):
+             model_base_height=5., model_base_filter_size=10,
+             model_base_min_thickness=0.5, model_base_fill_holes=True):
         """
         Make the model.
 
@@ -1136,9 +1188,6 @@ class Model3D(object):
         spiral_galaxy : bool
             Whether the 3D model is a spiral galaxy, which uses special
             processing.
-
-        model_xsize : int, optional
-            The size of the x axis of the model image.
 
         compress_bulge_percentile : float in range of [0, 100], optional
             The percentile of pixel values within the bulge mask to use
@@ -1185,10 +1234,8 @@ class Model3D(object):
             the minimal bounding box.  See `_crop_data`.
 
         model_height : float, optional
-            The maximum value in the intensity image, which controls the
-            final model height.  This is the height of the intensity map
-            *before* the textures, including the spiral galaxy central
-            cusp, are applied.
+            The the height (in mm) of the model *before* the textures,
+            including the spiral galaxy central cusp, are applied.
 
         star_texture_depth : float, optional
             The maximum depth of the crater-like bowl of the star
@@ -1200,24 +1247,24 @@ class Model3D(object):
             base height of the model texture.
 
         model_base_height : float, optional
-            The height of the model structural base.  See
+            The height (in mm) of the model structural base.  See
             `_make_model_base`.
 
         model_base_filter_size : int, optional
             The size of the binary dilation filter used in making the
             model base.  See `_make_model_base`.
 
-        model_base_min_value : float, optional
-            The minimum value that the final image can have, e.g.
-            prevents printing zeros.  The default value of 1.83
-            corresponds to 0.5 mm (which will be doubled to 1 mm for a
-            double-sided model).  See `_make_model_base`.
+        model_base_min_thickness : float, optional
+            The minimum thickess (in mm) that the final model can have
+            (e.g. to prevent printing zeros).  The default value is 0.5
+            mm, which will be doubled to 1 mm for a double-sided model.
+            See `_make_model_base`.
 
         model_base_fill_holes : bool, optional
             Whether to fill interior holes (e.g. between spiral galaxy
-            arms) with the ``model_base_height``.  Otherwise a "thin"
-            region of height ``min_value`` will be placed around the
-            interior of the hole.  See `_make_model_base`.
+            arms) with the ``base_height``.  Otherwise a "thin" region
+            of the ``min_thickness`` will be placed around the interior
+            of the hole.  See `_make_model_base`.
 
         Notes
         -----
@@ -1231,21 +1278,18 @@ class Model3D(object):
             ``y``: 189 mm
             ``z``: 143 mm
 
-        The model physical scale (mm/pixel) depends on two numbers: the
-        input ``model_xsize`` (default 1000) and the ``x_size_mm``
-        (default 275) parameter to `write_stl`.  The model scale is
-        simply ``x_size_mm`` / ``model_xsize``.  The default is
-        275/1000. = 0.275 mm/pixel.
+        The model physical size depends on two numbers:  the
+        ``image_size`` (default 1000) and the ``mm_per_pixel`` (default
+        0.24224) parameter of `write_stl`.  The model size is simply
+        ``image_size`` * ``mm_per_pixel``.
 
-        With the defaults, a ``model_base_height`` of 18.18 corresponds
-        to 5.0 mm.  Note that the ``model_base_height`` is the base
+        Note that the ``model_base_height`` (default 5 mm) is the base
         height for both single- and double-sided models (it is not
         doubled for two-sided models).
 
-        With the defaults, a ``model_height`` of 200 corresponds to a
-        physical height of 55.0 mm.  This is the height of the intensity
-        map *before* the textures, including the spiral galaxy central
-        cusp, are applied.
+        Note that the ``model_height`` (default 55 mm) is the height of
+        the model *before* the textures, including the spiral galaxy
+        central cusp, are applied.
 
         .. note::
 
@@ -1261,9 +1305,6 @@ class Model3D(object):
         self._has_textures = textures
         self._double_sided = double_sided
         self._spiral_galaxy = spiral_galaxy
-
-        self._resize_scale_factor = (float(model_xsize) /
-                                     self.data_original.shape[1])
 
         self._prepare_data()
         self._prepare_masks()
@@ -1295,7 +1336,7 @@ class Model3D(object):
             star_texture_base_percentile=star_texture_base_percentile)
         self._make_model_base(base_height=model_base_height,
                               filter_size=model_base_filter_size,
-                              min_value=model_base_min_value,
+                              min_thickness=model_base_min_thickness,
                               fill_holes=model_base_fill_holes)
         self._model_complete = True
         log.info('Make complete!')
@@ -1400,8 +1441,8 @@ class Model3D(object):
 
         return self.stellar_tables_original
 
-    def make_spiral_galaxy_masks(self, smooth_size=11, model_xsize=1000,
-                                 gas_percentile=55., spiral_percentile=75.):
+    def make_spiral_galaxy_masks(self, smooth_size=11, gas_percentile=55.,
+                                 spiral_percentile=75.):
         """
         For a spiral galaxy image, automatically generate texture masks
         for spiral arms and gas.
@@ -1432,9 +1473,6 @@ class Model3D(object):
             warnings.warn('You must first define the bulge mask.',
                           AstropyUserWarning)
             return
-
-        self._resize_scale_factor = (float(model_xsize) /
-                                     self.data_original.shape[1])
 
         self._prepare_data()
         self.data = deepcopy(self.data_original_resized)
@@ -1478,6 +1516,7 @@ class Model3D(object):
 
         log.info('Automatically generated "spiral" and "gas" masks for '
                  'spiral galaxy.')
+
         return new_regions
 
 

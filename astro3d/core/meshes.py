@@ -9,7 +9,7 @@ import numpy as np
 from astropy import log
 
 
-def make_triangles(image, x_size_mm=275, center_model=True):
+def make_triangles(image, mm_per_pixel=0.24224, center_model=True):
     """
     Create a 3D model of a 2D image using triangular tessellation.
 
@@ -20,8 +20,8 @@ def make_triangles(image, x_size_mm=275, center_model=True):
     image : 2D `~numpy.ndarray`
         The image from which to create the triangular mesh.
 
-    x_size_mm : int, optional
-        The x size of the model in mm.
+    mm_per_pixel : float, optional
+        The physical scale of the model.
 
     center_model : bool, optional
         Set to `True` to center the model at ``(x, y) = (0, 0)``.  This
@@ -59,7 +59,7 @@ def make_triangles(image, x_size_mm=275, center_model=True):
         triangles[:, 1:, 0] -= (nx - 1) / 2.
         triangles[:, 1:, 1] -= (ny - 1) / 2.
 
-    return scale_triangles(triangles, x_size_mm=x_size_mm)
+    return scale_triangles(triangles, mm_per_pixel=mm_per_pixel)
 
 
 def make_side_triangles(side_vertices, flip_order=False):
@@ -191,13 +191,16 @@ def calculate_normals(triangles):
     return np.cross(vec1, vec2)
 
 
-def scale_triangles(triangles, x_size_mm=275):
+def scale_triangles(triangles, mm_per_pixel=0.24224):
     """
-    Uniformly scale triangles such that the model ``x`` axis has a size
-    of ``x_size_mm`` mm.
+    Uniformly scale triangles given the input physical scale.
 
-    This function defines the physical scale for the model,
-    e.g. 275 mm / 1000 pixels = 0.275 mm / pixel.
+    Note that the default physical scale was derived assuming a x=1000
+    pixel image, which can be printed with a maximum size of 242 mm on
+    the MakerBot 5 printer (scale = 242 / (1000 - 1)).  Note that 1 is
+    subtracted from the image size in the denominator because the mesh
+    points are taken at the center of the pixels, making the mesh size 1
+    pixel smaller than the image size.
 
     The maximum model sizes for the MakerBot 2 printer are:
         ``x``: 275 mm
@@ -214,8 +217,8 @@ def scale_triangles(triangles, x_size_mm=275):
     triangles : Nx4x3 `~numpy.ndarray`
         An array of normal vectors and vertices for a set of triangles.
 
-    x_size_mm : int, optional
-        The x size of the model in mm.
+    mm_per_pixel : float, optional
+        The physical scale of the model.
 
     Returns
     -------
@@ -223,10 +226,7 @@ def scale_triangles(triangles, x_size_mm=275):
         The scaled triangles.
     """
 
-    model_xsize = triangles[:, 1:, 0].ptp()
-    if model_xsize > x_size_mm:
-        scale = float(x_size_mm / model_xsize)
-        triangles[:, 1:, :] *= scale
+    triangles[:, 1:, :] *= mm_per_pixel
     return triangles
 
 
@@ -317,7 +317,7 @@ def write_ascii_stl(triangles, filename):
         f.write("endsolid model")
 
 
-def write_mesh(image, filename_prefix, x_size_mm=275, double_sided=False,
+def write_mesh(image, filename_prefix, mm_per_pixel=0.242, double_sided=False,
                stl_format='binary', clobber=False):
     """
     Write an image to a STL file by splitting each pixel into two
@@ -331,8 +331,8 @@ def write_mesh(image, filename_prefix, x_size_mm=275, double_sided=False,
     filename_prefix : str
         The prefix of output file. ``'.stl'`` is automatically appended.
 
-    x_size_mm : int, optional
-        The x size of the model in mm.
+    mm_per_pixel : float, optional
+        The physical scale of the model.
 
     double_sided : bool, optional
         Set to `True` for a double-sided model, which will be a simple
@@ -350,10 +350,16 @@ def write_mesh(image, filename_prefix, x_size_mm=275, double_sided=False,
     if isinstance(image, np.ma.core.MaskedArray):
         image = deepcopy(image.data)
 
-    triangles = make_triangles(image, x_size_mm=x_size_mm)
+    triangles = make_triangles(image, mm_per_pixel=mm_per_pixel)
 
     if double_sided:
         triangles = np.concatenate((triangles, reflect_triangles(triangles)))
+
+    model_xsize = triangles[:, 1:, 0].ptp()
+    model_ysize = triangles[:, 1:, 1].ptp()
+    model_zsize = triangles[:, 1:, 2].ptp()
+    log.info('Model size: x={0} mm, y={1} mm, z={2} mm'.format(
+        model_xsize, model_ysize, model_zsize))
 
     if stl_format == 'binary':
         write_func = write_binary_stl
