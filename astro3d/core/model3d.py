@@ -48,6 +48,9 @@ class Model3D(object):
         that the y axis is longer than 1.15x the x axis.  Otherwise,
         ``image_size`` will be the size of the y axis.
 
+    mm_per_pixel : float, optional
+        The physical scale of the model.
+
     Examples
     --------
     >>> # initialize the model
@@ -85,9 +88,10 @@ class Model3D(object):
     >>> model.write_all_stellar_tables(filename_prefix)    # all at once
     """
 
-    def __init__(self, data, image_size=1000):
+    def __init__(self, data, image_size=1000, mm_per_pixel=0.242):
         self.data_original = np.asanyarray(data)
         self.image_size = image_size
+        self.mm_per_pixel = mm_per_pixel
         self._resize_scale_factor = self._calc_scale_factor(
             self.data_original.shape, self.image_size)
         self._model_complete = False
@@ -409,7 +413,7 @@ class Model3D(object):
             except KeyError:
                 pass
 
-    def write_stl(self, filename_prefix, mm_per_pixel=0.242, split_model=True,
+    def write_stl(self, filename_prefix, mm_per_pixel=None, split_model=True,
                   stl_format='binary', clobber=False):
         """
         Write the 3D model to a STL file(s).
@@ -422,7 +426,8 @@ class Model3D(object):
             then the filename will be '<filename_prefix>_part[1|2].stl'.
 
         mm_per_pixel : float, optional
-            The physical scale of the model.
+            The physical scale of the model.  The default is set by the
+            ``Model3D`` class.
 
         split_model : bool, optional
             If `True`, then split the model into two halves, a bottom
@@ -442,6 +447,9 @@ class Model3D(object):
                           'Please run the .make() method before saving '
                           'the STL file.', AstropyUserWarning)
             return
+
+        if mm_per_pixel is None:
+            mm_per_pixel = self.mm_per_pixel
 
         if split_model:
             model1, model2 = image_utils.split_image(self.data, axis=0)
