@@ -872,7 +872,7 @@ class Model3D(object):
                                                 scale_factor)
         return slc
 
-    def _make_model_height(self, model_height=200):
+    def _make_model_height(self, model_height=55.):
         """
         Scale the image to the final model height prior to adding the
         textures.
@@ -884,11 +884,11 @@ class Model3D(object):
         Parameters
         ----------
         model_height : float, optional
-            The maximum value in the intensity image, which controls the
-            final model height.  This is the height of the intensity map
-            *before* the textures, including the spiral galaxy central
-            cusp, are applied.
+            The the height (in mm) of the model *before* the textures,
+            including the spiral galaxy central cusp, are applied.
         """
+
+        model_height = model_height / self.mm_per_pixel    # pixels
 
         # clip the image at the cusp base_height
         if self._spiral_galaxy:
@@ -1137,7 +1137,6 @@ class Model3D(object):
         log.info('Making model base.')
 
         base_height = base_height / self.mm_per_pixel    # pixels
-        print(base_height)
 
         if self._double_sided and self._has_intensity:
             data_mask = self.data.astype(bool)
@@ -1162,7 +1161,7 @@ class Model3D(object):
              compress_bulge_factor=0.05, suppress_background_percentile=90.,
              suppress_background_factor=0.2, smooth_size1=11,
              smooth_size2=15, minvalue_to_zero=0.02, crop_data_threshold=0.,
-             crop_data_pad_width=20, model_height=200,
+             crop_data_pad_width=20, model_height=55.,
              star_texture_depth=3., star_texture_base_percentile=0.,
              model_base_height=5., model_base_filter_size=10,
              model_base_min_thickness=0.5, model_base_fill_holes=True):
@@ -1235,10 +1234,8 @@ class Model3D(object):
             the minimal bounding box.  See `_crop_data`.
 
         model_height : float, optional
-            The maximum value in the intensity image, which controls the
-            final model height.  This is the height of the intensity map
-            *before* the textures, including the spiral galaxy central
-            cusp, are applied.
+            The the height (in mm) of the model *before* the textures,
+            including the spiral galaxy central cusp, are applied.
 
         star_texture_depth : float, optional
             The maximum depth of the crater-like bowl of the star
@@ -1290,10 +1287,9 @@ class Model3D(object):
         height for both single- and double-sided models (it is not
         doubled for two-sided models).
 
-        With the default physical scale, a ``model_height`` of 227
-        corresponds to a physical height of 55.0 mm.  This is the height
-        of the intensity map *before* the textures, including the spiral
-        galaxy central cusp, are applied.
+        Note that the ``model_height`` (default 55 mm) is the height of
+        the model *before* the textures, including the spiral galaxy
+        central cusp, are applied.
 
         .. note::
 
