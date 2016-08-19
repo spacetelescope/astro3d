@@ -50,15 +50,12 @@ def remove_nonfinite(data):
         return data
 
 
-def resize_image(data, scale_factor, rotate=True):
+def resize_image(data, scale_factor):
     """
     Resize a 2D array by the given scale factor.
 
     The array is resized by the same factor in each dimension,
     preserving the original aspect ratio.
-
-    Given that 3D printing cannot handle fine resolution, any loss of
-    resolution is ultimately unimportant.
 
     Parameters
     ----------
@@ -67,10 +64,6 @@ def resize_image(data, scale_factor, rotate=True):
 
     scale_factor : float
         The scale factor to apply to the image.
-
-    rotate : bool, optional
-        Whether to rotate the image by 90 degrees if it is too tall for
-        the 3D printer (if the y axis is 1.28x longer than then x axis).
 
     Returns
     -------
@@ -89,19 +82,10 @@ def resize_image(data, scale_factor, rotate=True):
     ny, nx = data.shape
     critical_aspect = 1.15
     if (float(ny) / nx) >= critical_aspect:
-        if rotate:
-            data = np.rot90(data)
-            ny, nx = data.shape
-            log.info('The image is >= {0}x taller than wide.  The image has '
-                     'been rotated by 90 degrees to make the longest axis '
-                     'along the x direction before resizing.  This is '
-                     'necessary to print the model vertically.'
-                     .format(critical_aspect))
-        else:
-            warnings.warn('The image is >= {0}x taller than wide.  For 3D '
-                          'printing, it should be rotated such that the '
-                          'longest axis is in the x direction.',
-                          AstropyUserWarning)
+        warnings.warn('The image is >= {0}x taller than wide.  For 3D '
+                      'printing, it should be rotated such that the '
+                      'longest axis is in the x direction.'
+                      .format(critical_aspect), AstropyUserWarning)
 
     y_size = int(round(ny * scale_factor))
     x_size = int(round(nx * scale_factor))
