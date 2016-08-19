@@ -3,12 +3,10 @@ from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 from functools import reduce
 from copy import deepcopy
-import warnings
 from PIL import Image
 import numpy as np
 from astropy import log
 from astropy.convolution import convolve
-from astropy.utils.exceptions import AstropyUserWarning
 
 
 def remove_nonfinite(data):
