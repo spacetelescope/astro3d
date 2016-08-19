@@ -1103,10 +1103,10 @@ class Model3D(object):
             self._apply_spiral_central_cusp()
 
     def _make_model_base(self, base_height=18.18, filter_size=10,
-                         min_value=1.83, fill_holes=True):
+                         min_thickness=0.5, fill_holes=True):
         """
         Make a structural base for the model and replace zeros with
-        ``min_value``.
+        a value corresponding to the minimum physical thickness.
 
         For two-sided models, this is used to create a stronger base,
         which prevents the model from shaking back and forth due to
@@ -1122,16 +1122,15 @@ class Model3D(object):
         filter_size : int, optional
             The size of the binary dilation filter.
 
-        min_value : float, optional
-            The minimum value that the final image can have, e.g.
-            prevents printing zeros.  The default value of 1.83
-            corresponds to 0.5 mm (which will be doubled to 1 mm for a
-            double-sided model).
+        min_thickness : float, optional
+            The minimum thickess (in mm) that the final model can have
+            (e.g. to prevent printing zeros).  The default value is 0.5
+            mm, which will be doubled to 1 mm for a double-sided model.
 
         fill_holes : bool, optional
             Whether to fill interior holes (e.g. between spiral galaxy
             arms) with the ``base_height``.  Otherwise a "thin" region
-            of height ``min_value`` will be placed around the interior
+            of the ``min_thickness`` will be placed around the interior
             of the hole.
         """
 
@@ -1150,6 +1149,8 @@ class Model3D(object):
         else:
             self._base_layer = base_height
         self.data += self._base_layer
+
+        min_value = min_thickness / self.mm_per_pixel    # pixels
         self.data[self.data < min_value] = min_value
 
     def make(self, intensity=True, textures=True, double_sided=False,
@@ -1160,7 +1161,7 @@ class Model3D(object):
              crop_data_pad_width=20, model_height=200,
              star_texture_depth=3., star_texture_base_percentile=0.,
              model_base_height=18.18, model_base_filter_size=10,
-             model_base_min_value=1.83, model_base_fill_holes=True):
+             model_base_min_thickness=0.5, model_base_fill_holes=True):
         """
         Make the model.
 
@@ -1252,17 +1253,17 @@ class Model3D(object):
             The size of the binary dilation filter used in making the
             model base.  See `_make_model_base`.
 
-        model_base_min_value : float, optional
-            The minimum value that the final image can have, e.g.
-            prevents printing zeros.  The default value of 1.83
-            corresponds to 0.5 mm (which will be doubled to 1 mm for a
-            double-sided model).  See `_make_model_base`.
+        model_base_min_thickness : float, optional
+            The minimum thickess (in mm) that the final model can have
+            (e.g. to prevent printing zeros).  The default value is 0.5
+            mm, which will be doubled to 1 mm for a double-sided model.
+            See `_make_model_base`.
 
         model_base_fill_holes : bool, optional
             Whether to fill interior holes (e.g. between spiral galaxy
-            arms) with the ``model_base_height``.  Otherwise a "thin"
-            region of height ``min_value`` will be placed around the
-            interior of the hole.  See `_make_model_base`.
+            arms) with the ``base_height``.  Otherwise a "thin" region
+            of the ``min_thickness`` will be placed around the interior
+            of the hole.  See `_make_model_base`.
 
         Notes
         -----
@@ -1336,7 +1337,7 @@ class Model3D(object):
             star_texture_base_percentile=star_texture_base_percentile)
         self._make_model_base(base_height=model_base_height,
                               filter_size=model_base_filter_size,
-                              min_value=model_base_min_value,
+                              min_thickness=model_base_min_thickness,
                               fill_holes=model_base_fill_holes)
         self._model_complete = True
         log.info('Make complete!')
