@@ -1102,7 +1102,7 @@ class Model3D(object):
                 base_percentile=star_texture_base_percentile)
             self._apply_spiral_central_cusp()
 
-    def _make_model_base(self, base_height=18.18, filter_size=10,
+    def _make_model_base(self, base_height=5.0, filter_size=10,
                          min_thickness=0.5, fill_holes=True):
         """
         Make a structural base for the model and replace zeros with
@@ -1117,7 +1117,7 @@ class Model3D(object):
         Parameters
         ----------
         base_height : float, optional
-            The height of the model structural base.
+            The height (in mm) of the model structural base.
 
         filter_size : int, optional
             The size of the binary dilation filter.
@@ -1135,6 +1135,10 @@ class Model3D(object):
         """
 
         log.info('Making model base.')
+
+        base_height = base_height / self.mm_per_pixel    # pixels
+        print(base_height)
+
         if self._double_sided and self._has_intensity:
             data_mask = self.data.astype(bool)
             selem = np.ones((filter_size, filter_size))
@@ -1160,7 +1164,7 @@ class Model3D(object):
              smooth_size2=15, minvalue_to_zero=0.02, crop_data_threshold=0.,
              crop_data_pad_width=20, model_height=200,
              star_texture_depth=3., star_texture_base_percentile=0.,
-             model_base_height=18.18, model_base_filter_size=10,
+             model_base_height=5., model_base_filter_size=10,
              model_base_min_thickness=0.5, model_base_fill_holes=True):
         """
         Make the model.
@@ -1246,7 +1250,7 @@ class Model3D(object):
             base height of the model texture.
 
         model_base_height : float, optional
-            The height of the model structural base.  See
+            The height (in mm) of the model structural base.  See
             `_make_model_base`.
 
         model_base_filter_size : int, optional
@@ -1282,10 +1286,9 @@ class Model3D(object):
         0.242) parameter of `write_stl`.  The model size is simply
         ``image_size`` * ``mm_per_pixel``.
 
-        With the default physical scale, a ``model_base_height`` of
-        20.66 corresponds to 5.0 mm.  Note that the
-        ``model_base_height`` is the base height for both single- and
-        double-sided models (it is not doubled for two-sided models).
+        Note that the ``model_base_height`` (default 5 mm) is the base
+        height for both single- and double-sided models (it is not
+        doubled for two-sided models).
 
         With the default physical scale, a ``model_height`` of 227
         corresponds to a physical height of 55.0 mm.  This is the height
