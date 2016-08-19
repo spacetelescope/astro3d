@@ -79,14 +79,6 @@ def resize_image(data, scale_factor):
                  .format(ny, nx))
         return data
 
-    ny, nx = data.shape
-    critical_aspect = 1.15
-    if (float(ny) / nx) >= critical_aspect:
-        warnings.warn('The image is >= {0}x taller than wide.  For 3D '
-                      'printing, it should be rotated such that the '
-                      'longest axis is in the x direction.'
-                      .format(critical_aspect), AstropyUserWarning)
-
     y_size = int(round(ny * scale_factor))
     x_size = int(round(nx * scale_factor))
     data = np.array(Image.fromarray(data.astype(float)).resize(
