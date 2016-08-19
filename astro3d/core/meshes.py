@@ -9,7 +9,7 @@ import numpy as np
 from astropy import log
 
 
-def make_triangles(image, mm_per_pixel=0.242, center_model=True):
+def make_triangles(image, mm_per_pixel=0.24224, center_model=True):
     """
     Create a 3D model of a 2D image using triangular tessellation.
 
@@ -191,13 +191,16 @@ def calculate_normals(triangles):
     return np.cross(vec1, vec2)
 
 
-def scale_triangles(triangles, mm_per_pixel=0.242):
+def scale_triangles(triangles, mm_per_pixel=0.24224):
     """
     Uniformly scale triangles given the input physical scale.
 
     Note that the default physical scale was derived assuming a x=1000
     pixel image, which can be printed with a maximum size of 242 mm on
-    the MakerBot 5 printer.
+    the MakerBot 5 printer (scale = 242 / (1000 - 1)).  Note that 1 is
+    subtracted from the image size in the denominator because the mesh
+    points are taken at the center of the pixels, making the mesh size 1
+    pixel smaller than the image size.
 
     The maximum model sizes for the MakerBot 2 printer are:
         ``x``: 275 mm

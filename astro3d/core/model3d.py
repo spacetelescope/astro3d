@@ -88,7 +88,7 @@ class Model3D(object):
     >>> model.write_all_stellar_tables(filename_prefix)    # all at once
     """
 
-    def __init__(self, data, image_size=1000, mm_per_pixel=0.242):
+    def __init__(self, data, image_size=1000, mm_per_pixel=0.24224):
         self.data_original = np.asanyarray(data)
         self.image_size = image_size
         self.mm_per_pixel = mm_per_pixel
@@ -1280,7 +1280,7 @@ class Model3D(object):
 
         The model physical size depends on two numbers:  the
         ``image_size`` (default 1000) and the ``mm_per_pixel`` (default
-        0.242) parameter of `write_stl`.  The model size is simply
+        0.24224) parameter of `write_stl`.  The model size is simply
         ``image_size`` * ``mm_per_pixel``.
 
         Note that the ``model_base_height`` (default 5 mm) is the base
