@@ -409,7 +409,7 @@ class Model3D(object):
             except KeyError:
                 pass
 
-    def write_stl(self, filename_prefix, x_size_mm=275, split_model=True,
+    def write_stl(self, filename_prefix, mm_per_pixel=0.242, split_model=True,
                   stl_format='binary', clobber=False):
         """
         Write the 3D model to a STL file(s).
@@ -421,8 +421,8 @@ class Model3D(object):
             will be '<filename_prefix>.stl'.  If ``split_image=True``,
             then the filename will be '<filename_prefix>_part[1|2].stl'.
 
-        x_size_mm : int, optional
-            The x size of the model in mm.
+        mm_per_pixel : float, optional
+            The physical scale of the model.
 
         split_model : bool, optional
             If `True`, then split the model into two halves, a bottom
@@ -446,13 +446,15 @@ class Model3D(object):
         if split_model:
             model1, model2 = image_utils.split_image(self.data, axis=0)
             write_mesh(model1, filename_prefix + '_part1',
-                       x_size_mm=x_size_mm, double_sided=self._double_sided,
+                       mm_per_pixel=mm_per_pixel,
+                       double_sided=self._double_sided,
                        stl_format=stl_format, clobber=clobber)
             write_mesh(model2, filename_prefix + '_part2',
-                       x_size_mm=x_size_mm, double_sided=self._double_sided,
+                       mm_per_pixel=mm_per_pixel,
+                       double_sided=self._double_sided,
                        stl_format=stl_format, clobber=clobber)
         else:
-            write_mesh(self.data, filename_prefix, x_size_mm=x_size_mm,
+            write_mesh(self.data, filename_prefix, mm_per_pixel=mm_per_pixel,
                        double_sided=self._double_sided, stl_format=stl_format,
                        clobber=clobber)
 
@@ -1266,21 +1268,20 @@ class Model3D(object):
             ``y``: 189 mm
             ``z``: 143 mm
 
-        The model physical scale (mm/pixel) depends on two numbers: the
-        input ``image_size`` (default 1000) and the ``x_size_mm``
-        (default 275) parameter to `write_stl`.  The model scale is
-        simply ``x_size_mm`` / ``image_size``.  The default is 275/1000.
-        = 0.275 mm/pixel.
+        The model physical size depends on two numbers:  the
+        ``image_size`` (default 1000) and the ``mm_per_pixel`` (default
+        0.242) parameter of `write_stl`.  The model size is simply
+        ``image_size`` * ``mm_per_pixel``.
 
-        With the defaults, a ``model_base_height`` of 18.18 corresponds
-        to 5.0 mm.  Note that the ``model_base_height`` is the base
-        height for both single- and double-sided models (it is not
-        doubled for two-sided models).
+        With the default physical scale, a ``model_base_height`` of
+        20.66 corresponds to 5.0 mm.  Note that the
+        ``model_base_height`` is the base height for both single- and
+        double-sided models (it is not doubled for two-sided models).
 
-        With the defaults, a ``model_height`` of 200 corresponds to a
-        physical height of 55.0 mm.  This is the height of the intensity
-        map *before* the textures, including the spiral galaxy central
-        cusp, are applied.
+        With the default physical scale, a ``model_height`` of 227
+        corresponds to a physical height of 55.0 mm.  This is the height
+        of the intensity map *before* the textures, including the spiral
+        galaxy central cusp, are applied.
 
         .. note::
 
