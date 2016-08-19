@@ -7,7 +7,6 @@ from collections import defaultdict
 from copy import deepcopy, copy
 import glob
 import warnings
-from functools import partial
 from distutils.version import LooseVersion
 from scipy import ndimage
 import numpy as np
@@ -43,6 +42,11 @@ class Model3D(object):
     ----------
     data : array-like
         The input 2D array from which to create a 3D model.
+
+    image_size : int, optional
+        The size in pixels of the x axis of the model image, provided
+        that the y axis is longer than 1.15x the x axis.  Otherwise,
+        ``image_size`` will be the size of the y axis.
 
     Examples
     --------
@@ -81,8 +85,9 @@ class Model3D(object):
     >>> model.write_all_stellar_tables(filename_prefix)    # all at once
     """
 
-    def __init__(self, data):
+    def __init__(self, data, image_size=1000):
         self.data_original = np.asanyarray(data)
+        self.image_size = image_size
         self._model_complete = False
 
         self.texture_order = ['small_dots', 'dots', 'lines']
@@ -448,6 +453,20 @@ class Model3D(object):
             write_mesh(self.data, filename_prefix, x_size_mm=x_size_mm,
                        double_sided=self._double_sided, stl_format=stl_format,
                        clobber=clobber)
+
+    def _calc_scale_factor(self, critical_aspect=1.15):
+        """
+        Calculate the scale factor for image resizing.
+        """
+
+        ny, nx = self.data_original.shape
+        if (float(ny) / nx) >= critical_aspect:
+            long_axis = 0
+        else:
+            long_axis = 1
+
+        self._resize_scale_factor = (float(self.image_size) /
+                                     self.data_original.shape[long_axis])
 
     def _prepare_data(self):
         """
@@ -1104,9 +1123,8 @@ class Model3D(object):
         self.data[self.data < min_value] = min_value
 
     def make(self, intensity=True, textures=True, double_sided=False,
-             spiral_galaxy=False, model_xsize=1000,
-             compress_bulge_percentile=0., compress_bulge_factor=0.05,
-             suppress_background_percentile=90.,
+             spiral_galaxy=False, compress_bulge_percentile=0.,
+             compress_bulge_factor=0.05, suppress_background_percentile=90.,
              suppress_background_factor=0.2, smooth_size1=11,
              smooth_size2=15, minvalue_to_zero=0.02, crop_data_threshold=0.,
              crop_data_pad_width=20, model_height=200,
@@ -1136,9 +1154,6 @@ class Model3D(object):
         spiral_galaxy : bool
             Whether the 3D model is a spiral galaxy, which uses special
             processing.
-
-        model_xsize : int, optional
-            The size of the x axis of the model image.
 
         compress_bulge_percentile : float in range of [0, 100], optional
             The percentile of pixel values within the bulge mask to use
@@ -1232,10 +1247,10 @@ class Model3D(object):
             ``z``: 143 mm
 
         The model physical scale (mm/pixel) depends on two numbers: the
-        input ``model_xsize`` (default 1000) and the ``x_size_mm``
+        input ``image_size`` (default 1000) and the ``x_size_mm``
         (default 275) parameter to `write_stl`.  The model scale is
-        simply ``x_size_mm`` / ``model_xsize``.  The default is
-        275/1000. = 0.275 mm/pixel.
+        simply ``x_size_mm`` / ``image_size``.  The default is 275/1000.
+        = 0.275 mm/pixel.
 
         With the defaults, a ``model_base_height`` of 18.18 corresponds
         to 5.0 mm.  Note that the ``model_base_height`` is the base
@@ -1261,9 +1276,6 @@ class Model3D(object):
         self._has_textures = textures
         self._double_sided = double_sided
         self._spiral_galaxy = spiral_galaxy
-
-        self._resize_scale_factor = (float(model_xsize) /
-                                     self.data_original.shape[1])
 
         self._prepare_data()
         self._prepare_masks()
@@ -1400,8 +1412,8 @@ class Model3D(object):
 
         return self.stellar_tables_original
 
-    def make_spiral_galaxy_masks(self, smooth_size=11, model_xsize=1000,
-                                 gas_percentile=55., spiral_percentile=75.):
+    def make_spiral_galaxy_masks(self, smooth_size=11, gas_percentile=55.,
+                                 spiral_percentile=75.):
         """
         For a spiral galaxy image, automatically generate texture masks
         for spiral arms and gas.
@@ -1432,9 +1444,6 @@ class Model3D(object):
             warnings.warn('You must first define the bulge mask.',
                           AstropyUserWarning)
             return
-
-        self._resize_scale_factor = (float(model_xsize) /
-                                     self.data_original.shape[1])
 
         self._prepare_data()
         self.data = deepcopy(self.data_original_resized)
@@ -1478,6 +1487,7 @@ class Model3D(object):
 
         log.info('Automatically generated "spiral" and "gas" masks for '
                  'spiral galaxy.')
+
         return new_regions
 
 
