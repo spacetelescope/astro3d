@@ -5,14 +5,11 @@ from __future__ import absolute_import, print_function
 from itertools import count
 from os.path import basename
 
-from numpy import concatenate
-
 from ginga.misc.Bunch import Bunch
 
 from ..external.qt import (QtCore, QtGui)
 from ..core.model3d import (Model3D, read_stellar_table)
 from ..core.region_mask import RegionMask
-from ..core.meshes import (make_triangles, reflect_triangles)
 from ..util.logger import make_logger
 from . import signaldb
 from .qt4.process import MeshThread
