@@ -872,6 +872,19 @@ class Model3D(object):
                                                 scale_factor)
         return slc
 
+zzzzz
+    #zzzzz
+    #def _prepare_starlike_models(base_percentile=75.):
+    #    """
+    #    Clip stellar features and generate the starlike texture
+    #    image, which can simply be *added* to the data.
+    #    """
+    #
+    #    return make_starlike_models(....)
+
+
+
+
     def _make_model_height(self, model_height=55.):
         """
         Scale the image to the final model height prior to adding the
@@ -1022,8 +1035,8 @@ class Model3D(object):
         """
         Add a central cusp for spiral galaxies.
 
-        If ``base_only=True`` then simply return the base height of the
-        texture model instead of adding the central cusp.
+        If ``base_height_only=True`` then simply return the base height
+        of the texture model instead of adding the central cusp.
 
         Add this texture last, especially after adding the "lines"
         texture for the central bulge.
