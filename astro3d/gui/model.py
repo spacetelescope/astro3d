@@ -56,8 +56,9 @@ class Model(QStandardItemModel):
 
         # Load initial values.
         params = Bunch({
-            'stages': Bunch(),
-            'model': Bunch(),
+            'stages':     Bunch(),
+            'model':      Bunch(),
+            'model_make': Bunch(),
         })
         for section in params:
             params[section].update(
@@ -145,20 +146,23 @@ class Model(QStandardItemModel):
         self.logger.debug('Starting processing...')
 
         make_params = self.params.stages.copy()
-        make_params.update(self.params.model)
+        make_params.update(self.params.model_make)
         try:
-            model3d = self.create_model3d()
+            model3d = self.create_model3d(self.params.model)
         except RuntimeError as e:
             signaldb.ProcessFail('Processing failure.', e)
         else:
             self.process_thread = MeshThread(model3d, make_params)
 
-    def create_model3d(self, exclude_regions=None):
+    def create_model3d(self, model_params=None, exclude_regions=None):
         """Set the Model3d parameters.
         Create and add all information to the astro3d model
 
         Parameters
         ----------
+        model_params: Bunch
+            Other parameters to initialize Astro3d
+
         exclude_regions: (str, )
             List of region types to exclude from the model.
 
@@ -170,7 +174,9 @@ class Model(QStandardItemModel):
         # Really need an image.
         if self.image is None:
             raise(RuntimeError, 'Cannot created Model3D. No image defined')
-        model3d = Model3D(self.image)
+        if model_params is None:
+            model_params = {}
+        model3d = Model3D(self.image, **model_params)
 
         if exclude_regions is None:
             exclude_regions = []
@@ -195,7 +201,8 @@ class Model(QStandardItemModel):
             self,
             smooth_size=11,
             gas_percentile=55.,
-            spiral_percentile=75.
+            spiral_percentile=75.,
+            model_params=None
     ):
         """Create the gas and spiral masks
 
@@ -214,8 +221,12 @@ class Model(QStandardItemModel):
         spiral_percentile : float, optional
             The percentile of pixel values in the weighted data above
             which to assign to the "spiral arms" mask.
+
+        model_params: dict
+            Other Model3D parameters
         """
         model3d = self.create_model3d(
+            model_params=model_params,
             exclude_regions=['gas', 'spiral']
         )
         new_regions = model3d.make_spiral_galaxy_masks(

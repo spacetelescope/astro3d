@@ -42,7 +42,8 @@ class Parameters(QtGui.QWidget):
         self.model.create_gas_spiral_masks(
             smooth_size=self.children.smooth_size.get_value(),
             gas_percentile=self.children.gas_percentile.get_value(),
-            spiral_percentile=self.children.spiral_percentile.get_value()
+            spiral_percentile=self.children.spiral_percentile.get_value(),
+            model_params=self.model.params.model
         )
 
     def _build_gui(self):
@@ -84,6 +85,18 @@ class Parameters(QtGui.QWidget):
         model_expander = Widgets.Expander('Model Params')
         model_expander.set_widget(model_frame)
         self.children['model_expander'] = model_expander
+
+        # Model Making parameters
+        model_widget, model_bunch = build_widgets(
+            self.model.params.model_make
+        )
+        self.children.update(model_bunch)
+
+        model_frame = Widgets.Frame()
+        model_frame.set_widget(model_widget)
+        model_make_expander = Widgets.Expander('Model Making Params')
+        model_make_expander.set_widget(model_frame)
+        self.children['model_make_expander'] = model_make_expander
 
         # Gas/Spiral parameters
         captions = (
@@ -130,6 +143,8 @@ class Parameters(QtGui.QWidget):
         layout.addWidget(params_frame.get_widget(), stretch=0)
         layout.addWidget(spacer.get_widget(), stretch=1)
         layout.addWidget(model_expander.get_widget(), stretch=0)
+        layout.addWidget(spacer.get_widget(), stretch=1)
+        layout.addWidget(model_make_expander.get_widget(), stretch=0)
         layout.addWidget(spacer.get_widget(), stretch=1)
         layout.addWidget(gasspiral_frame.get_widget(), stretch=0)
         layout.addWidget(spacer.get_widget(), stretch=2)
