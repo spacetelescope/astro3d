@@ -18,8 +18,8 @@ from astropy.utils.exceptions import AstropyUserWarning
 import photutils
 from . import image_utils
 from .textures import (DotsTexture, LinesTexture, HexagonalGrid,
-                       make_starlike_textures, apply_textures,
-                       starlike_model_base_height, make_cusp_model)
+                       make_stellar_textures, apply_textures,
+                       make_cusp_model)
 from .meshes import write_mesh
 from .region_mask import RegionMask
 
@@ -872,8 +872,7 @@ class Model3D(object):
                                                 scale_factor)
         return slc
 
-zzzzz
-    #zzzzz
+    #TODO: zzzzz
     #def _prepare_starlike_models(base_percentile=75.):
     #    """
     #    Clip stellar features and generate the starlike texture
@@ -903,15 +902,16 @@ zzzzz
 
         model_height = model_height / self.mm_per_pixel    # pixels
 
+        # TODO
         # clip the image at the cusp base_height
-        if self._spiral_galaxy:
-            if self._has_intensity:
-                base_height = self._apply_spiral_central_cusp(
-                    base_height_only=True)
-                # NOTE: this will also clip values outside of the bulge
-                log.info('Clipping image values at {0} (for central '
-                         'cusp).'.format(base_height))
-                self.data[self.data > base_height] = base_height
+        #if self._spiral_galaxy:
+        #    if self._has_intensity:
+        #        base_height = self._apply_spiral_central_cusp(
+        #            base_height_only=True)
+        #        # NOTE: this will also clip values outside of the bulge
+        #        log.info('Clipping image values at {0} (for central '
+        #                 'cusp).'.format(base_height))
+        #        self.data[self.data > base_height] = base_height
 
         if self._double_sided:
             model_height = model_height / 2.
