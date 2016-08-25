@@ -787,7 +787,9 @@ def make_stellar_textures(data, stellar_tables, radius_a=10, radius_b=5,
 
     # define the stellar textures
     stellar_textures = np.zeros(data.shape)
+    base_heights = np.array(base_heights)
     idx = np.argsort(base_heights)
+    base_heights = base_heights[idx]
     stellar_models = [stellar_models[i] for i in idx]
 
     stellar_thresholds = np.zeros(data.shape)
@@ -843,37 +845,3 @@ def make_cusp_model(image, x, y, radius=25, depth=40, slope=0.5,
     #return StarTexture(x, y, radius, depth, base_height, slope)
 
     return None
-
-
-# TODO
-def apply_textures(image, texture_image):
-    """
-    Apply textures to an image.
-
-    Pixels in the input ``image`` are replaced by the non-zero pixels in
-    the input ``texture_image``.
-
-    This function is used for the star-like textures (central galaxy
-    cusp, stars, and star clusters), which could be added on top of
-    other textures (lines, dots, or small dots).  The star-like textures
-    replace, instead of add to, image values.
-
-    Parameters
-    ----------
-    image : `~numpy.ndarray`
-        The image where the textures will be applied.
-
-    texture_image : `~numpy.ndarray`
-        The texture image, which must be the same shape as the input
-        ``image``.
-
-    Returns
-    -------
-    data : `~numpy.ndarray`
-        The image with the applied textures.
-    """
-
-    data = np.copy(image)
-    idx = (texture_image != 0)
-    data[idx] = texture_image[idx]
-    return data

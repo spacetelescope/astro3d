@@ -18,8 +18,7 @@ from astropy.utils.exceptions import AstropyUserWarning
 import photutils
 from . import image_utils
 from .textures import (DotsTexture, LinesTexture, HexagonalGrid,
-                       make_stellar_textures, apply_textures,
-                       make_cusp_model)
+                       make_stellar_textures, make_cusp_model)
 from .meshes import write_mesh
 from .region_mask import RegionMask
 
@@ -940,7 +939,7 @@ class Model3D(object):
         self.data += self._texture_layer
 
     def _apply_stellar_textures(self, radius_a=10., radius_b=5., slope=1.0,
-                                depth=3., base_percentile=0.):
+                                depth=3.):
         """
         Apply stellar textures (stars and star clusters) to the image.
 
@@ -950,8 +949,8 @@ class Model3D(object):
 
             .. math:: radius = radius_a + (radius_b * flux / max_flux)
 
-        where ``max_flux`` is the maximum ``flux`` value of all the
-        input ``sources``.
+        where ``max_flux`` is the maximum ``flux`` value in the stellar
+        table.
 
         Parameters
         ----------
@@ -967,12 +966,6 @@ class Model3D(object):
         depth : float
             The maximum depth of the crater-like bowl of the star
             texture.
-
-        base_percentile : float in the range of [0, 100], optional
-            The percentile of the image data values within the source
-            texture (where the texture is non-zero) used to define the
-            base height of the model texture.  If `None`, then the model
-            base_height will be zero.
         """
 
         if self._has_intensity:
@@ -985,19 +978,25 @@ class Model3D(object):
                 log.info('Discarding data intensity')
                 self.data = self._texture_layer
         else:
-            log.info('Adding stellar-like textures.')
-            self._stellar_texture_layer = make_starlike_textures(
+            log.info('Making stellar textures....please wait')
+            self._stellar_texture_layer, thresholds = make_stellar_textures(
                 data, self.stellar_tables, radius_a=radius_a,
-                radius_b=radius_b, depth=depth, slope=slope,
-                base_percentile=base_percentile)
+                radius_b=radius_b, depth=depth, slope=slope)
+            log.info('Done making stellar textures')
 
-            if self._has_intensity:
-                self.data = apply_textures(self.data,
-                                           self._stellar_texture_layer)
-            else:
-                log.info('Discarding data intensity')
-                self.data = apply_textures(self._texture_layer,
-                                           self._stellar_texture_layer)
+            log.info('Adding stellar-like textures.')
+            # replace image values with the stellar texture base heights
+            stellar_mask = (thresholds != 0)
+            data[stellar_mask] = thresholds[stellar_mask]
+            self.data = data + self._stellar_texture_layer
+
+            #if self._has_intensity:
+            #    data[stellar_mask] = thresholds[stellar_mask]
+            #    self.data = data + self._stellar_texture_layer
+            #else:
+            #    log.info('Discarding data intensity')
+            #    self.data = apply_textures(self._texture_layer,
+            #                               self._stellar_texture_layer)
 
     def _find_galaxy_center(self, mask=None):
         """
@@ -1085,8 +1084,10 @@ class Model3D(object):
 
                     yy, xx = np.indices(self.data.shape)
                     self._cusp_texture_layer = cusp_model(xx, yy)
-                    self.data = apply_textures(self.data,
-                                               self._cusp_texture_layer)
+
+                    idx = (self._cusp_texture_layer != 0)
+                    self.data[idx] = self._cusp_texture_layer[idx]
+
                     log.info('Placed cusp texture at the galaxy center.')
 
                 return base_height
@@ -1110,10 +1111,8 @@ class Model3D(object):
 
         if self._has_textures:
             self._add_masked_textures()
-            self._apply_stellar_textures(
-                depth=star_texture_depth,
-                base_percentile=star_texture_base_percentile)
-            self._apply_spiral_central_cusp()
+            self._apply_stellar_textures(depth=star_texture_depth)
+            #self._apply_spiral_central_cusp()
 
     def _make_model_base(self, base_height=5.0, filter_size=10,
                          min_thickness=0.5, fill_holes=True):
@@ -1344,9 +1343,7 @@ class Model3D(object):
         self._make_model_height(model_height=model_height)
         self.data_intensity = deepcopy(self.data)
 
-        self._apply_textures(
-            star_texture_depth=star_texture_depth,
-            star_texture_base_percentile=star_texture_base_percentile)
+        self._apply_textures(star_texture_depth=star_texture_depth)
         self._make_model_base(base_height=model_base_height,
                               filter_size=model_base_filter_size,
                               min_thickness=model_base_min_thickness,
@@ -1535,7 +1532,8 @@ class Model3D(object):
 
 def read_stellar_table(filename, stellar_type):
     """
-    Read a table of stars or star clusters from a file.
+    Read a table of stellar sources (stars or star clusters) from a
+    file.
 
     The table must contain ``'xcentroid'`` and ``'ycentroid'`` columns
     and a ``'flux'`` and/or ``'magnitude'`` column.
@@ -1551,7 +1549,7 @@ def read_stellar_table(filename, stellar_type):
     Returns
     -------
     result : `~astropy.table.Table`
-        A table of stellar-like sources.
+        A table of stellar sources.
 
     Notes
     -----
