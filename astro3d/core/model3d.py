@@ -729,8 +729,12 @@ class Model3D(object):
         ----------
         size : int or tuple of int, optional
             The shape of filter window.  If ``size`` is an `int`, then
-            then ``size`` will be used for both dimensions.
+            then ``size`` will be used for both dimensions.  If `None`
+            or 0., then no smoothing will be performed.
         """
+
+        if size is None or size == 0.:
+            return
 
         log.info('Smoothing the image with a 2D median filter of size '
                  '{0} pixels.'.format(size))
@@ -1316,15 +1320,13 @@ class Model3D(object):
             factor=compress_bulge_factor)
         self._suppress_background(percentile=suppress_background_percentile,
                                   factor=suppress_background_factor)
-        if smooth_size1 is not None:
-            self._smooth_image(size=smooth_size1)
+        self._smooth_image(size=smooth_size1)
         self._normalize_image()
         self._minvalue_to_zero(min_value=minvalue_to_zero)
         self._extract_galaxy()
 
-        if smooth_size2 is not None:
-            # smooth the image again (to prevent printing issues)
-            self._smooth_image(size=smooth_size2)
+        # smooth the image again (to prevent printing issues)
+        self._smooth_image(size=smooth_size2)
 
         self._crop_data(threshold=crop_data_threshold,
                         pad_width=crop_data_pad_width, resize=True)
