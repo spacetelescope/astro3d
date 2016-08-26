@@ -871,18 +871,6 @@ class Model3D(object):
                                                 scale_factor)
         return slc
 
-    #TODO: zzzzz
-    #def _prepare_starlike_models(base_percentile=75.):
-    #    """
-    #    Clip stellar features and generate the starlike texture
-    #    image, which can simply be *added* to the data.
-    #    """
-    #
-    #    return make_starlike_models(....)
-
-
-
-
     def _make_model_height(self, model_height=55.):
         """
         Scale the image to the final model height prior to adding the

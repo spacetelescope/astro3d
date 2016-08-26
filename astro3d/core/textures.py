@@ -4,7 +4,6 @@ image.
 """
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
-from operator import attrgetter
 import warnings
 import numpy as np
 from scipy.ndimage import binary_dilation
@@ -48,7 +47,7 @@ def mask_texture_image(texture_image, mask):
 
 def combine_textures_by_max(texture1, texture2):
     """
-    Combine two texture images by comparing maximum values.
+    Combine two texture images by comparing their maximum values.
 
     The non-zero values of the texture image with the largest maximum
     replace the values in the other texture image.
@@ -790,7 +789,7 @@ def make_stellar_textures(data, stellar_tables, radius_a=10, radius_b=5,
     base_heights = np.array(base_heights)
     idx = np.argsort(base_heights)
     base_heights = base_heights[idx]
-    stellar_models = [stellar_models[i] for i in idx]
+    good_models = [good_models[i] for i in idx]
 
     stellar_thresholds = np.zeros(data.shape)
     for (model, height) in zip(good_models, base_heights):
@@ -798,7 +797,8 @@ def make_stellar_textures(data, stellar_tables, radius_a=10, radius_b=5,
         stellar_thresholds[texture != 0] = height
         stellar_textures = combine_textures_by_max(stellar_textures, texture)
 
-    return stellar_textures, stellar_thresholds
+    #return stellar_textures, stellar_thresholds
+    return stellar_textures, stellar_thresholds, good_models, base_heights
 
 
 # TODO
