@@ -960,6 +960,7 @@ class Model3D(object):
             texture.
         """
 
+        # TODO: texture-only model
         if self._has_intensity:
             data = self.data
         else:
@@ -1021,6 +1022,7 @@ class Model3D(object):
                  .format(x_center, y_center))
         return x_center, y_center
 
+    # TODO
     def _apply_spiral_central_cusp(self, radius=25., depth=8., slope=1.0,
                                    base_height_only=False):
         """
@@ -1064,6 +1066,7 @@ class Model3D(object):
             if bulge_mask is not None:
                 x, y = self._find_galaxy_center(bulge_mask)
 
+                # TODO:
                 if base_height_only:
                     base_height = starlike_model_base_height(
                         self.data, 'stars', x, y, radius, depth, slope,

@@ -45,53 +45,6 @@ def mask_texture_image(texture_image, mask):
     return data
 
 
-def combine_textures_by_max(texture1, texture2):
-    """
-    Combine two texture images by comparing their maximum values.
-
-    The non-zero values of the texture image with the largest maximum
-    replace the values in the other texture image.
-
-    When sequentially using this function to combine more than two
-    texture images, one should sort the textures by their maximum values
-    and start combining from the lowest maximum.  This is necessary to
-    properly layer the textures on top of each other (e.g. the stellar
-    textures).
-
-    If both ``texture1`` and ``texture2`` contain only zeros, then
-    ``texture1`` is returned (i.e. an array of zeros).
-
-    Parameters
-    ----------
-    texture1 : `~numpy.ndarray`
-        Data array of the first texture map.
-
-    texture2 : `~numpy.ndarray`
-        Data array of the second texture map.
-
-    Returns
-    -------
-    data : `~numpy.ndarray`
-        Data array of the combined texture map.
-    """
-
-    if texture2.max() >= texture1.max():
-        # non-zero values of texture2 replace texture1
-        data = np.copy(texture1)
-        mask = (texture2 != 0)
-        if not np.any(mask):
-            # both textures contain only zeros
-            return data
-        else:
-            data[mask] = texture2[mask]
-    else:
-        # non-zero values of texture1 replace texture2
-        data = np.copy(texture2)
-        mask = (texture1 != 0)
-        data[mask] = texture1[mask]
-    return data
-
-
 class SquareGrid(object):
     """
     Class to generate ``(x, y)`` coordinates for a regular square grid
@@ -590,7 +543,7 @@ def make_stellar_models(data, model_type, stellar_table, radius_a=10,
     depth : float, optional
         The maximum depth of the crater-like bowl of the star texture.
 
-    slope : float
+    slope : float, optional
         The slope of the star texture sides.
 
     Returns
@@ -650,6 +603,9 @@ def stellar_base_height(data, model, stellar_mask, selem=None,
 
     The base height is calculated from the image values just outside the
     region where the texture will be applied.
+
+    Note that the image is clipped at the base height, it is not used
+    for the actual stellar texture.
 
     Parameters
     ----------
@@ -740,7 +696,7 @@ def make_stellar_textures(data, stellar_tables, radius_a=10, radius_b=5,
     depth : float, optional
         The maximum depth of the crater-like bowl of the star texture.
 
-    slope : float
+    slope : float, optional
         The slope of the star texture sides.
 
     Returns
@@ -794,11 +750,11 @@ def make_stellar_textures(data, stellar_tables, radius_a=10, radius_b=5,
     stellar_thresholds = np.zeros(data.shape)
     for (model, height) in zip(good_models, base_heights):
         texture = model(xx, yy)
-        stellar_thresholds[texture != 0] = height
-        stellar_textures = combine_textures_by_max(stellar_textures, texture)
+        mask = (texture != 0)
+        stellar_textures[mask] = texture[mask]
+        stellar_thresholds[mask] = height
 
-    #return stellar_textures, stellar_thresholds
-    return stellar_textures, stellar_thresholds, good_models, base_heights
+    return stellar_textures, stellar_thresholds
 
 
 # TODO
@@ -824,7 +780,7 @@ def make_cusp_model(image, x, y, radius=25, depth=40, slope=0.5,
     depth : float, optional
         The maximum depth of the crater-like bowl of the star texture.
 
-    slope : float
+    slope : float, optional
         The slope of the star texture sides.
 
     base_percentile : float in the range of [0, 100], optional
