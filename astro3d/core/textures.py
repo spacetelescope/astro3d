@@ -504,8 +504,8 @@ class StarClusterTexture(Fittable2DModel):
         return np.maximum(np.maximum(np.maximum(star1, star2), star3), disk)
 
 
-def make_stellar_models(data, model_type, stellar_table, radius_a=10,
-                        radius_b=5, depth=5, slope=0.5):
+def make_stellar_models(model_type, stellar_table, radius_a=10, radius_b=5,
+                        depth=5, slope=0.5):
     """
     Create the stellar (star or star cluster) texture models to be
     applied to an image.
@@ -523,9 +523,6 @@ def make_stellar_models(data, model_type, stellar_table, radius_a=10,
 
     Parameters
     ----------
-    data : `~numpy.ndarray`
-        The image where the textures will be applied.
-
     model_type : {'star', 'star_cluster'}
         The type of the stellar texture.
 
@@ -580,7 +577,6 @@ def make_stellar_models(data, model_type, stellar_table, radius_a=10,
     # assumes that all sources in the stellar_table are good
     max_flux = float(np.max(fluxes))
 
-    yy, xx = np.indices(data.shape)
     models = []
     base_height = 0.
     for i, source in enumerate(stellar_table):
@@ -595,7 +591,7 @@ def make_stellar_models(data, model_type, stellar_table, radius_a=10,
     return models
 
 
-def stellar_base_height(data, model, stellar_mask, selem=None,
+def stellar_base_height(data, model, stellar_mask=None, selem=None,
                         image_indices=None):
     """
     Calculate the base height for a stellar (star or star cluster)
@@ -615,8 +611,10 @@ def stellar_base_height(data, model, stellar_mask, selem=None,
     model : `StarTexture` or `StarClusterTexture`
         A `StarTexture` or `StarClusterTexture` model object.
 
-    stellar_mask : bool `~numpy.ndarray`
-        A mask image of all the stellar textures.
+    stellar_mask : bool `~numpy.ndarray`, optional
+        A mask image of all the stellar textures.  If input, then these
+        pixels are not included in the calculation (e.g. close
+        neighboring textures) for the base height.
 
     selem : `~numpy.ndarray`, optional
         The 2D structural element used to dilate the model mask.
@@ -636,7 +634,7 @@ def stellar_base_height(data, model, stellar_mask, selem=None,
         the model does not overlap with the input image.
     """
 
-    if data.shape != stellar_mask.shape:
+    if stellar_mask is not None and (data.shape != stellar_mask.shape):
         raise ValueError('data and stellar_mask must have the same shape')
 
     if selem is None:
@@ -662,15 +660,22 @@ def stellar_base_height(data, model, stellar_mask, selem=None,
 
     model_mask_dilated = binary_dilation(model_mask, selem)
     model_mask_xor = np.logical_xor(model_mask_dilated, model_mask)
-    border_mask = np.logical_and(model_mask_xor, ~stellar_mask)
+
+    if stellar_mask is not None:
+        border_mask = np.logical_and(model_mask_xor, ~stellar_mask)
+    else:
+        border_mask = model_mask_xor
+
     if np.any(border_mask):
         return np.max(data[border_mask])
     else:
+        # no bordering pixels (e.g. texture overlaps others on all
+        # sides)
         return None
 
 
 def make_stellar_textures(data, stellar_tables, radius_a=10, radius_b=5,
-                          depth=5, slope=0.5):
+                          depth=5, slope=0.5, exclusion_mask=None):
     """
     Make an image containing stellar textures (stars and star clusters).
     and an image containing the base heights for each texture.
@@ -699,14 +704,20 @@ def make_stellar_textures(data, stellar_tables, radius_a=10, radius_b=5,
     slope : float, optional
         The slope of the star texture sides.
 
+    exclusion_mask : 2D `~numpy.ndarray` (bool), optional
+        A 2D boolean mask.  Textures will not be included if any portion
+        of them overlaps with the exclusion mask.  For example, this is
+        used to prevent overlapping textures with the central galaxy
+        cusp texture.
+
     Returns
     -------
     textures : `~numpy.ndarray`
         An image containing the stellar (star and star cluster)
         textures.
 
-    thresholds : `~numpy.ndarray`
-        An image containing of the base heights for each stellar texture.
+    base_heights : `~numpy.ndarray`
+        An image containing the base heights for each stellar texture.
 
     Notes
     -----
@@ -719,7 +730,7 @@ def make_stellar_textures(data, stellar_tables, radius_a=10, radius_b=5,
     # include both stars and star clusters
     for stellar_type, table in stellar_tables.items():
         stellar_models.extend(make_stellar_models(
-            data, stellar_type, table, radius_a=radius_a, radius_b=radius_b,
+            stellar_type, table, radius_a=radius_a, radius_b=radius_b,
             depth=depth, slope=slope))
 
     # create mask of all stellar textures
@@ -734,8 +745,8 @@ def make_stellar_textures(data, stellar_tables, radius_a=10, radius_b=5,
     good_models = []
     selem = np.ones((3, 3))
     for model in stellar_models:
-        height = stellar_base_height(data, model, stellar_mask, selem=selem,
-                                     image_indices=(yy, xx))
+        height = stellar_base_height(data, model, stellar_mask=stellar_mask,
+                                     selem=selem, image_indices=(yy, xx))
         if height is not None:
             base_heights.append(height)
             good_models.append(model)
@@ -747,31 +758,34 @@ def make_stellar_textures(data, stellar_tables, radius_a=10, radius_b=5,
     base_heights = base_heights[idx]
     good_models = [good_models[i] for i in idx]
 
-    stellar_thresholds = np.zeros(data.shape)
+    base_heights_img = np.zeros(data.shape)
     for (model, height) in zip(good_models, base_heights):
         texture = model(xx, yy)
         mask = (texture != 0)
+
+        if exclusion_mask is not None:
+            if np.any(np.logical_and(mask, exclusion_mask)):
+                continue
+
         stellar_textures[mask] = texture[mask]
-        stellar_thresholds[mask] = height
+        base_heights_img[mask] = height
 
-    return stellar_textures, stellar_thresholds
+    return stellar_textures, base_heights_img
 
 
-# TODO
-def make_cusp_model(image, x, y, radius=25, depth=40, slope=0.5,
-                    base_percentile=None):
+def make_cusp_model(data, x, y, radius=25, depth=40, slope=0.5):
     """
-    Make an image containing a star-like cusp texture.
+    Create a star texture model to be applied to an image.
 
     The cusp texture is used to mark the center of a galaxy.
 
     Parameters
     ----------
-    image : `~numpy.ndarray`
+    data : `~numpy.ndarray`
         The image where the texture will be applied.
 
     x, y : float
-        The ``x`` and ``y`` image position of the cusp texture.  This
+        The ``x`` and ``y`` image position of the star texture.  This
         should be the galaxy center.
 
     radius : float, optional
@@ -783,21 +797,26 @@ def make_cusp_model(image, x, y, radius=25, depth=40, slope=0.5,
     slope : float, optional
         The slope of the star texture sides.
 
-    base_percentile : float in the range of [0, 100], optional
-        The percentile of the image data values within the source
-        texture (where the texture is non-zero) used to define the base
-        height of the model texture.  If `None`, then the model
-        base_height will be zero.
-
     Returns
     -------
-    data : `~numpy.ndarray`
-        The image containing the cusp texture.
+    texture : `~numpy.ndarray`
+        An image containing the cusp texture.
+
+    base_height : `~numpy.ndarray`
+        An image containing the base height for the cusp texture.
     """
 
-    #base_height = starlike_model_base_height(
-    #    image, 'stars', x, y, radius, depth, slope,
-    #    base_percentile=base_percentile)
-    #return StarTexture(x, y, radius, depth, base_height, slope)
+    base_height = 0.
+    cusp = StarTexture(x, y, radius, depth, base_height, slope)
 
-    return None
+    selem = np.ones((3, 3))
+    yy, xx = np.indices(data.shape)
+    base_height = stellar_base_height(data, cusp, stellar_mask=None,
+                                      selem=selem, image_indices=(yy, xx))
+
+    cusp_texture = cusp(xx, yy)
+    cusp_base_height = np.zeros_like(data)
+    mask = (cusp_texture != 0)
+    cusp_base_height[mask] = base_height
+
+    return cusp_texture, cusp_base_height
