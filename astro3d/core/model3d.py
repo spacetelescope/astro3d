@@ -906,7 +906,7 @@ class Model3D(object):
                  .format(x_center, y_center))
         return x_center, y_center
 
-    def _make_cusp_texture(self, radius=25, depth=8., slope=1.0):
+    def _make_cusp_texture(self, radius=20, depth=8., slope=1.2):
         """
         Create a star texture image to be applied to an image.
 
@@ -1043,10 +1043,17 @@ class Model3D(object):
         if len(self.stellar_tables) == 0:
             return
 
+        # need to define the base heights using intensities prior to
+        # addition of the masked textures
+        if self._has_intensity:
+            data = self.data_intensity
+        else:
+            data = self.data * 0.
+
         log.info('Making stellar textures....please wait')
         self._stellar_texture_layer, base_heights = make_stellar_textures(
-            self.data, self.stellar_tables, radius_a=radius_a,
-            radius_b=radius_b, depth=depth, slope=slope)
+            data, self.stellar_tables, radius_a=radius_a, radius_b=radius_b,
+            depth=depth, slope=slope)
         log.info('Done making stellar textures')
 
         # replace image values with the stellar texture base heights
@@ -1054,6 +1061,7 @@ class Model3D(object):
         stellar_mask = (base_heights != 0)
         self._textures_all[stellar_mask] = \
             self._stellar_texture_layer[stellar_mask]
+        self._stellar_base_heights = base_heights
 
         self.data[stellar_mask] = base_heights[stellar_mask]
         self.data += self._stellar_texture_layer
