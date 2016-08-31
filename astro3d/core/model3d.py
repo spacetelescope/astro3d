@@ -948,8 +948,8 @@ class Model3D(object):
 
         self._cusp_texture = cusp(xx, yy)
         self._cusp_base_height = np.zeros_like(self.data)
-        mask = (self._cusp_texture != 0)
-        self._cusp_base_height[mask] = base_height
+        self._cusp_mask = (self._cusp_texture != 0)
+        self._cusp_base_height[self._cusp_mask] = base_height
 
     def _make_model_height(self, model_height=55.):
         """
@@ -974,8 +974,8 @@ class Model3D(object):
             base_height = self._cusp_base_height.max()
             log.info('Clipping image values in cusp at {0} (for central '
                      'cusp).'.format(base_height))
-            mask = (self._cusp_base_height != 0)
-            self.data[mask] = self._cusp_base_height[mask]
+            self.data[self._cusp_mask] = \
+                self._cusp_base_height[self._cusp_mask]
 
         if self._double_sided:
             model_height = model_height / 2.
@@ -984,7 +984,8 @@ class Model3D(object):
 
         if self._cusp_texture is not None and self._has_intensity:
             # normalized cusp base height
-            self._cusp_base_height[mask] = self.data[mask].max()
+            self._cusp_base_height[self._cusp_mask] = \
+                self.data[self._cusp_mask].max()
 
     def _add_masked_textures(self):
         """
@@ -1051,9 +1052,13 @@ class Model3D(object):
             data = self.data * 0.
 
         log.info('Making stellar textures....please wait')
+        if self._cusp_texture is not None:
+            mask = self._cusp_mask
+        else:
+            mask = None
         self._stellar_texture_layer, base_heights = make_stellar_textures(
             data, self.stellar_tables, radius_a=radius_a, radius_b=radius_b,
-            depth=depth, slope=slope)
+            depth=depth, slope=slope, exclusion_mask=mask)
         log.info('Done making stellar textures')
 
         # replace image values with the stellar texture base heights
@@ -1081,10 +1086,12 @@ class Model3D(object):
             self._add_masked_textures()
             self._apply_stellar_textures(depth=star_texture_depth)
 
-            cusp_mask = (self._cusp_base_height != 0)
-            self.data[cusp_mask] = self._cusp_base_height[cusp_mask]
-            self.data += self._cusp_texture
-            self._textures_all[cusp_mask] = self._cusp_texture[cusp_mask]
+            if self._cusp_texture is not None:
+                self.data[self._cusp_mask] = \
+                    self._cusp_base_height[self._cusp_mask]
+                self.data += self._cusp_texture
+                self._textures_all[self._cusp_mask] = \
+                    self._cusp_texture[self._cusp_mask]
 
     def _make_model_base(self, base_height=5.0, filter_size=10,
                          min_thickness=0.5, fill_holes=True):
