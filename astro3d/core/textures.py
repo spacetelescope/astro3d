@@ -417,6 +417,17 @@ class StarTexture(Fittable2DModel):
     base_height = Parameter()
     slope = Parameter()
 
+    def bounding_box(self):
+        """
+        Tuple defining the default ``bounding_box`` limits in each
+        dimension, ``((y_low, y_high), (x_low, x_high))``
+        """
+
+        extent = self.radius + (self.depth * self.slope)
+
+        return ((self.y_0 - extent, self.y_0 + extent),
+                (self.x_0 - extent, self.x_0 + extent))
+
     @staticmethod
     def evaluate(x, y, x_0, y_0, radius, depth, base_height, slope):
         """Star model function."""
@@ -481,6 +492,17 @@ class StarClusterTexture(Fittable2DModel):
     depth = Parameter()
     base_height = Parameter()
     slope = Parameter()
+
+    def bounding_box(self):
+        """
+        Tuple defining the default ``bounding_box`` limits in each
+        dimension, ``((y_low, y_high), (x_low, x_high))``
+        """
+
+        extent = (2. * self.radius) + (self.depth * self.slope)
+
+        return ((self.y_0 - extent, self.y_0 + extent),
+                (self.x_0 - extent, self.x_0 + extent))
 
     @staticmethod
     def evaluate(x, y, x_0, y_0, radius, depth, base_height, slope):
