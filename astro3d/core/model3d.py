@@ -942,11 +942,11 @@ class Model3D(object):
                            base_height, slope)
 
         selem = np.ones((3, 3))
-        yy, xx = np.indices(self.data.shape)
         base_height = stellar_base_height(self.data, cusp, stellar_mask=None,
-                                          selem=selem, image_indices=(yy, xx))
+                                          selem=selem)
 
-        self._cusp_texture = cusp(xx, yy)
+        self._cusp_texture = np.zeros(self.data.shape)
+        cusp.render(self._cusp_texture)
         self._cusp_base_height = np.zeros_like(self.data)
         self._cusp_mask = (self._cusp_texture != 0)
         self._cusp_base_height[self._cusp_mask] = base_height

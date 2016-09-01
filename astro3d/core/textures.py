@@ -499,7 +499,7 @@ class StarClusterTexture(Fittable2DModel):
         dimension, ``((y_low, y_high), (x_low, x_high))``
         """
 
-        extent = (2. * self.radius) + (self.depth * self.slope)
+        extent = (2. * self.radius) + (self.depth * self.slope) + 2
 
         return ((self.y_0 - extent, self.y_0 + extent),
                 (self.x_0 - extent, self.x_0 + extent))
@@ -512,6 +512,7 @@ class StarClusterTexture(Fittable2DModel):
         y1, x1 = (y_0 - h1, x_0 - radius)
         y2, x2 = (y_0 - h1, x_0 + radius)
         y3, x3 = (y_0 + h2, x_0)
+
         star1 = StarTexture(x1, y1, radius, depth, base_height, slope)(x, y)
         star2 = StarTexture(x2, y2, radius, depth, base_height, slope)(x, y)
         star3 = StarTexture(x3, y3, radius, depth, base_height, slope)(x, y)
@@ -523,7 +524,7 @@ class StarClusterTexture(Fittable2DModel):
         min_height = 0.0001
         disk = Disk2D(base_height + min_height, x_0, y_0, radius)(x, y)
 
-        return np.maximum(np.maximum(np.maximum(star1, star2), star3), disk)
+        return np.maximum.reduce([star1, star2, star3, disk])
 
 
 def make_stellar_models(model_type, stellar_table, radius_a=10, radius_b=5,
@@ -613,8 +614,7 @@ def make_stellar_models(model_type, stellar_table, radius_a=10, radius_b=5,
     return models
 
 
-def stellar_base_height(data, model, stellar_mask=None, selem=None,
-                        image_indices=None):
+def stellar_base_height(data, model, stellar_mask=None, selem=None):
     """
     Calculate the base height for a stellar (star or star cluster)
     texture.
@@ -641,14 +641,6 @@ def stellar_base_height(data, model, stellar_mask=None, selem=None,
     selem : `~numpy.ndarray`, optional
         The 2D structural element used to dilate the model mask.
 
-    image_indices : tuple of 2D `~numpy.ndarray`, optional
-        A ``(yy, xx)`` tuple where ``yy`` and ``xx`` are 2D images with
-        the same shape of the input ``data`` and represent the ``y`` and
-        ``x`` image indices (i.e. the tuple returned from
-        ``np.indices(data.shape)``).  Use ``image_indices`` when calling
-        this function in a loop.  If `None`, then
-        ``np.indices(data.shape)`` will be called.
-
     Returns
     -------
     base_height : float
@@ -662,18 +654,9 @@ def stellar_base_height(data, model, stellar_mask=None, selem=None,
     if selem is None:
         selem = np.ones((3, 3))
 
-    if image_indices is None:
-        yy, xx = np.indices(data.shape)
-    else:
-        yy, xx = image_indices
-        if yy.shape != xx.shape:
-            raise ValueError('x and y image_indices must have the same '
-                             'shape.')
-        if yy.shape != data.shape:
-            raise ValueError('x and y image_indices must have the same '
-                             'shape as the input image.')
-
-    model_mask = (model(xx, yy) != 0)
+    model_mask = np.zeros(data.shape)
+    model.render(model_mask)
+    model_mask = (model_mask != 0)
     if not np.any(model_mask):
         # texture contains only zeros (e.g. bad position)
         warnings.warn('stellar model does not overlap with the image.',
@@ -757,9 +740,8 @@ def make_stellar_textures(data, stellar_tables, radius_a=10, radius_b=5,
 
     # create mask of all stellar textures
     stellar_mask = np.zeros(data.shape)
-    yy, xx = np.indices(data.shape)
     for model in stellar_models:
-        stellar_mask += model(xx, yy)
+        model.render(stellar_mask)
     stellar_mask = (stellar_mask != 0)
 
     # define the base heights
@@ -768,7 +750,7 @@ def make_stellar_textures(data, stellar_tables, radius_a=10, radius_b=5,
     selem = np.ones((3, 3))
     for model in stellar_models:
         height = stellar_base_height(data, model, stellar_mask=stellar_mask,
-                                     selem=selem, image_indices=(yy, xx))
+                                     selem=selem)
         if height is not None:
             base_heights.append(height)
             good_models.append(model)
@@ -782,7 +764,8 @@ def make_stellar_textures(data, stellar_tables, radius_a=10, radius_b=5,
 
     base_heights_img = np.zeros(data.shape)
     for (model, height) in zip(good_models, base_heights):
-        texture = model(xx, yy)
+        texture = np.zeros(data.shape)
+        model.render(texture)
         mask = (texture != 0)
 
         if exclusion_mask is not None:
@@ -832,11 +815,11 @@ def make_cusp_model(data, x, y, radius=25, depth=40, slope=0.5):
     cusp = StarTexture(x, y, radius, depth, base_height, slope)
 
     selem = np.ones((3, 3))
-    yy, xx = np.indices(data.shape)
     base_height = stellar_base_height(data, cusp, stellar_mask=None,
-                                      selem=selem, image_indices=(yy, xx))
+                                      selem=selem)
 
-    cusp_texture = cusp(xx, yy)
+    cusp_texture = np.zeros(data.shape)
+    cusp.render(cusp_texture)
     cusp_base_height = np.zeros_like(data)
     mask = (cusp_texture != 0)
     cusp_base_height[mask] = base_height
