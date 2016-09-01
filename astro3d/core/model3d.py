@@ -1063,7 +1063,7 @@ class Model3D(object):
 
         # replace image values with the stellar texture base heights
         log.info('Adding stellar-like textures.')
-        stellar_mask = (base_heights != 0)
+        stellar_mask = (self._stellar_texture_layer != 0)
         self._textures_all[stellar_mask] = \
             self._stellar_texture_layer[stellar_mask]
         self._stellar_base_heights = base_heights
