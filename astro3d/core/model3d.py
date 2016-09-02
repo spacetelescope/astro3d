@@ -951,7 +951,7 @@ class Model3D(object):
         self._cusp_mask = (self._cusp_texture != 0)
         self._cusp_base_height[self._cusp_mask] = base_height
 
-    def _make_model_height(self, model_height=55.):
+    def _make_intensity_height(self, intensity_height=27.5):
         """
         Scale the image to the final model height prior to adding the
         textures.
@@ -962,12 +962,13 @@ class Model3D(object):
 
         Parameters
         ----------
-        model_height : float, optional
-            The the height (in mm) of the model *before* the textures,
-            including the spiral galaxy central cusp, are applied.
+        intensity_height : float, optional
+            The the height (in mm) of the model intensities, i.e.
+            *before* all textures, including the spiral galaxy central
+            cusp, are applied.
         """
 
-        model_height = model_height / self.mm_per_pixel    # pixels
+        intensity_height = intensity_height / self.mm_per_pixel    # pixels
 
         # replace the image values within the cusp with the cusp base height
         if self._cusp_texture is not None and self._has_intensity:
@@ -977,10 +978,7 @@ class Model3D(object):
             self.data[self._cusp_mask] = \
                 self._cusp_base_height[self._cusp_mask]
 
-        if self._double_sided:
-            model_height = model_height / 2.
-
-        self._normalize_image(max_value=model_height)
+        self._normalize_image(max_value=intensity_height)
 
         if self._cusp_texture is not None and self._has_intensity:
             # normalized cusp base height
@@ -1128,18 +1126,19 @@ class Model3D(object):
         log.info('Making model base.')
 
         base_height = base_height / self.mm_per_pixel    # pixels
+        if self._double_sided:
+            base_height /= 2.
 
         if self._double_sided and self._has_intensity:
             data_mask = self.data.astype(bool)
             selem = np.ones((filter_size, filter_size))
             dilation_mask = ndimage.binary_dilation(data_mask,
                                                     structure=selem)
-            self._base_layer = np.where(dilation_mask == 0,
-                                        base_height / 2., 0)
+            self._base_layer = np.where(dilation_mask == 0, base_height, 0)
             if fill_holes:
                 galaxy_mask = ndimage.binary_fill_holes(data_mask)
                 holes_mask = galaxy_mask * ~data_mask
-                self._base_layer[holes_mask] = base_height / 2.
+                self._base_layer[holes_mask] = base_height
         else:
             self._base_layer = base_height
         self.data += self._base_layer
@@ -1152,7 +1151,7 @@ class Model3D(object):
              compress_bulge_factor=0.05, suppress_background_percentile=90.,
              suppress_background_factor=0.2, smooth_size1=11,
              smooth_size2=15, minvalue_to_zero=0.02, crop_data_threshold=0.,
-             crop_data_pad_width=20, model_height=55.,
+             crop_data_pad_width=20, intensity_height=27.5,
              star_texture_depth=3., model_base_height=5.,
              model_base_filter_size=10, model_base_min_thickness=0.5,
              model_base_fill_holes=True):
@@ -1224,9 +1223,10 @@ class Model3D(object):
             The number of pixels used to pad the array after cropping to
             the minimal bounding box.  See `_crop_data`.
 
-        model_height : float, optional
-            The the height (in mm) of the model *before* the textures,
-            including the spiral galaxy central cusp, are applied.
+        intensity_height : float, optional
+            The the height (in mm) of the model intensities, i.e.
+            *before* any textures, including the spiral galaxy central
+            cusp, are applied.
 
         star_texture_depth : float, optional
             The maximum depth of the crater-like bowl of the star
@@ -1273,9 +1273,9 @@ class Model3D(object):
         height for both single- and double-sided models (it is not
         doubled for two-sided models).
 
-        Note that the ``model_height`` (default 55 mm) is the height of
-        the model *before* the textures, including the spiral galaxy
-        central cusp, are applied.
+        Note that the ``intensity_height`` (default 27.5 mm) is the
+        height of the model intensities *before* the textures, including
+        the spiral galaxy central cusp, are applied.
 
         .. note::
 
@@ -1315,7 +1315,7 @@ class Model3D(object):
 
         self._make_cusp_texture()   # needed here to define its base height
 
-        self._make_model_height(model_height=model_height)
+        self._make_intensity_height(intensity_height=intensity_height)
 
         self.data_intensity = deepcopy(self.data)
         if not self._has_intensity:
