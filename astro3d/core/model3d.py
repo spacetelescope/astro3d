@@ -1085,6 +1085,9 @@ class Model3D(object):
             self._apply_stellar_textures(depth=star_texture_depth)
 
             if self._cusp_texture is not None:
+                if not self._has_intensity:
+                    self._cusp_base_height *= 0.
+
                 self.data[self._cusp_mask] = \
                     self._cusp_base_height[self._cusp_mask]
                 self.data += self._cusp_texture
