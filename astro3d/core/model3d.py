@@ -17,9 +17,8 @@ from astropy.table import Table
 from astropy.utils.exceptions import AstropyUserWarning
 import photutils
 from . import image_utils
-from .textures import (DotsTexture, LinesTexture, HexagonalGrid,
-                       make_starlike_textures, apply_textures,
-                       starlike_model_base_height, make_cusp_model)
+from .textures import (DotsTexture, LinesTexture, HexagonalGrid, StarTexture,
+                       make_stellar_textures, stellar_base_height)
 from .meshes import write_mesh
 from .region_mask import RegionMask
 
@@ -730,8 +729,12 @@ class Model3D(object):
         ----------
         size : int or tuple of int, optional
             The shape of filter window.  If ``size`` is an `int`, then
-            then ``size`` will be used for both dimensions.
+            then ``size`` will be used for both dimensions.  If `None`
+            or 0., then no smoothing will be performed.
         """
+
+        if size is None or size == 0.:
+            return
 
         log.info('Smoothing the image with a 2D median filter of size '
                  '{0} pixels.'.format(size))
@@ -872,120 +875,6 @@ class Model3D(object):
                                                 scale_factor)
         return slc
 
-    def _make_model_height(self, model_height=55.):
-        """
-        Scale the image to the final model height prior to adding the
-        textures.
-
-        To give a consistent model height/width ratio and texture height
-        (and "feel"), no scaling of the image should happen after this
-        step!
-
-        Parameters
-        ----------
-        model_height : float, optional
-            The the height (in mm) of the model *before* the textures,
-            including the spiral galaxy central cusp, are applied.
-        """
-
-        model_height = model_height / self.mm_per_pixel    # pixels
-
-        # clip the image at the cusp base_height
-        if self._spiral_galaxy:
-            if self._has_intensity:
-                base_height = self._apply_spiral_central_cusp(
-                    base_height_only=True)
-                # NOTE: this will also clip values outside of the bulge
-                log.info('Clipping image values at {0} (for central '
-                         'cusp).'.format(base_height))
-                self.data[self.data > base_height] = base_height
-
-        if self._double_sided:
-            model_height = model_height / 2.
-        self._normalize_image(max_value=model_height)
-
-    def _add_masked_textures(self):
-        """
-        Add masked textures (e.g. small dots, dots, lines) to the
-        image.
-
-        The masked textures are added in order, specified by
-        ``self.texture_order``.  Masked areas in subsequent textures
-        will override earlier textures for pixels masked in more than
-        one texture (i.e. a given pixel has only one texture applied).
-        """
-
-        self._texture_layer = np.zeros_like(self.data)
-        for texture_type in self.texture_order:
-            if texture_type not in self.texture_masks:
-                continue
-
-            log.info('Adding "{0}" textures.'.format(texture_type))
-            mask = self.texture_masks[texture_type]
-            texture_data = self.textures[texture_type](mask.shape, mask=mask)
-            self._texture_layer[mask] = texture_data[mask]
-        self.data += self._texture_layer
-
-    def _apply_stellar_textures(self, radius_a=10., radius_b=5., slope=1.0,
-                                depth=3., base_percentile=0.):
-        """
-        Apply stellar textures (stars and star clusters) to the image.
-
-        The radius of the star (used in both `StarTexture` and
-        `StarCluster` textures) for each source is linearly scaled by
-        the source flux as:
-
-            .. math:: radius = radius_a + (radius_b * flux / max_flux)
-
-        where ``max_flux`` is the maximum ``flux`` value of all the
-        input ``sources``.
-
-        Parameters
-        ----------
-        radius_a : float, optional
-            The intercept term in calculating the star radius (see above).
-
-        radius_b : float, optional
-            The slope term in calculating the star radius (see above).
-
-        slope : float, optional
-            The slope of the star texture sides.
-
-        depth : float
-            The maximum depth of the crater-like bowl of the star
-            texture.
-
-        base_percentile : float in the range of [0, 100], optional
-            The percentile of the image data values within the source
-            texture (where the texture is non-zero) used to define the
-            base height of the model texture.  If `None`, then the model
-            base_height will be zero.
-        """
-
-        if self._has_intensity:
-            data = self.data
-        else:
-            data = np.zeros_like(self.data)
-
-        if len(self.stellar_tables) == 0:
-            if not self._has_intensity:
-                log.info('Discarding data intensity')
-                self.data = self._texture_layer
-        else:
-            log.info('Adding stellar-like textures.')
-            self._stellar_texture_layer = make_starlike_textures(
-                data, self.stellar_tables, radius_a=radius_a,
-                radius_b=radius_b, depth=depth, slope=slope,
-                base_percentile=base_percentile)
-
-            if self._has_intensity:
-                self.data = apply_textures(self.data,
-                                           self._stellar_texture_layer)
-            else:
-                log.info('Discarding data intensity')
-                self.data = apply_textures(self._texture_layer,
-                                           self._stellar_texture_layer)
-
     def _find_galaxy_center(self, mask=None):
         """
         Find the position of a galaxy center simply as the location of
@@ -1017,16 +906,12 @@ class Model3D(object):
                  .format(x_center, y_center))
         return x_center, y_center
 
-    def _apply_spiral_central_cusp(self, radius=25., depth=8., slope=1.0,
-                                   base_height_only=False):
+    def _make_cusp_texture(self, radius=20, depth=8., slope=1.2):
         """
-        Add a central cusp for spiral galaxies.
+        Create a star texture image to be applied to an image.
 
-        If ``base_only=True`` then simply return the base height of the
-        texture model instead of adding the central cusp.
-
-        Add this texture last, especially after adding the "lines"
-        texture for the central bulge.
+        The cusp texture is used to mark the center of a galaxy.  This
+        method defines the cusp (x, y) position and its base height.
 
         Parameters
         ----------
@@ -1034,52 +919,159 @@ class Model3D(object):
             The circular radius of the star texture.
 
         depth : float, optional
-            The maximum depth of the crater-like bowl of the star texture.
+            The maximum depth of the crater-like bowl of the star
+            texture.
+
+        slope : float, optional
+            The slope of the star texture sides.
+        """
+
+        self._cusp_texture = None
+
+        if not self._spiral_galaxy:
+            return
+
+        texture_type = self._translate_mask_type('bulge')
+        bulge_mask = self.texture_masks[texture_type]
+        if bulge_mask is None:
+            return
+
+        self.x_cusp, self.y_cusp = self._find_galaxy_center(bulge_mask)
+        base_height = 0.
+        cusp = StarTexture(self.x_cusp, self.y_cusp, radius, depth,
+                           base_height, slope)
+
+        selem = np.ones((3, 3))
+        base_height = stellar_base_height(self.data, cusp, stellar_mask=None,
+                                          selem=selem)
+
+        self._cusp_texture = np.zeros(self.data.shape)
+        cusp.render(self._cusp_texture)
+        self._cusp_base_height = np.zeros_like(self.data)
+        self._cusp_mask = (self._cusp_texture != 0)
+        self._cusp_base_height[self._cusp_mask] = base_height
+
+    def _make_model_height(self, model_height=55.):
+        """
+        Scale the image to the final model height prior to adding the
+        textures.
+
+        To give a consistent model height/width ratio and texture height
+        (and "feel"), no scaling of the image should happen after this
+        step!
+
+        Parameters
+        ----------
+        model_height : float, optional
+            The the height (in mm) of the model *before* the textures,
+            including the spiral galaxy central cusp, are applied.
+        """
+
+        model_height = model_height / self.mm_per_pixel    # pixels
+
+        # replace the image values within the cusp with the cusp base height
+        if self._cusp_texture is not None and self._has_intensity:
+            base_height = self._cusp_base_height.max()
+            log.info('Clipping image values in cusp at {0} (for central '
+                     'cusp).'.format(base_height))
+            self.data[self._cusp_mask] = \
+                self._cusp_base_height[self._cusp_mask]
+
+        if self._double_sided:
+            model_height = model_height / 2.
+
+        self._normalize_image(max_value=model_height)
+
+        if self._cusp_texture is not None and self._has_intensity:
+            # normalized cusp base height
+            self._cusp_base_height[self._cusp_mask] = \
+                self.data[self._cusp_mask].max()
+
+    def _add_masked_textures(self):
+        """
+        Add masked textures (e.g. small dots, dots, lines) to the
+        image.
+
+        The masked textures are added in order, specified by
+        ``self.texture_order``.  Masked areas in subsequent textures
+        will override earlier textures for pixels masked in more than
+        one texture (i.e. a given pixel has only one texture applied).
+        """
+
+        self._texture_layer = np.zeros_like(self.data)
+        for texture_type in self.texture_order:
+            if texture_type not in self.texture_masks:
+                continue
+
+            log.info('Adding "{0}" textures.'.format(texture_type))
+            mask = self.texture_masks[texture_type]
+            texture_data = self.textures[texture_type](mask.shape, mask=mask)
+            self._texture_layer[mask] = texture_data[mask]
+
+        self._textures_all = self._texture_layer.copy()
+        self.data += self._texture_layer
+
+    def _apply_stellar_textures(self, radius_a=10., radius_b=5., slope=1.0,
+                                depth=3.):
+        """
+        Apply stellar textures (stars and star clusters) to the image.
+
+        The radius of the star (used in both `StarTexture` and
+        `StarClusterTexture` textures) for each source is linearly
+        scaled by the source flux as:
+
+            .. math:: radius = radius_a + (radius_b * flux / max_flux)
+
+        where ``max_flux`` is the maximum ``flux`` value in the stellar
+        table.
+
+        Parameters
+        ----------
+        radius_a : float, optional
+            The intercept term in calculating the star radius (see above).
+
+        radius_b : float, optional
+            The slope term in calculating the star radius (see above).
 
         slope : float, optional
             The slope of the star texture sides.
 
-        base_height_only : bool, optional
-            If `True`, then simply return the base height of the texture
-            model, i.e. do not actually add the central cusp.
-
-        Returns
-        -------
-        result : float
-            The base height of the texture model.
+        depth : float
+            The maximum depth of the crater-like bowl of the star
+            texture.
         """
 
-        if self._spiral_galaxy:
-            if self._has_intensity:
-                base_percentile = 0.
-            else:
-                base_percentile = None
+        if len(self.stellar_tables) == 0:
+            return
 
-            texture_type = self._translate_mask_type('bulge')
-            bulge_mask = self.texture_masks[texture_type]
-            if bulge_mask is not None:
-                x, y = self._find_galaxy_center(bulge_mask)
+        # need to define the base heights using intensities prior to
+        # addition of the masked textures
+        if self._has_intensity:
+            data = self.data_intensity
+        else:
+            data = self.data * 0.
 
-                if base_height_only:
-                    base_height = starlike_model_base_height(
-                        self.data, 'stars', x, y, radius, depth, slope,
-                        base_percentile=base_percentile)
-                else:
-                    cusp_model = make_cusp_model(
-                        self.data, x, y, radius=radius, depth=depth,
-                        slope=slope, base_percentile=base_percentile)
-                    base_height = cusp_model.base_height
+        log.info('Making stellar textures....please wait')
+        if self._cusp_texture is not None:
+            mask = self._cusp_mask
+        else:
+            mask = None
+        self._stellar_texture_layer, base_heights = make_stellar_textures(
+            data, self.stellar_tables, radius_a=radius_a, radius_b=radius_b,
+            depth=depth, slope=slope, exclusion_mask=mask)
+        log.info('Done making stellar textures')
 
-                    yy, xx = np.indices(self.data.shape)
-                    self._cusp_texture_layer = cusp_model(xx, yy)
-                    self.data = apply_textures(self.data,
-                                               self._cusp_texture_layer)
-                    log.info('Placed cusp texture at the galaxy center.')
+        # replace image values with the stellar texture base heights
+        log.info('Adding stellar-like textures.')
+        stellar_mask = (self._stellar_texture_layer != 0)
+        self._textures_all[stellar_mask] = \
+            self._stellar_texture_layer[stellar_mask]
+        self._stellar_base_heights = base_heights
 
-                return base_height
+        self.data[stellar_mask] = base_heights[stellar_mask]
+        self.data += self._stellar_texture_layer
 
-    def _apply_textures(self, star_texture_depth=3.,
-                        star_texture_base_percentile=0.):
+    def _apply_textures(self, star_texture_depth=3.):
         """
         Apply all textures to the model.
 
@@ -1088,19 +1080,18 @@ class Model3D(object):
         star_texture_depth : float, optional
             The maximum depth of the crater-like bowl of the star
             texture.
-
-        star_texture_base_percentile : float in the range of [0, 100], optional
-            The percentile of the image data values within the stellar
-            texture (where the texture is non-zero) used to define the
-            base height of the model texture.
         """
 
         if self._has_textures:
             self._add_masked_textures()
-            self._apply_stellar_textures(
-                depth=star_texture_depth,
-                base_percentile=star_texture_base_percentile)
-            self._apply_spiral_central_cusp()
+            self._apply_stellar_textures(depth=star_texture_depth)
+
+            if self._cusp_texture is not None:
+                self.data[self._cusp_mask] = \
+                    self._cusp_base_height[self._cusp_mask]
+                self.data += self._cusp_texture
+                self._textures_all[self._cusp_mask] = \
+                    self._cusp_texture[self._cusp_mask]
 
     def _make_model_base(self, base_height=5.0, filter_size=10,
                          min_thickness=0.5, fill_holes=True):
@@ -1162,9 +1153,9 @@ class Model3D(object):
              suppress_background_factor=0.2, smooth_size1=11,
              smooth_size2=15, minvalue_to_zero=0.02, crop_data_threshold=0.,
              crop_data_pad_width=20, model_height=55.,
-             star_texture_depth=3., star_texture_base_percentile=0.,
-             model_base_height=5., model_base_filter_size=10,
-             model_base_min_thickness=0.5, model_base_fill_holes=True):
+             star_texture_depth=3., model_base_height=5.,
+             model_base_filter_size=10, model_base_min_thickness=0.5,
+             model_base_fill_holes=True):
         """
         Make the model.
 
@@ -1241,11 +1232,6 @@ class Model3D(object):
             The maximum depth of the crater-like bowl of the star
             texture.
 
-        star_texture_base_percentile : float in the range of [0, 100], optional
-            The percentile of the image data values within the stellar
-            texture (where the texture is non-zero) used to define the
-            base height of the model texture.
-
         model_base_height : float, optional
             The height (in mm) of the model structural base.  See
             `_make_model_base`.
@@ -1311,33 +1297,38 @@ class Model3D(object):
         self._scale_stellar_table_positions(
             self.stellar_tables_original, self._resize_scale_factor)
         self._remove_stars()
+
         self._spiralgalaxy_compress_bulge(
             percentile=compress_bulge_percentile,
             factor=compress_bulge_factor)
         self._suppress_background(percentile=suppress_background_percentile,
                                   factor=suppress_background_factor)
-        if smooth_size1 is not None:
-            self._smooth_image(size=smooth_size1)
+
+        self._smooth_image(size=smooth_size1)
         self._normalize_image()
         self._minvalue_to_zero(min_value=minvalue_to_zero)
         self._extract_galaxy()
-
-        if smooth_size2 is not None:
-            # smooth the image again (to prevent printing issues)
-            self._smooth_image(size=smooth_size2)
+        self._smooth_image(size=smooth_size2)  # again to prevent print issues
 
         self._crop_data(threshold=crop_data_threshold,
                         pad_width=crop_data_pad_width, resize=True)
-        self._make_model_height(model_height=model_height)
-        self.data_intensity = deepcopy(self.data)
 
-        self._apply_textures(
-            star_texture_depth=star_texture_depth,
-            star_texture_base_percentile=star_texture_base_percentile)
+        self._make_cusp_texture()   # needed here to define its base height
+
+        self._make_model_height(model_height=model_height)
+
+        self.data_intensity = deepcopy(self.data)
+        if not self._has_intensity:
+            log.info('Discarding data intensity.')
+            self.data *= 0.
+
+        self._apply_textures(star_texture_depth=star_texture_depth)
+
         self._make_model_base(base_height=model_base_height,
                               filter_size=model_base_filter_size,
                               min_thickness=model_base_min_thickness,
                               fill_holes=model_base_fill_holes)
+
         self._model_complete = True
         log.info('Make complete!')
 
@@ -1522,7 +1513,8 @@ class Model3D(object):
 
 def read_stellar_table(filename, stellar_type):
     """
-    Read a table of stars or star clusters from a file.
+    Read a table of stellar sources (stars or star clusters) from a
+    file.
 
     The table must contain ``'xcentroid'`` and ``'ycentroid'`` columns
     and a ``'flux'`` and/or ``'magnitude'`` column.
@@ -1538,7 +1530,7 @@ def read_stellar_table(filename, stellar_type):
     Returns
     -------
     result : `~astropy.table.Table`
-        A table of stellar-like sources.
+        A table of stellar sources.
 
     Notes
     -----

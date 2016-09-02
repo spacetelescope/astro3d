@@ -4,9 +4,9 @@ image.
 """
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
-from operator import attrgetter
 import warnings
 import numpy as np
+from scipy.ndimage import binary_dilation
 from astropy.modeling import Parameter, Fittable2DModel
 from astropy.modeling.models import Disk2D
 from astropy.utils.exceptions import AstropyUserWarning
@@ -42,52 +42,6 @@ def mask_texture_image(texture_image, mask):
 
     data = np.zeros_like(mask, dtype=np.float)
     data[mask] = texture_image[mask]
-    return data
-
-
-def combine_textures_max(texture1, texture2):
-    """
-    Combine two texture images.
-
-    The non-zero values of the texture image with the largest maximum
-    replace the values in the other texture image.
-
-    When sequentially using this function to combine more than two
-    texture images, one should sort the textures by their maximum values
-    and start combining from the lowest maximum.  This is necessary to
-    properly layer the textures on top of each other (where applicable).
-
-    If both ``texture1`` and ``texture2`` contain only zeros, then
-    ``texture1`` is returned (i.e. an array of zeros).
-
-    Parameters
-    ----------
-    texture1 : `~numpy.ndarray`
-        Data array of the first texture map.
-
-    texture2 : `~numpy.ndarray`
-        Data array of the second texture map.
-
-    Returns
-    -------
-    data : `~numpy.ndarray`
-        Data array of the combined texture map.
-    """
-
-    if texture2.max() >= texture1.max():
-        # non-zero values of texture2 replace texture1
-        data = np.copy(texture1)
-        mask = (texture2 != 0)
-        if not np.any(mask):
-            # both textures contain only zeros
-            return data
-        else:
-            data[mask] = texture2[mask]
-    else:
-        # non-zero values of texture1 replace texture2
-        data = np.copy(texture2)
-        mask = (texture1 != 0)
-        data[mask] = texture1[mask]
     return data
 
 
@@ -463,6 +417,17 @@ class StarTexture(Fittable2DModel):
     base_height = Parameter()
     slope = Parameter()
 
+    def bounding_box(self):
+        """
+        Tuple defining the default ``bounding_box`` limits in each
+        dimension, ``((y_low, y_high), (x_low, x_high))``
+        """
+
+        extent = self.radius + (self.depth * self.slope)
+
+        return ((self.y_0 - extent, self.y_0 + extent),
+                (self.x_0 - extent, self.x_0 + extent))
+
     @staticmethod
     def evaluate(x, y, x_0, y_0, radius, depth, base_height, slope):
         """Star model function."""
@@ -528,6 +493,17 @@ class StarClusterTexture(Fittable2DModel):
     base_height = Parameter()
     slope = Parameter()
 
+    def bounding_box(self):
+        """
+        Tuple defining the default ``bounding_box`` limits in each
+        dimension, ``((y_low, y_high), (x_low, x_high))``
+        """
+
+        extent = (2. * self.radius) + (self.depth * self.slope) + 2
+
+        return ((self.y_0 - extent, self.y_0 + extent),
+                (self.x_0 - extent, self.x_0 + extent))
+
     @staticmethod
     def evaluate(x, y, x_0, y_0, radius, depth, base_height, slope):
         """Star cluster model function."""
@@ -536,6 +512,7 @@ class StarClusterTexture(Fittable2DModel):
         y1, x1 = (y_0 - h1, x_0 - radius)
         y2, x2 = (y_0 - h1, x_0 + radius)
         y3, x3 = (y_0 + h2, x_0)
+
         star1 = StarTexture(x1, y1, radius, depth, base_height, slope)(x, y)
         star2 = StarTexture(x2, y2, radius, depth, base_height, slope)(x, y)
         star3 = StarTexture(x3, y3, radius, depth, base_height, slope)(x, y)
@@ -547,119 +524,32 @@ class StarClusterTexture(Fittable2DModel):
         min_height = 0.0001
         disk = Disk2D(base_height + min_height, x_0, y_0, radius)(x, y)
 
-        return np.maximum(np.maximum(np.maximum(star1, star2), star3), disk)
+        return np.maximum.reduce([star1, star2, star3, disk])
 
 
-def starlike_model_base_height(image, model_type, x, y, radius, depth, slope,
-                               base_percentile=75, image_indices=None):
+def make_stellar_models(model_type, stellar_table, radius_a=10, radius_b=5,
+                        depth=5, slope=0.5):
     """
-    Calculate the model base height for a star-like (star or star
-    cluster) texture model.
-
-    The model base height is calculated from the image values where the
-    texture is non-zero.
-
-    Parameters
-    ----------
-    image : `~numpy.ndarray`
-        The image where the textures will be applied.
-
-    model_type : {'star', 'star_cluster'}
-        The type of the star-like texture.
-
-    x, y : float
-        The ``x`` and ``y`` image position of the star or star cluster.
-
-    radius : float
-        The circular radius of the star texture.
-
-    depth : float
-        The maximum depth of the crater-like bowl of the star texture.
-
-    slope : float
-        The slope of the star_texture sides.
-
-    base_percentile : float in the range of [0, 100], optional
-        The percentile of the image data values within the source
-        texture (where the texture is non-zero) used to define the base
-        height of the model texture.  If `None`, then the model
-        base_height will be zero.
-
-    image_indices : tuple of 2D `~numpy.ndarray`, optional
-        A ``(yy, xx)`` tuple where ``yy`` and ``xx`` are 2D images with
-        the same shape of the input ``image`` and represent the ``y``
-        and ``x`` image indices (i.e. the tuple returned from
-        ``np.indices(image)``).  Use ``image_indices`` when calling this
-        function in a loop (see `make_starlike_models`).  If `None`,
-        then ``np.indices(image)`` will be called.
-
-    Returns
-    -------
-    model : `StarTexture` or `StarClusterTexture`
-        A `StarTexture` or `StarClusterTexture` model object.  `None` is
-        returned if the model does not overlap with the input image.
-    """
-
-    if model_type == 'stars':
-        Texture = StarTexture
-    elif model_type == 'star_clusters':
-        Texture = StarClusterTexture
-    else:
-        raise ValueError('model_type must be "stars" or "star_clusters"')
-
-    if image_indices is None:
-        yy, xx = np.indices(image.shape)
-    else:
-        yy, xx = image_indices
-        if yy.shape != xx.shape:
-            raise ValueError('x and y image_indices must have the same '
-                             'shape.')
-        if yy.shape != image.shape:
-            raise ValueError('x and y image_indices must have the same '
-                             'shape as the input image.')
-
-    texture = Texture(x, y, radius, depth, 1.0, slope)(xx, yy)
-    mask = (texture != 0)
-    if not np.any(mask):
-        # texture contains only zeros (e.g. bad position)
-        warnings.warn('Source texture at (x, y) = ({0}, {1}) does not '
-                      'overlap with the image'.format(x, y),
-                      AstropyUserWarning)
-        return None
-
-    if base_percentile is None:
-        base_height = 0.
-    else:
-        base_height = np.percentile(image[mask], base_percentile)
-
-    return base_height
-
-
-def make_starlike_models(image, model_type, sources, radius_a=10, radius_b=5,
-                         depth=5, slope=0.5, base_percentile=75):
-    """
-    Create the star-like (star or star cluster) texture models to be
+    Create the stellar (star or star cluster) texture models to be
     applied to an image.
 
     Given the position and flux (or magnitude) of each source
-    (``sources``), a list of texture models is generated.  The radius of
-    the star (used in both `StarTexture` and `StarCluster` textures) for
-    each source is linearly scaled by the source flux as:
+    (``stellar_table``), a list of texture models is generated.
+
+    The radius of the star (used in both `StarTexture` and `StarCluster`
+    textures) for each source is linearly scaled by the source flux as:
 
         .. math:: radius = radius_a + (radius_b * flux / max_flux)
 
-    where ``max_flux`` is the maximum ``flux`` value of all the input
-    ``sources``.
+    where ``max_flux`` is the maximum ``flux`` value of all the sources
+    in the input ``stellar_table``.
 
     Parameters
     ----------
-    image : `~numpy.ndarray`
-        The image where the textures will be applied.
-
     model_type : {'star', 'star_cluster'}
-        The type of the star-like texture.
+        The type of the stellar texture.
 
-    sources : `~astropy.table.Table`
+    stellar_table : `~astropy.table.Table`
         A table defining the stars or star clusters.  The table must
         contain ``'xcentroid'`` and ``'ycentroid'`` columns and either a
         ``'flux'`` or ``'magnitude'`` column.
@@ -673,14 +563,8 @@ def make_starlike_models(image, model_type, sources, radius_a=10, radius_b=5,
     depth : float, optional
         The maximum depth of the crater-like bowl of the star texture.
 
-    slope : float
+    slope : float, optional
         The slope of the star texture sides.
-
-    base_percentile : float in the range of [0, 100], optional
-        The percentile of the image data values within the source
-        texture (where the texture is non-zero) used to define the base
-        height of the model texture.  If `None`, then the model
-        base_height will be zero.
 
     Returns
     -------
@@ -695,79 +579,123 @@ def make_starlike_models(image, model_type, sources, radius_a=10, radius_b=5,
     else:
         raise ValueError('model_type must be "stars" or "star_clusters"')
 
-    if len(sources) == 0:
+    if len(stellar_table) == 0:
         return []
 
     columns = ['xcentroid', 'ycentroid']
     for column in columns:
-        if column not in sources.colnames:
-            raise ValueError('sources must contain a {0} column'
+        if column not in stellar_table.colnames:
+            raise ValueError('stellar_table must contain a {0} column'
                              .format(column))
 
-    if 'flux' in sources.colnames:
-        fluxes = sources['flux']
+    if 'flux' in stellar_table.colnames:
+        fluxes = stellar_table['flux']
     else:
-        if 'magnitude' not in sources.colnames:
-            raise ValueError('sources must contain either a "flux" or '
+        if 'magnitude' not in stellar_table.colnames:
+            raise ValueError('stellar_table must contain either a "flux" or '
                              '"magnitude" column'.format(column))
 
-        fluxes = 10**(-0.4 * sources['magnitude'])
+        fluxes = 10**(-0.4 * stellar_table['magnitude'])
 
-    # assumes that all sources in the source table are good
+    # assumes that all sources in the stellar_table are good
     max_flux = float(np.max(fluxes))
 
-    yy, xx = np.indices(image.shape)
     models = []
-    for i, source in enumerate(sources):
+    base_height = 0.
+    for i, source in enumerate(stellar_table):
         xcen = source['xcentroid']
         ycen = source['ycentroid']
         radius = radius_a + (radius_b * fluxes[i] / max_flux)
-        base_height = starlike_model_base_height(
-            image, model_type, xcen, ycen, radius, depth, slope,
-            base_percentile=base_percentile, image_indices=(yy, xx))
         model = Texture(xcen, ycen, radius, depth, base_height, slope)
 
         if model is not None:
             models.append(model)
+
     return models
 
 
-def sort_starlike_models(models):
+def stellar_base_height(data, model, stellar_mask=None, selem=None):
     """
-    Sort star-like texture models by their ``base_height`` parameter.
+    Calculate the base height for a stellar (star or star cluster)
+    texture.
+
+    The base height is calculated from the image values just outside the
+    region where the texture will be applied.
+
+    Note that the image is clipped at the base height, it is not used
+    for the actual stellar texture.
 
     Parameters
     ----------
-    models : list of `StarTexture` and/or `StarClusterTexture`
-        A list of star-like texture models including stars
-        (`StarTexture`) and/or star clusters (`StarClusterTexture`).
-        Each model must contain an ``base_height`` parameter.
+    data : `~numpy.ndarray`
+        The image where the textures will be applied.
+
+    model : `StarTexture` or `StarClusterTexture`
+        A `StarTexture` or `StarClusterTexture` model object.
+
+    stellar_mask : bool `~numpy.ndarray`, optional
+        A mask image of all the stellar textures.  If input, then these
+        pixels are not included in the calculation (e.g. close
+        neighboring textures) for the base height.
+
+    selem : `~numpy.ndarray`, optional
+        The 2D structural element used to dilate the model mask.
 
     Returns
     -------
-    sorted_models : list of `StarTexture` and/or `StarClusterTexture`
-        A list of `StarTexture` and/or `StarClusterTexture` models
-        sorted by the ``base_height`` parameter in increasing order.
+    base_height : float
+        The base height of the stellar texture.  `None` is returned if
+        the model does not overlap with the input image.
     """
 
-    return sorted(models, key=attrgetter('base_height'))
+    if stellar_mask is not None and (data.shape != stellar_mask.shape):
+        raise ValueError('data and stellar_mask must have the same shape')
+
+    if selem is None:
+        selem = np.ones((3, 3))
+
+    model_mask = np.zeros(data.shape)
+    model.render(model_mask)
+    model_mask = (model_mask != 0)
+    if not np.any(model_mask):
+        # texture contains only zeros (e.g. bad position)
+        warnings.warn('stellar model does not overlap with the image.',
+                      AstropyUserWarning)
+        return None
+
+    model_mask_dilated = binary_dilation(model_mask, selem)
+    model_mask_xor = np.logical_xor(model_mask_dilated, model_mask)
+
+    if stellar_mask is not None:
+        border_mask = np.logical_and(model_mask_xor, ~stellar_mask)
+    else:
+        border_mask = model_mask_xor
+
+    if np.any(border_mask):
+        return np.max(data[border_mask])
+    else:
+        # no bordering pixels (e.g. texture overlaps others on all
+        # sides)
+        return None
 
 
-def make_starlike_textures(image, stellar_tables, radius_a=10, radius_b=5,
-                           depth=5, slope=0.5, base_percentile=75):
+def make_stellar_textures(data, stellar_tables, radius_a=10, radius_b=5,
+                          depth=5, slope=0.5, exclusion_mask=None):
     """
-    Make an image containing star-like textures (stars and star clusters).
+    Make an image containing stellar textures (stars and star clusters).
+    and an image containing the base heights for each texture.
 
     Parameters
     ----------
-    image : `~numpy.ndarray`
+    data : `~numpy.ndarray`
         The image where the textures will be applied.
 
     stellar_tables : dict of `~astropy.table.Table`
-        A dictionary of tables defining the star-like textures.  The
-        dictionary can define either 'stars' or 'star_clusters'.  The
-        table must contain ``'xcentroid'`` and ``'ycentroid'`` columns
-        and either a ``'flux'`` or ``'magnitude'`` column.
+        A dictionary of tables defining the stellar textures, keyed by
+        type ('stars' or 'star_clusters').  The dictionary can define
+        both 'stars' and 'star_clusters'.  The table(s) must contain
+        ``'xcentroid'`` and ``'ycentroid'`` columns and either a
+        ``'flux'`` or ``'magnitude'`` column.
 
     radius_a : float, optional
         The intercept term in calculating the star radius (see above).
@@ -778,57 +706,91 @@ def make_starlike_textures(image, stellar_tables, radius_a=10, radius_b=5,
     depth : float, optional
         The maximum depth of the crater-like bowl of the star texture.
 
-    slope : float
+    slope : float, optional
         The slope of the star texture sides.
 
-    base_percentile : float in the range of [0, 100], optional
-        The percentile of the image data values within the source
-        texture (where the texture is non-zero) used to define the base
-        height of the model texture.  If `None`, then the model
-        base_height will be zero.
+    exclusion_mask : 2D `~numpy.ndarray` (bool), optional
+        A 2D boolean mask.  Textures will not be included if any portion
+        of them overlaps with the exclusion mask.  For example, this is
+        used to prevent overlapping textures with the central galaxy
+        cusp texture.
 
     Returns
     -------
-    data : `~numpy.ndarray`
-        The image containing the star and star cluster textures.
+    textures : `~numpy.ndarray`
+        An image containing the stellar (star and star cluster)
+        textures.
+
+    base_heights : `~numpy.ndarray`
+        An image containing the base heights for each stellar texture.
 
     Notes
     -----
-    The texture models will be sorted by their ``base_height``s in
-    increasing order and then added to the output texture map starting
-    with the smallest ``base_height``.
+    To handle overlapping textures, the texture models will be sorted by
+    their base heights in increasing order and then added to the output
+    texture map starting with the smallest base height.
     """
 
-    starlike_models = []
+    stellar_models = []
+    # include both stars and star clusters
     for stellar_type, table in stellar_tables.items():
-        starlike_models.extend(
-            make_starlike_models(image, stellar_type, table,
-                                 radius_a=radius_a, radius_b=radius_b,
-                                 depth=depth, slope=slope,
-                                 base_percentile=base_percentile))
+        stellar_models.extend(make_stellar_models(
+            stellar_type, table, radius_a=radius_a, radius_b=radius_b,
+            depth=depth, slope=slope))
 
-    # create a texture map from the list of models
-    data = np.zeros(image.shape)
-    yy, xx = np.indices(image.shape)
-    for model in sort_starlike_models(starlike_models):
-        data = combine_textures_max(data, model(xx, yy))
-    return data
+    # create mask of all stellar textures
+    stellar_mask = np.zeros(data.shape)
+    for model in stellar_models:
+        model.render(stellar_mask)
+    stellar_mask = (stellar_mask != 0)
+
+    # define the base heights
+    base_heights = []
+    good_models = []
+    selem = np.ones((3, 3))
+    for model in stellar_models:
+        height = stellar_base_height(data, model, stellar_mask=stellar_mask,
+                                     selem=selem)
+        if height is not None:
+            base_heights.append(height)
+            good_models.append(model)
+
+    # define the stellar textures
+    stellar_textures = np.zeros(data.shape)
+    base_heights = np.array(base_heights)
+    idx = np.argsort(base_heights)
+    base_heights = base_heights[idx]
+    good_models = [good_models[i] for i in idx]
+
+    base_heights_img = np.zeros(data.shape)
+    for (model, height) in zip(good_models, base_heights):
+        texture = np.zeros(data.shape)
+        model.render(texture)
+        mask = (texture != 0)
+
+        if exclusion_mask is not None:
+            if np.any(np.logical_and(mask, exclusion_mask)):
+                continue
+
+        stellar_textures[mask] = texture[mask]
+        base_heights_img[mask] = height
+
+    return stellar_textures, base_heights_img
 
 
-def make_cusp_model(image, x, y, radius=25, depth=40, slope=0.5,
-                    base_percentile=None):
+def make_cusp_model(data, x, y, radius=25, depth=40, slope=0.5):
     """
-    Make an image containing a star-like cusp texture.
+    Create a star texture model to be applied to an image.
 
     The cusp texture is used to mark the center of a galaxy.
 
     Parameters
     ----------
-    image : `~numpy.ndarray`
+    data : `~numpy.ndarray`
         The image where the texture will be applied.
 
     x, y : float
-        The ``x`` and ``y`` image position of the cusp texture.  This
+        The ``x`` and ``y`` image position of the star texture.  This
         should be the galaxy center.
 
     radius : float, optional
@@ -837,55 +799,29 @@ def make_cusp_model(image, x, y, radius=25, depth=40, slope=0.5,
     depth : float, optional
         The maximum depth of the crater-like bowl of the star texture.
 
-    slope : float
+    slope : float, optional
         The slope of the star texture sides.
 
-    base_percentile : float in the range of [0, 100], optional
-        The percentile of the image data values within the source
-        texture (where the texture is non-zero) used to define the base
-        height of the model texture.  If `None`, then the model
-        base_height will be zero.
-
     Returns
     -------
-    data : `~numpy.ndarray`
-        The image containing the cusp texture.
+    texture : `~numpy.ndarray`
+        An image containing the cusp texture.
+
+    base_height : `~numpy.ndarray`
+        An image containing the base height for the cusp texture.
     """
 
-    base_height = starlike_model_base_height(
-        image, 'stars', x, y, radius, depth, slope,
-        base_percentile=base_percentile)
-    return StarTexture(x, y, radius, depth, base_height, slope)
+    base_height = 0.
+    cusp = StarTexture(x, y, radius, depth, base_height, slope)
 
+    selem = np.ones((3, 3))
+    base_height = stellar_base_height(data, cusp, stellar_mask=None,
+                                      selem=selem)
 
-def apply_textures(image, texture_image):
-    """
-    Apply textures to an image.
+    cusp_texture = np.zeros(data.shape)
+    cusp.render(cusp_texture)
+    cusp_base_height = np.zeros_like(data)
+    mask = (cusp_texture != 0)
+    cusp_base_height[mask] = base_height
 
-    Pixels in the input ``image`` are replaced by the non-zero pixels in
-    the input ``texture_image``.
-
-    This function is used for the star-like textures (central galaxy
-    cusp, stars, and star clusters), which could be added on top of
-    other textures (lines, dots, or small dots).  The star-like textures
-    replace, instead of add to, image values.
-
-    Parameters
-    ----------
-    image : `~numpy.ndarray`
-        The image where the textures will be applied.
-
-    texture_image : `~numpy.ndarray`
-        The texture image, which must be the same shape as the input
-        ``image``.
-
-    Returns
-    -------
-    data : `~numpy.ndarray`
-        The image with the applied textures.
-    """
-
-    data = np.copy(image)
-    idx = (texture_image != 0)
-    data[idx] = texture_image[idx]
-    return data
+    return cusp_texture, cusp_base_height
