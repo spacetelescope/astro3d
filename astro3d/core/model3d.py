@@ -1506,8 +1506,8 @@ class Model3D(object):
         for mask_type, mask in zip([texture1, texture2], [mask1, mask2]):
             texture_type = self._translate_mask_type(mask_type)
             if texture_type in self.texture_masks_original:
-                warnings.warn('Overwriting existing "{0}" texture mask',
-                              AstropyUserWarning)
+                warnings.warn('Overwriting existing "{0}" texture mask'
+                              .format(mask_type), AstropyUserWarning)
 
             mask = image_utils.resize_image(mask,
                                             1. / self._resize_scale_factor)
@@ -1515,7 +1515,8 @@ class Model3D(object):
             self.texture_masks_original[texture_type] = [region_mask]
             new_regions.append(region_mask)
 
-        log.info('Automatically generated "{0}" and "{1}" masks.')
+        log.info('Automatically generated "{0}" and "{1}" masks.'
+                 .format(texture1, texture2))
 
         return new_regions
 
