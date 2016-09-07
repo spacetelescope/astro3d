@@ -101,8 +101,8 @@ class Model3D(object):
 
         self.translate_texture = {}
         self.translate_texture['small_dots'] = ['gas']
-        self.translate_texture['dots'] = ['spiral']
-        self.translate_texture['lines'] = ['bulge', 'disk']
+        self.translate_texture['dots'] = ['spiral', 'dust']
+        self.translate_texture['lines'] = ['bulge', 'disk', 'filament']
         self.translate_texture['smooth'] = []
         self.translate_texture['remove_star'] = []
 
