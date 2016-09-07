@@ -1472,20 +1472,14 @@ class Model3D(object):
             raise ValueError('{0} percentile must be less than '
                              '{1} percentile.'.format(texture1, texture2))
 
-        if self._spiral_galaxy:
-            texture_type = self._translate_mask_type('bulge')
-            if texture_type not in self.texture_masks_original:
-                warnings.warn('For a spiral galaxy model, you must first '
-                              'define the bulge mask.', AstropyUserWarning)
-                return
-
         self._prepare_data()
         self.data = deepcopy(self.data_original_resized)
         self._prepare_masks()
         self._remove_stars()
         self._smooth_image(size=smooth_size)
 
-        if self._spiral_galaxy:
+        texture_type = self._translate_mask_type('bulge')
+        if texture_type in self.texture_masks_original:    # spiral galaxy
             bulge_mask = self.texture_masks[texture_type]
             x, y = self._find_galaxy_center(bulge_mask)
             rwm = image_utils.radial_weight_map(self.data.shape, (y, x))
@@ -1553,6 +1547,12 @@ class Model3D(object):
             The list of the newly-defined region masks.
         """
 
+        texture_type = self._translate_mask_type('bulge')
+        if texture_type not in self.texture_masks_original:
+                warnings.warn('For a spiral galaxy model, you must first '
+                              'define the bulge mask.', AstropyUserWarning)
+                return
+
         return self.auto_make_masks(smooth_size=smooth_size,
                                     percentile1=gas_percentile,
                                     percentile2=spiral_percentile,
@@ -1584,6 +1584,12 @@ class Model3D(object):
         result : list of `RegionMask`
             The list of the newly-defined region masks.
         """
+
+        texture_type = self._translate_mask_type('bulge')
+        if texture_type in self.texture_masks_original:
+                warnings.warn('The bulge mask should be defined only for a '
+                              'spiral galaxy model.', AstropyUserWarning)
+                return
 
         return self.auto_make_masks(smooth_size=smooth_size,
                                     percentile1=dust_percentile,
