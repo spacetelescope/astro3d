@@ -1435,6 +1435,96 @@ class Model3D(object):
 
         return self.stellar_tables_original
 
+    def auto_make_masks(self, smooth_size=11, percentile1=55.,
+                        percentile2=75., texture1='gas', texture2='spiral'):
+        """
+        Automatically generate two texture masks (e.g. spiral and gas,
+        or dust and gas) based on image percentile values.
+
+        Parameters
+        ----------
+        smooth_size : float or tuple, optional
+            The shape of smoothing filter window.  If ``size`` is an
+            `int`, then then ``size`` will be used for both dimensions.
+
+        percentile1 : float, optional
+            The percentile of pixel values in the data above which (and
+            below ``percentile2``) to assign to the ``texture1`` mask.
+            ``percentile1`` must be lower than ``percentile2``.
+
+        percentile2 : float, optional
+            The percentile of pixel values in the data above which to
+            assign to the ``texture2`` mask.
+
+        texture1 : str, optional
+            The name of texture defined by ``percentile1``.
+
+        texture2 : str, optional
+            The name of texture defined by ``percentile2``.
+
+        Returns
+        -------
+        result : list of `RegionMask`
+            The list of the newly-defined region masks.
+        """
+
+        if percentile1 >= percentile2:
+            raise ValueError('{0} percentile must be less than '
+                             '{1} percentile.'.format(texture1, texture2))
+
+        if self._spiral_galaxy:
+            texture_type = self._translate_mask_type('bulge')
+            if texture_type not in self.texture_masks_original:
+                warnings.warn('For a spiral galaxy model, you must first '
+                              'define the bulge mask.', AstropyUserWarning)
+                return
+
+        self._prepare_data()
+        self.data = deepcopy(self.data_original_resized)
+        self._prepare_masks()
+        self._remove_stars()
+        self._smooth_image(size=smooth_size)
+
+        if self._spiral_galaxy:
+            bulge_mask = self.texture_masks[texture_type]
+            x, y = self._find_galaxy_center(bulge_mask)
+            rwm = image_utils.radial_weight_map(self.data.shape, (y, x))
+            minval = rwm[~bulge_mask].min()
+            rwm[bulge_mask] = 0.     # exclude the bulge mask region
+            rwm /= minval      # min weight value outside of bulge is now 1.
+            data = self.data * rwm
+        else:
+            data = self.data
+
+        # mask zeros to handle case where image is largely zero (e.g.
+        # outside coverage area due to rotation or mosaic)
+        coverage_mask = (data != 0)
+
+        # define the first mask (e.g. "spiral arms" or "dust")
+        threshold2 = np.percentile(data[coverage_mask], percentile2)
+        mask2 = (data > threshold2)
+
+        # define the second mask (e.g. "gas")
+        threshold1 = np.percentile(data[coverage_mask], percentile1)
+        mask1 = np.logical_and(data > threshold1, ~mask2)
+
+        new_regions = []
+        for mask_type, mask in zip([texture1, texture2], [mask1, mask2]):
+            texture_type = self._translate_mask_type(mask_type)
+            if texture_type in self.texture_masks_original:
+                warnings.warn('Overwriting existing "{0}" texture mask',
+                              AstropyUserWarning)
+
+            mask = image_utils.resize_image(mask,
+                                            1. / self._resize_scale_factor)
+            region_mask = RegionMask(mask, mask_type)
+            self.texture_masks_original[texture_type] = [region_mask]
+            new_regions.append(region_mask)
+
+        log.info('Automatically generated "{0}" and "{1}" masks.')
+
+        return new_regions
+
     def make_spiral_galaxy_masks(self, smooth_size=11, gas_percentile=55.,
                                  spiral_percentile=75.):
         """
@@ -1456,62 +1546,49 @@ class Model3D(object):
         spiral_percentile : float, optional
             The percentile of pixel values in the weighted data above
             which to assign to the "spiral arms" mask.
+
+        Returns
+        -------
+        result : list of `RegionMask`
+            The list of the newly-defined region masks.
         """
 
-        if gas_percentile >= spiral_percentile:
-            raise ValueError('gas_percentile must be less than '
-                             'spiral_percentile.')
+        return self.auto_make_masks(smooth_size=smooth_size,
+                                    percentile1=gas_percentile,
+                                    percentile2=spiral_percentile,
+                                    texture1='gas', texture2='spiral')
 
-        texture_type = self._translate_mask_type('bulge')
-        if texture_type not in self.texture_masks_original:
-            warnings.warn('You must first define the bulge mask.',
-                          AstropyUserWarning)
-            return
+    def make_dust_gas_masks(self, smooth_size=11, dust_percentile=55.,
+                            gas_percentile=75.):
+        """
+        Automatically generate texture masks for dust and gas textures.
 
-        self._prepare_data()
-        self.data = deepcopy(self.data_original_resized)
-        self._prepare_masks()
-        self._remove_stars()
-        self._smooth_image(size=smooth_size)
+        Parameters
+        ----------
+        smooth_size : float or tuple, optional
+            The shape of smoothing filter window.  If ``size`` is an
+            `int`, then then ``size`` will be used for both dimensions.
 
-        bulge_mask = self.texture_masks[texture_type]
-        x, y = self._find_galaxy_center(bulge_mask)
-        rwm = image_utils.radial_weight_map(self.data.shape, (y, x))
-        minval = rwm[~bulge_mask].min()
-        rwm[bulge_mask] = 0.     # exclude the bulge mask region
-        rwm /= minval      # min weight value outside of bulge is now 1.
-        data = self.data * rwm
+        dust_percentile : float, optional
+            The percentile of pixel values in the weighted data above
+            which (and below ``gas_percentile``) to assign to the "dust"
+            mask.  ``dust_percentile`` must be lower than
+            ``gas_percentile``.
 
-        # mask zeros to handle case where image is largely zero (e.g.
-        # outside coverage area due to rotation or mosaic)
-        mask = (data != 0)
+        gas_percentile : float, optional
+            The percentile of pixel values in the weighted data above
+            which to assign to the "gas" mask.
 
-        # define the "spiral arms" mask
-        spiral_threshold = np.percentile(data[mask], spiral_percentile)
-        spiral_mask = (data > spiral_threshold)
+        Returns
+        -------
+        result : list of `RegionMask`
+            The list of the newly-defined region masks.
+        """
 
-        # define the "gas" mask
-        gas_threshold = np.percentile(data[mask], gas_percentile)
-        gas_mask = np.logical_and(data > gas_threshold, ~spiral_mask)
-
-        new_regions = []
-        for mask_type, mask in zip(['spiral', 'gas'],
-                                   [spiral_mask, gas_mask]):
-            texture_type = self._translate_mask_type(mask_type)
-            if texture_type in self.texture_masks_original:
-                warnings.warn('Overwriting existing "{0}" texture mask',
-                              AstropyUserWarning)
-
-            mask = image_utils.resize_image(mask,
-                                            1. / self._resize_scale_factor)
-            region_mask = RegionMask(mask, mask_type)
-            self.texture_masks_original[texture_type] = [region_mask]
-            new_regions.append(region_mask)
-
-        log.info('Automatically generated "spiral" and "gas" masks for '
-                 'spiral galaxy.')
-
-        return new_regions
+        return self.auto_make_masks(smooth_size=smooth_size,
+                                    percentile1=dust_percentile,
+                                    percentile2=gas_percentile,
+                                    texture1='dust', texture2='gas')
 
 
 def read_stellar_table(filename, stellar_type):
