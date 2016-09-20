@@ -1,6 +1,8 @@
 """General GUI utilities"""
 from __future__ import print_function
 
+from ast import literal_eval
+
 from ginga.gw.Widgets import build_info
 
 from . import signaldb
@@ -92,6 +94,7 @@ def value_update(widget, *args, **kwargs):
     """
     get_value_funcs = [
         lambda: args[0],
+        lambda: literal_eval(widget.get_text()),
         lambda: widget.get_text()
     ]
     idx = widget.extdata['index']
