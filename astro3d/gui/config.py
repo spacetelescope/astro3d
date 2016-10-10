@@ -45,7 +45,7 @@ class Config(SystemConfigParser):
         value = SystemConfigParser.get(self, section, option)
         try:
             evalue = literal_eval(value)
-        except SyntaxError:
+        except (SyntaxError, ValueError):
             evalue = value
         return evalue
 

@@ -15,6 +15,7 @@ from . import signaldb
 from .qt4.process import MeshThread
 from .qt4.items import (Regions, Textures, Clusters, Stars)
 from .config import config
+from .textures import TextureConfig
 
 
 # Shortcuts
@@ -65,6 +66,9 @@ class Model(QStandardItemModel):
                 {p: config.get(section, p) for p in config.options(section)}
             )
         self.params = params
+
+        # Get texture info
+        self.textures = TextureConfig(config)
 
         # Signals related to item modification
         self.itemChanged.connect(self._update)
@@ -178,6 +182,11 @@ class Model(QStandardItemModel):
             model_params = {}
         model3d = Model3D(self.image, **model_params)
 
+        # Setup textures
+        model3d.texture_order = self.textures.texture_order
+        model3d.translate_texture.update(self.textures.translate_texture)
+
+        # Setup regions
         if exclude_regions is None:
             exclude_regions = []
 
