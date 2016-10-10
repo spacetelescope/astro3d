@@ -87,7 +87,12 @@ class Model3D(object):
     >>> model.write_all_stellar_tables(filename_prefix)    # all at once
     """
 
-    def __init__(self, data, image_size=1000, mm_per_pixel=0.24224):
+    def __init__(self, data, image_size=1000, mm_per_pixel=0.24224,
+                 small_dots_diameter=9.0, small_dots_height=4.0,
+                 small_dots_spacing=7.0, dots_diameter=9.0,
+                 dots_height=4.0, dots_spacing=11.0,
+                 lines_thickness=13.0, lines_height=7.8,
+                 lines_spacing=20.0):
         self.data_original = np.asanyarray(data)
         self.image_size = image_size
         self.mm_per_pixel = mm_per_pixel
@@ -112,13 +117,16 @@ class Model3D(object):
 
         self.textures = {}
         self.textures['small_dots'] = DotsTexture(
-            profile='spherical', diameter=9.0, height=4.0,
-            grid=HexagonalGrid(spacing=7.0))
+            profile='spherical', diameter=small_dots_diameter,
+            height=small_dots_height,
+            grid=HexagonalGrid(spacing=small_dots_spacing))
         self.textures['dots'] = DotsTexture(
-            profile='spherical', diameter=9.0, height=4.0,
-            grid=HexagonalGrid(spacing=11.0))
+            profile='spherical', diameter=dots_diameter,
+            height=dots_height,
+            grid=HexagonalGrid(spacing=dots_spacing))
         self.textures['lines'] = LinesTexture(
-            profile='linear', thickness=13, height=7.8, spacing=20,
+            profile='linear', thickness=lines_thickness,
+            height=lines_height, spacing=lines_spacing,
             orientation=0)
 
     @classmethod
