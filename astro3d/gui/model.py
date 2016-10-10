@@ -249,6 +249,50 @@ class Model(QStandardItemModel):
             id = 'auto' + region.mask_type + '@' + id_count
             self.regions.add_mask(mask=region, id=id)
 
+    def create_gas_dust_masks(
+            self,
+            smooth_size=11,
+            dust_percentile=55.,
+            gas_percentile=75.,
+            model_params=None
+    ):
+        """Create the gas and dust masks
+
+        Parameters
+        ----------
+        smooth_size : float or tuple, optional
+            The shape of smoothing filter window.  If ``size`` is an
+            `int`, then then ``size`` will be used for both dimensions.
+
+        dust_percentile : float, optional
+            The percentile of pixel values in the weighted data above
+            which (and below ``gas_percentile``) to assign to the "dust"
+            mask.  ``dust_percentile`` must be lower than
+            ``gas_percentile``.
+
+        gas_percentile : float, optional
+            The percentile of pixel values in the weighted data above
+            which (and below ``spiral_percentile``) to assign to the
+            "gas" mask.  ``gas_percentile`` must be lower than
+            ``spiral_percentile``.
+
+        model_params: dict
+            Other Model3D parameters
+        """
+        model3d = self.create_model3d(
+            model_params=model_params,
+            exclude_regions=['gas', 'dust']
+        )
+        new_regions = model3d.make_dust_gas_masks(
+            smooth_size=smooth_size,
+            gas_percentile=gas_percentile,
+            dust_percentile=dust_percentile
+        )
+        id_count = str(next(self._sequence))
+        for region in new_regions:
+            id = 'auto' + region.mask_type + '@' + id_count
+            self.regions.add_mask(mask=region, id=id)
+
     def save_all(self, prefix):
         """Save all info to the prefix"""
         try:

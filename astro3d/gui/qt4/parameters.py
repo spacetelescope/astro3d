@@ -46,6 +46,16 @@ class Parameters(QtGui.QWidget):
             model_params=self.model.params.model
         )
 
+    def create_gas_dust_masks(self, *args, **kwargs):
+        """Set Gas/Dust esitmator parameters"""
+        params = self.children['gasdust']
+        self.model.create_gas_dust_masks(
+            smooth_size=params.smooth_size.get_value(),
+            gas_percentile=params.gas_percentile.get_value(),
+            dust_percentile=params.dust_percentile.get_value(),
+            model_params=self.model.params.model
+        )
+
     def _build_gui(self):
         """Build out the GUI"""
         self.logger.debug('Called.')
@@ -136,6 +146,46 @@ class Parameters(QtGui.QWidget):
         gasspiral_frame = Widgets.Frame('Gas/Spiral Arm parameters')
         gasspiral_frame.set_widget(gasspiral_widget)
 
+        # Gas/Dust parameters
+        captions = (
+            ('Gas Percentile:', 'label', 'Gas Percentile', 'spinbutton'),
+            ('Dust Percentile:', 'label', 'Dust Percentile', 'spinbutton'),
+            ('Smooth Size:', 'label', 'Smooth Size', 'spinbutton'),
+            ('Create masks', 'button'),
+        )
+        gasdust_widget, gasdust_bunch = Widgets.build_info(captions)
+        self.children['gasdust'] = gasdust_bunch
+
+        gasdust_bunch.gas_percentile.set_limits(0., 100.)
+        gasdust_bunch.gas_percentile.set_value(75.)
+        gasdust_bunch.gas_percentile.set_tooltip(
+            'The percentile of values above which'
+            ' are assigned to the Gas mask'
+        )
+
+        gasdust_bunch.dust_percentile.set_limits(0., 100.)
+        gasdust_bunch.dust_percentile.set_value(55.)
+        gasdust_bunch.dust_percentile.set_tooltip(
+            'The percentile of pixel values in the weighted data above'
+            'which (and below gas_percentile) to assign to the "dust"'
+            'mask.  dust_percentile must be lower than'
+            'gas_percentile.'
+        )
+
+        gasdust_bunch.smooth_size.set_limits(3, 100)
+        gasdust_bunch.smooth_size.set_value(11)
+        gasdust_bunch.smooth_size.set_tooltip(
+            'Size of the smoothing window'
+        )
+
+        gasdust_bunch.create_masks.add_callback(
+            'activated',
+            self.create_gas_dust_masks
+        )
+
+        gasdust_frame = Widgets.Frame('Gas/Dust parameters')
+        gasdust_frame.set_widget(gasdust_widget)
+
         # Put it together
         layout = QtGui.QVBoxLayout()
         layout.setContentsMargins(QtCore.QMargins(20, 20, 20, 20))
@@ -147,5 +197,6 @@ class Parameters(QtGui.QWidget):
         layout.addWidget(model_make_expander.get_widget(), stretch=0)
         layout.addWidget(spacer.get_widget(), stretch=1)
         layout.addWidget(gasspiral_frame.get_widget(), stretch=0)
+        layout.addWidget(gasdust_frame.get_widget(), stretch=0)
         layout.addWidget(spacer.get_widget(), stretch=2)
         self.setLayout(layout)
