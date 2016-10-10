@@ -185,6 +185,7 @@ class Model(QStandardItemModel):
         # Setup textures
         model3d.texture_order = self.textures.texture_order
         model3d.translate_texture.update(self.textures.translate_texture)
+        model3d.textures.update(self.textures.textures)
 
         # Setup regions
         if exclude_regions is None:

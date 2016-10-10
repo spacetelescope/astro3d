@@ -1,4 +1,13 @@
 """Get Texture info from user config"""
+from __future__ import (absolute_import, division, print_function,
+                        unicode_literals)
+
+from ..core.textures import (
+    DotsTexture,
+    LinesTexture,
+    HexagonalGrid,
+    StarTexture
+)
 
 __all__ = ['TextureConfig']
 
@@ -18,5 +27,12 @@ class TextureConfig(object):
                 for p in config.options(section)
             })
 
+        # Map to the Model3d attributes
         self.texture_order = params['textures']['texture_order']
         self.translate_texture = params['texture_mappings']
+
+        # Acquire the textures
+        self.textures = {}
+        textures = self.textures
+        for texture in self.texture_order:
+            textures[texture] = eval(params['textures'][texture])
