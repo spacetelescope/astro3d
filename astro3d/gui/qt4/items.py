@@ -69,6 +69,14 @@ DRAW_PARAMS = defaultdict(
             DRAW_PARAMS_DEFAULT,
             {'color': 'orange'}
         ),
+        'dust': _merge_dicts(
+            DRAW_PARAMS_DEFAULT,
+            {'color': 'debianred'}
+        ),
+        'filament': _merge_dicts(
+            DRAW_PARAMS_DEFAULT,
+            {'color': 'aquamarine'}
+        ),
         'cluster': _merge_dicts(
             DRAW_PARAMS_DEFAULT,
             {'color': 'darkgoldenrod',
@@ -402,6 +410,16 @@ class Regions(FixedMixin, CheckableItem):
                 text='Add Spiral',
                 func=self.add_region_interactive,
                 args=('spiral',)
+            ),
+            Action(
+                text='Add Dust',
+                func=self.add_region_interactive,
+                args=('dust',)
+            ),
+            Action(
+                text='Add Filament',
+                func=self.add_region_interactive,
+                args=('filament',)
             ),
             Action(
                 text='Add Remove Star',
