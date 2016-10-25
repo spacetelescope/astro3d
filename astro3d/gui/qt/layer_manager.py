@@ -19,7 +19,7 @@ class LayerManager(QtWidgets.QTreeView):
         self.logger = logger
 
         super(LayerManager, self).__init__(*args, **kwargs)
-        #self.setHeaderHidden(True)
+        self.setHeaderHidden(True)
 
     def selectionChanged(self, selected, deselected):
         """QT builtin slot called when a selection is changed"""

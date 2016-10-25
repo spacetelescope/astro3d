@@ -172,7 +172,7 @@ class LayerItem(QStandardItem):
 
     def available(self):
         """Iterator returning all available children"""
-        for child in self:
+        for child in self.children():
             if child.is_available:
                 yield child
 
