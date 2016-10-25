@@ -4,16 +4,16 @@ from __future__ import absolute_import, print_function
 
 from itertools import count
 from os.path import basename
+from qtpy import (QtCore, QtGui)
 
 from ginga.misc.Bunch import Bunch
 
-from ..external.qt import (QtCore, QtGui)
 from ..core.model3d import (Model3D, read_stellar_table)
 from ..core.region_mask import RegionMask
 from ..util.logger import make_logger
 from . import signaldb
-from .qt4.process import MeshThread
-from .qt4.items import (Regions, Textures, Clusters, Stars)
+from .qt.process import MeshThread
+from .qt.items import (Regions, Textures, Clusters, Stars)
 from .config import config
 from .textures import TextureConfig
 

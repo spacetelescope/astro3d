@@ -7,7 +7,7 @@ import logging
 from argparse import ArgumentParser
 
 from .util.logger import make_logger
-from .gui.qt4.process import MeshThread
+from .gui.qt.process import MeshThread
 from .gui import (Controller, MainWindow, Model, signaldb)
 from .gui.start_ui_app import start_ui_app
 
