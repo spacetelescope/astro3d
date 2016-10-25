@@ -282,8 +282,10 @@ class MainWindow(GTK_MainWindow):
         process_busy = QtWidgets.QProgressDialog(
             'Creating Model',
             'Abort',
-            0, 0
+            0, 1
         )
+        process_busy.reset()
+        process_busy.setMinimumDuration(0)
         process_busy.setWindowModality(Qt.ApplicationModal)
         self.process_busy = process_busy
 
@@ -394,7 +396,7 @@ class MainWindow(GTK_MainWindow):
         signaldb.NewImage.connect(self.image_update)
         #signaldb.ProcessStart.connect(self.mesh_viewer.process)
         signaldb.ProcessStart.connect(
-            lambda: self.process_busy.setValue(1)
+            lambda: self.process_busy.setValue(0)
         )
         #signaldb.ProcessFinish.connect(self.mesh_viewer.update_mesh)
         signaldb.ProcessFinish.connect(
