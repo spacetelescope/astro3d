@@ -2,8 +2,8 @@
 
 from ginga.misc.Bunch import Bunch
 from ginga.gw import Widgets
+from qtpy import (QtCore, QtWidgets)
 
-from ...external.qt import (QtGui, QtCore)
 from ...util.logger import make_logger
 from .. import signaldb
 from ..util import build_widgets
@@ -13,7 +13,7 @@ from ..config import config
 __all__ = ['Parameters']
 
 
-class Parameters(QtGui.QWidget):
+class Parameters(QtWidgets.QWidget):
     """Parameters Editor
 
     Paremeters
@@ -34,7 +34,7 @@ class Parameters(QtGui.QWidget):
         self._build_gui()
 
     def preview_model(self):
-        self.parent.mesh_viewer.setVisible(True)
+        #self.parent.mesh_viewer.setVisible(True)
         self.parent.force_update()
 
     def create_gas_spiral_masks(self, *args, **kwargs):
@@ -187,7 +187,7 @@ class Parameters(QtGui.QWidget):
         gasdust_frame.set_widget(gasdust_widget)
 
         # Put it together
-        layout = QtGui.QVBoxLayout()
+        layout = QtWidgets.QVBoxLayout()
         layout.setContentsMargins(QtCore.QMargins(20, 20, 20, 20))
         layout.setSpacing(1)
         layout.addWidget(params_frame.get_widget(), stretch=0)

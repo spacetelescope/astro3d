@@ -8,12 +8,11 @@ from ginga.AstroImage import AstroImage
 
 
 from ..util.logger import make_logger
-from ..external.qt import (QtGui, QtCore)
+from qtpy import (QtCore, QtGui, QtWidgets)
 from . import signaldb
-from .qt4 import (
+from .qt import (
     LayerManager,
     ImageView,
-    ViewMesh,
     ShapeEditor,
     OverlayView,
     Parameters,
@@ -47,7 +46,7 @@ SUPPORT_IMAGE_FORMATS = (
 
 # Shortcuts
 Qt = QtCore.Qt
-GTK_MainWindow = QtGui.QMainWindow
+GTK_MainWindow = QtWidgets.QMainWindow
 
 
 __all__ = ['MainWindow']
@@ -72,7 +71,7 @@ class MainWindow(GTK_MainWindow):
         self._create_signals()
 
     def path_from_dialog(self):
-        res = QtGui.QFileDialog.getOpenFileName(
+        res = QtWidgets.QFileDialog.getOpenFileName(
             self,
             "Open image file",
             config.get('gui', 'folder_image'),
@@ -87,19 +86,23 @@ class MainWindow(GTK_MainWindow):
             config.set('gui', 'folder_image', dirname(pathname))
 
     def regionpath_from_dialog(self):
-        res = QtGui.QFileDialog.getOpenFileNames(
+        res = QtWidgets.QFileDialog.getOpenFileNames(
             self, "Open Region files",
             config.get('gui', 'folder_regions'),
             "FITS files (*.fits)"
         )
         self.logger.debug('res="{}"'.format(res))
         if len(res) > 0:
-            self.model.read_maskpathlist(res)
+            if isinstance(res, tuple):
+                file_list = res[0]
+            else:
+                file_list = res
+            self.model.read_maskpathlist(file_list)
             signaldb.ModelUpdate()
-            config.set('gui', 'folder_regions', dirname(res[0]))
+            config.set('gui', 'folder_regions', dirname(file_list[0]))
 
     def starpath_from_dialog(self):
-        res = QtGui.QFileDialog.getOpenFileName(
+        res = QtWidgets.QFileDialog.getOpenFileName(
             self,
             "Open Stellar Catalog",
             config.get('gui', 'folder_regions')
@@ -114,7 +117,7 @@ class MainWindow(GTK_MainWindow):
             signaldb.ModelUpdate()
 
     def clusterpath_from_dialog(self):
-        res = QtGui.QFileDialog.getOpenFileName(
+        res = QtWidgets.QFileDialog.getOpenFileName(
             self,
             "Open Star Cluster Catalog",
             config.get('gui', 'folder_regions')
@@ -134,18 +137,22 @@ class MainWindow(GTK_MainWindow):
 
     def save_all_from_dialog(self):
         """Specify folder to save all info"""
-        result = QtGui.QFileDialog.getSaveFileName(
+        result = QtWidgets.QFileDialog.getSaveFileName(
             self,
             'Specify prefix to save all as',
             config.get('gui', 'folder_save')
         )
         self.logger.debug('result="{}"'.format(result))
         if len(result) > 0:
+            if isinstance(result, tuple):
+                path = result[0]
+            else:
+                path = result
             signaldb.ProcessFinish.connect(
-                partial(self.save, result),
+                partial(self.save, path),
                 single_shot=True
             )
-            config.set('gui', 'folder_save', dirname(result))
+            config.set('gui', 'folder_save', dirname(path))
             self.force_update()
 
     def open_path(self, pathname):
@@ -237,12 +244,12 @@ class MainWindow(GTK_MainWindow):
         )
 
         # 3D mesh preview
-        self.mesh_viewer = ViewMesh()
+        #self.mesh_viewer = ViewMesh()
 
         # The Layer manager
         self.layer_manager = LayerManager(logger=self.logger)
         self.layer_manager.setModel(self.model)
-        layer_dock = QtGui.QDockWidget('Layers', self)
+        layer_dock = QtWidgets.QDockWidget('Layers', self)
         layer_dock.setAllowedAreas(
             Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea
         )
@@ -256,7 +263,7 @@ class MainWindow(GTK_MainWindow):
             canvas=self.overlay.canvas,
             logger=self.logger
         )
-        shape_editor_dock = QtGui.QDockWidget('Shape Editor', self)
+        shape_editor_dock = QtWidgets.QDockWidget('Shape Editor', self)
         shape_editor_dock.setAllowedAreas(
             Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea
         )
@@ -270,7 +277,7 @@ class MainWindow(GTK_MainWindow):
             parent=self,
             model=self.model
         )
-        parameters_dock = QtGui.QDockWidget('Parameters', self)
+        parameters_dock = QtWidgets.QDockWidget('Parameters', self)
         parameters_dock.setAllowedAreas(
             Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea
         )
@@ -279,11 +286,13 @@ class MainWindow(GTK_MainWindow):
         self.parameters_dock = parameters_dock
 
         # The process busy dialog.
-        process_busy = QtGui.QProgressDialog(
+        process_busy = QtWidgets.QProgressDialog(
             'Creating Model',
             'Abort',
-            0, 0
+            0, 1
         )
+        process_busy.reset()
+        process_busy.setMinimumDuration(0)
         process_busy.setWindowModality(Qt.ApplicationModal)
         self.process_busy = process_busy
 
@@ -301,57 +310,57 @@ class MainWindow(GTK_MainWindow):
         self.actions = AttrDict()
 
         # Preferences
-        auto_reprocess = QtGui.QAction('Auto Reprocess', self)
+        auto_reprocess = QtWidgets.QAction('Auto Reprocess', self)
         auto_reprocess.setStatusTip('Enable/disable automatic 3D processing')
         auto_reprocess.setCheckable(True)
         auto_reprocess.setChecked(self.auto_reprocessing_state())
         auto_reprocess.toggled.connect(self.toggle_auto_reprocessing)
         self.actions.auto_reprocess = auto_reprocess
 
-        quit = QtGui.QAction('&Quit', self)
+        quit = QtWidgets.QAction('&Quit', self)
         quit.setStatusTip('Quit application')
         quit.triggered.connect(signaldb.Quit)
         self.actions.quit = quit
 
-        open = QtGui.QAction('&Open', self)
+        open = QtWidgets.QAction('&Open', self)
         open.setShortcut(QtGui.QKeySequence.Open)
         open.setStatusTip('Open image')
         open.triggered.connect(self.path_from_dialog)
         self.actions.open = open
 
-        regions = QtGui.QAction('&Regions', self)
+        regions = QtWidgets.QAction('&Regions', self)
         regions.setShortcut('Ctrl+R')
         regions.setStatusTip('Open Regions')
         regions.triggered.connect(self.regionpath_from_dialog)
         self.actions.regions = regions
 
-        stars = QtGui.QAction('Stars', self)
+        stars = QtWidgets.QAction('Stars', self)
         stars.setShortcut('Shift+Ctrl+S')
         stars.setStatusTip('Open a stellar table')
         stars.triggered.connect(self.starpath_from_dialog)
         self.actions.stars = stars
 
-        clusters = QtGui.QAction('Stellar &Clusters', self)
+        clusters = QtWidgets.QAction('Stellar &Clusters', self)
         clusters.setShortcut('Ctrl+C')
         clusters.setStatusTip('Open a stellar clusters table')
         clusters.triggered.connect(self.clusterpath_from_dialog)
         self.actions.clusters = clusters
 
-        save_all = QtGui.QAction('&Save', self)
+        save_all = QtWidgets.QAction('&Save', self)
         save_all.setShortcut(QtGui.QKeySequence.Save)
         save_all.triggered.connect(self.save_all_from_dialog)
         self.actions.save_all = save_all
 
-        preview_toggle = QtGui.QAction('Mesh View', self)
+        preview_toggle = QtWidgets.QAction('Mesh View', self)
         preview_toggle.setShortcut('Ctrl+V')
         preview_toggle.setStatusTip('Open mesh view panel')
         preview_toggle.setCheckable(True)
         preview_toggle.setChecked(False)
-        preview_toggle.toggled.connect(self.mesh_viewer.toggle_view)
-        self.mesh_viewer.closed.connect(preview_toggle.setChecked)
+        #preview_toggle.toggled.connect(self.mesh_viewer.toggle_view)
+        #self.mesh_viewer.closed.connect(preview_toggle.setChecked)
         self.actions.preview_toggle = preview_toggle
 
-        reprocess = QtGui.QAction('Reprocess', self)
+        reprocess = QtWidgets.QAction('Reprocess', self)
         reprocess.setShortcut('Shift+Ctrl+R')
         reprocess.setStatusTip('Reprocess the model')
         reprocess.triggered.connect(self.force_update)
@@ -361,7 +370,7 @@ class MainWindow(GTK_MainWindow):
         """Setup the main menus"""
         from sys import platform
         if platform == 'darwin':
-            menubar = QtGui.QMenuBar()
+            menubar = QtWidgets.QMenuBar()
         else:
             menubar = self.menuBar()
         self.menubar = menubar
@@ -392,11 +401,11 @@ class MainWindow(GTK_MainWindow):
 
         signaldb.Quit.connect(self.quit)
         signaldb.NewImage.connect(self.image_update)
-        signaldb.ProcessStart.connect(self.mesh_viewer.process)
+        #signaldb.ProcessStart.connect(self.mesh_viewer.process)
         signaldb.ProcessStart.connect(
-            lambda: self.process_busy.setValue(1)
+            lambda: self.process_busy.setValue(0)
         )
-        signaldb.ProcessFinish.connect(self.mesh_viewer.update_mesh)
+        #signaldb.ProcessFinish.connect(self.mesh_viewer.update_mesh)
         signaldb.ProcessFinish.connect(
             lambda x, y: self.process_busy.reset()
         )

@@ -103,7 +103,7 @@ package_info['package_data'][PACKAGENAME].extend(c_files)
 # https://groups.google.com/forum/#!topic/astropy-dev/urYO8ckB2uM
 
 install_requires = ['six', 'numpy', 'scipy', 'astropy', 'photutils', 'Pillow',
-                    'ginga', 'pyqtgraph', 'pyopengl', 'attrdict']
+                    'ginga', 'pyqtgraph', 'pyopengl', 'attrdict', 'qtpy']
 
 setup(name=PACKAGENAME,
       version=VERSION,

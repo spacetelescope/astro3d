@@ -4,16 +4,16 @@ from __future__ import absolute_import, print_function
 
 from itertools import count
 from os.path import basename
+from qtpy import (QtCore, QtGui)
 
 from ginga.misc.Bunch import Bunch
 
-from ..external.qt import (QtCore, QtGui)
 from ..core.model3d import (Model3D, read_stellar_table)
 from ..core.region_mask import RegionMask
 from ..util.logger import make_logger
 from . import signaldb
-from .qt4.process import MeshThread
-from .qt4.items import (Regions, Textures, Clusters, Stars)
+from .qt.process import MeshThread
+from .qt.items import (Regions, Textures, Clusters, Stars)
 from .config import config
 from .textures import TextureConfig
 
@@ -80,18 +80,11 @@ class Model(QStandardItemModel):
         self.rowsMoved.connect(signaldb.ModelUpdate)
         self.rowsRemoved.connect(signaldb.ModelUpdate)
 
-    def __iter__(self):
-        self._currentrow = None
-        return self
-
-    def next(self):
-        self._currentrow = self._currentrow + 1 \
-                           if self._currentrow is not None \
-                           else 0
-        child = self._root.child(self._currentrow)
-        if child is None:
-            raise StopIteration
-        return child
+    def children(self):
+        """Iterator returning all children"""
+        root = self._root
+        for row in range(root.rowCount()):
+            yield root.child(row)
 
     @property
     def image(self):

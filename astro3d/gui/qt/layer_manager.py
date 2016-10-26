@@ -1,6 +1,7 @@
 """Layer Manager"""
 
-from ...external.qt import (QtGui, QtCore)
+from qtpy import QtWidgets
+
 from ...util.logger import make_logger
 from .items import LayerItem, Action
 from .. import signaldb
@@ -8,7 +9,7 @@ from .. import signaldb
 __all__ = ['LayerManager']
 
 
-class LayerManager(QtGui.QTreeView):
+class LayerManager(QtWidgets.QTreeView):
     """Manager the various layers"""
 
     def __init__(self, *args, **kwargs):
@@ -66,7 +67,7 @@ class LayerManager(QtGui.QTreeView):
         if len(indexes) > 0:
             index = indexes[0]
             item = self.model().itemFromIndex(index)
-            menu = QtGui.QMenu()
+            menu = QtWidgets.QMenu()
             for action_def in item._actions:
                 if isinstance(action_def, Action):
                     action = menu.addAction(action_def.text)

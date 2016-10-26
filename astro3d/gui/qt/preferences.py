@@ -1,7 +1,7 @@
 """Preferences"""
 from functools import partial
 
-from ...external.qt import (QtGui, QtCore)
+from qtpy import (QtGui, QtCore)
 
 
 class Preferences(QtGui.QMenu):

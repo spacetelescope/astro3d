@@ -1,1 +1,4 @@
-from ginga.gw.GwHelp import *
+from qtpy import (
+    QtCore,
+    QtGui
+)

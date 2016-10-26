@@ -4,8 +4,9 @@ from functools import partial
 from time import sleep
 
 from numpy import concatenate
+from qtpy import QtCore
+from qtpy.QtCore import Signal as pyqtSignal
 
-from ...external.qt import QtCore
 from ...core.meshes import (make_triangles, reflect_triangles)
 
 from ...gui import signaldb
@@ -48,10 +49,10 @@ class MeshWorker(QtCore.QObject):
         aborted signal will be emitted
 
     """
-    abort = QtCore.pyqtSignal()
-    aborted = QtCore.pyqtSignal()
-    finished = QtCore.pyqtSignal(tuple)
-    exception = QtCore.pyqtSignal(Exception)
+    abort = pyqtSignal()
+    aborted = pyqtSignal()
+    finished = pyqtSignal(tuple)
+    exception = pyqtSignal(Exception)
 
     def __init__(self, model3d, make_params):
         super(MeshWorker, self).__init__()

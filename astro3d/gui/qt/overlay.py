@@ -8,8 +8,8 @@ import numpy as np
 from ginga import colors
 from ginga.RGBImage import RGBImage
 from ginga.canvas.CanvasObject import get_canvas_types
+from qtpy import QtCore
 
-from ...external.qt import QtCore
 from ...core.region_mask import RegionMask
 from ...util.logger import make_logger
 from .shape_editor import image_shape_to_regionmask
@@ -103,7 +103,7 @@ class Overlay(BaseOverlay):
 
     def add_tree(self, layer):
         """Add layer's children to overlay"""
-        for child in layer:
+        for child in layer.children():
             view = self.add(child)
             try:
                 view.add_tree(child)

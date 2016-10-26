@@ -2,7 +2,7 @@
 
 from functools import (partial, wraps)
 
-from ...external.qt import QtCore
+from qtpy import QtCore
 
 # Shortcuts
 QTimer = QtCore.QTimer

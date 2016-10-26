@@ -7,9 +7,9 @@ from ginga import colors
 from ginga.misc.Bunch import Bunch
 from ginga.RGBImage import RGBImage
 from ginga.gw import Widgets
+from qtpy import (QtCore, QtGui, QtWidgets)
 
 from ...core.region_mask import RegionMask
-from ...external.qt import (QtGui, QtCore)
 from ...util.logger import make_logger
 from .. import signaldb
 from ..helps import instructions
@@ -25,7 +25,7 @@ VALID_KINDS = [
 ]
 
 
-class ShapeEditor(QtGui.QWidget):
+class ShapeEditor(QtWidgets.QWidget):
     """Shape Editor
 
     Paremeters
@@ -393,7 +393,7 @@ class ShapeEditor(QtGui.QWidget):
         # Remove old layout
         self.logger.debug('Called.')
         if self.layout() is not None:
-            QtGui.QWidget().setLayout(self.layout())
+            QtWidgets.QWidget().setLayout(self.layout())
         self.children = Bunch()
         spacer = Widgets.Label('')
 
@@ -469,7 +469,7 @@ class ShapeEditor(QtGui.QWidget):
         edit_frame.set_widget(edit_widget)
 
         # Put it together
-        layout = QtGui.QVBoxLayout()
+        layout = QtWidgets.QVBoxLayout()
         layout.setContentsMargins(QtCore.QMargins(20, 20, 20, 20))
         layout.setSpacing(1)
         layout.addWidget(tw_frame.get_widget(), stretch=0)

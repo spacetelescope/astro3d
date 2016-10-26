@@ -2,7 +2,7 @@ from math import sqrt
 
 from pyqtgraph.opengl import (GLGridItem, GLMeshItem, GLViewWidget, MeshData)
 
-from ...external.qt import QtCore
+from qtpy import QtCore
 from .. import signaldb
 
 # Shortcuts

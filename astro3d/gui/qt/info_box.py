@@ -1,10 +1,10 @@
 """Info Box"""
-from ...external.qt import QtGui
+from qtpy import QtWidgets
 
 __all__ = ['InfoBox']
 
 
-class InfoBox(QtGui.QMessageBox):
+class InfoBox(QtWidgets.QMessageBox):
 
     def show_error(self, label, error):
         """ Show error

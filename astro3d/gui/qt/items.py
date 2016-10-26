@@ -6,16 +6,16 @@ import copy
 from itertools import count
 
 from ginga.canvas.types.image import Image
+from qtpy import (QtCore, QtGui, QtWidgets)
 
 from ...util.logger import make_logger
-from ...external.qt import (QtCore, QtGui)
 from ...core.image_utils import combine_region_masks
 from ...core.region_mask import RegionMask
 
 from .. import signaldb
 
 # Shortcuts
-QAction = QtGui.QAction
+QAction = QtWidgets.QAction
 QStandardItem = QtGui.QStandardItem
 Qt = QtCore.Qt
 QObject = QtCore.QObject
@@ -142,10 +142,6 @@ class LayerItem(QStandardItem):
         if LayerItem.logger is None:
             LayerItem.logger = logger
 
-    def __iter__(self):
-        for row in range(self.rowCount()):
-            yield self.child(row)
-
     @property
     def value(self):
         """Value of the item"""
@@ -169,9 +165,14 @@ class LayerItem(QStandardItem):
         actions = []
         return actions
 
+    def children(self):
+        """Iterator returning all children"""
+        for row in range(self.rowCount()):
+            yield self.child(row)
+
     def available(self):
         """Iterator returning all available children"""
-        for child in self:
+        for child in self.children():
             if child.is_available:
                 yield child
 

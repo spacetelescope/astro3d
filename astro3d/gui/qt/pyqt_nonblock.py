@@ -48,10 +48,10 @@ def pyqtapplication(argv=None):
         The current instance QApplication instance. If None, something
         didn't work
     '''
-    from ...external.qt import QtGui
+    from qtpy import QtWidgets
 
-    qapplication = QtGui.QApplication.instance()
+    qapplication = QtWidgets.QApplication.instance()
     if not qapplication:
         argv = argv if argv else []
-        qapplication = QtGui.QApplication(argv)
+        qapplication = QtWidgets.QApplication(argv)
     return qapplication
