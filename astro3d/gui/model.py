@@ -80,18 +80,11 @@ class Model(QStandardItemModel):
         self.rowsMoved.connect(signaldb.ModelUpdate)
         self.rowsRemoved.connect(signaldb.ModelUpdate)
 
-    def __iter__(self):
-        self._currentrow = None
-        return self
-
-    def next(self):
-        self._currentrow = self._currentrow + 1 \
-                           if self._currentrow is not None \
-                           else 0
-        child = self._root.child(self._currentrow)
-        if child is None:
-            raise StopIteration
-        return child
+    def children(self):
+        """Iterator returning all children"""
+        root = self._root
+        for row in range(root.rowCount()):
+            yield root.child(row)
 
     @property
     def image(self):
