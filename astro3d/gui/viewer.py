@@ -141,11 +141,12 @@ class MainWindow(GTK_MainWindow):
         )
         self.logger.debug('result="{}"'.format(result))
         if len(result) > 0:
+            path = result[0]
             signaldb.ProcessFinish.connect(
-                partial(self.save, result),
+                partial(self.save, path),
                 single_shot=True
             )
-            config.set('gui', 'folder_save', dirname(result))
+            config.set('gui', 'folder_save', dirname(path))
             self.force_update()
 
     def open_path(self, pathname):
