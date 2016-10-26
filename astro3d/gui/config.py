@@ -5,7 +5,7 @@ from __future__ import print_function
 from ast import literal_eval
 
 try:
-    from ConfigParser import SafeConfigParser as SystemConfigParser
+    from ConfigParser import ConfigParser as SystemConfigParser
 except:
     from configparser import SafeConfigParser as SystemConfigParser
 from os.path import (abspath, dirname, expanduser)
@@ -40,9 +40,9 @@ class Config(SystemConfigParser):
         with open(self.save_config, 'wb') as save_config:
             self.write(save_config)
 
-    def get(self, section, option):
+    def get(self, *args, **kwargs):
         """Get option with guessing at value type"""
-        value = SystemConfigParser.get(self, section, option)
+        value = SystemConfigParser.get(self, *args, **kwargs)
         try:
             evalue = literal_eval(value)
         except (SyntaxError, ValueError):
