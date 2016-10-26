@@ -37,7 +37,7 @@ class Config(SystemConfigParser):
             self.save_config = used[-1]
 
     def save(self):
-        with open(self.save_config, 'wb') as save_config:
+        with open(self.save_config, 'w') as save_config:
             self.write(save_config)
 
     def get(self, *args, **kwargs):
