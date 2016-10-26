@@ -34,7 +34,7 @@ class Parameters(QtWidgets.QWidget):
         self._build_gui()
 
     def preview_model(self):
-        #self.parent.mesh_viewer.setVisible(True)
+        self.parent.mesh_viewer.setVisible(True)
         self.parent.force_update()
 
     def create_gas_spiral_masks(self, *args, **kwargs):

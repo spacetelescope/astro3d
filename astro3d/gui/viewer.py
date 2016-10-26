@@ -11,12 +11,13 @@ from ..util.logger import make_logger
 from qtpy import (QtCore, QtGui, QtWidgets)
 from . import signaldb
 from .qt import (
-    LayerManager,
     ImageView,
-    ShapeEditor,
+    InfoBox,
+    LayerManager,
     OverlayView,
     Parameters,
-    InfoBox,
+    ShapeEditor,
+    ViewMesh,
 )
 from .config import config
 
@@ -244,7 +245,7 @@ class MainWindow(GTK_MainWindow):
         )
 
         # 3D mesh preview
-        #self.mesh_viewer = ViewMesh()
+        self.mesh_viewer = ViewMesh()
 
         # The Layer manager
         self.layer_manager = LayerManager(logger=self.logger)
@@ -356,8 +357,8 @@ class MainWindow(GTK_MainWindow):
         preview_toggle.setStatusTip('Open mesh view panel')
         preview_toggle.setCheckable(True)
         preview_toggle.setChecked(False)
-        #preview_toggle.toggled.connect(self.mesh_viewer.toggle_view)
-        #self.mesh_viewer.closed.connect(preview_toggle.setChecked)
+        preview_toggle.toggled.connect(self.mesh_viewer.toggle_view)
+        self.mesh_viewer.closed.connect(preview_toggle.setChecked)
         self.actions.preview_toggle = preview_toggle
 
         reprocess = QtWidgets.QAction('Reprocess', self)
@@ -401,11 +402,11 @@ class MainWindow(GTK_MainWindow):
 
         signaldb.Quit.connect(self.quit)
         signaldb.NewImage.connect(self.image_update)
-        #signaldb.ProcessStart.connect(self.mesh_viewer.process)
+        signaldb.ProcessStart.connect(self.mesh_viewer.process)
         signaldb.ProcessStart.connect(
             lambda: self.process_busy.setValue(0)
         )
-        #signaldb.ProcessFinish.connect(self.mesh_viewer.update_mesh)
+        signaldb.ProcessFinish.connect(self.mesh_viewer.update_mesh)
         signaldb.ProcessFinish.connect(
             lambda x, y: self.process_busy.reset()
         )
