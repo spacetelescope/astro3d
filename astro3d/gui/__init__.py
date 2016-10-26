@@ -1,8 +1,17 @@
 from __future__ import absolute_import
 
-import ginga.toolkit as ui_toolkit
-
-ui_toolkit.use('qt5')
+# Force the loading of Qt
+# First let the qtpy compatibility library
+# force the appropriate version of Qt.
+# Then force ginga to use that version.
+try:
+    from qtpy import QtCore
+except ImportError:
+    raise RuntimeError('Cannot import Qt toolkit')
+try:
+    from ginga.qtw import QtHelp
+except ImportError:
+    raise RuntimeError('Cannot import Qt toolkit')
 
 from .signals import Signals as _Signals
 signaldb = _Signals()

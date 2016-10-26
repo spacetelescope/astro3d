@@ -92,8 +92,11 @@ class MainWindow(GTK_MainWindow):
             "FITS files (*.fits)"
         )
         self.logger.debug('res="{}"'.format(res))
-        file_list = res[0]
-        if len(file_list) > 0:
+        if len(res) > 0:
+            if isinstance(res, tuple):
+                file_list = res[0]
+            else:
+                file_list = res
             self.model.read_maskpathlist(file_list)
             signaldb.ModelUpdate()
             config.set('gui', 'folder_regions', dirname(file_list[0]))
@@ -141,7 +144,10 @@ class MainWindow(GTK_MainWindow):
         )
         self.logger.debug('result="{}"'.format(result))
         if len(result) > 0:
-            path = result[0]
+            if isinstance(result, tuple):
+                path = result[0]
+            else:
+                path = result
             signaldb.ProcessFinish.connect(
                 partial(self.save, path),
                 single_shot=True
