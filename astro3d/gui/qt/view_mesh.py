@@ -22,21 +22,8 @@ class ViewMesh(QtWidgets.QWidget):
             logger = make_logger('astro3d Layer Manager')
         self.logger = logger
         super(ViewMesh, self).__init__(*args, **kwargs)
-
-        # Create the 3D canvas
-        canvas = scene.SceneCanvas(keys='interactive')
-        self.canvas = canvas
-        canvas.size = 800, 800
-        canvas.show()
-
-        # Create the scene to view in.
-        viewbox = scene.widgets.ViewBox(parent=canvas.scene)
-        self.viewbox = viewbox
-        viewbox.camera = scene.TurntableCamera()
-        canvas.central_widget.add_widget(viewbox)
-
         self.setLayout(QtWidgets.QVBoxLayout())
-        self.layout().addWidget(self.canvas.native)
+        self._canvas = None
 
     # ---------------------------------------------
     # Need to implement the following at some point
@@ -48,18 +35,17 @@ class ViewMesh(QtWidgets.QWidget):
     def update_mesh(self, mesh, model3d):
         self.logger.debug('Called.')
 
+        # Create the canvas
+        _ = self.canvas
+
+        # Get the vertices and scale to unit level.
         mesh = mesh[:, 1:, :]
         scaled = ((mesh - mesh.min()) / mesh.max()) - 1.0
 
-        # Mesh with pre-indexed vertices, per-face color
-        # Because vertices are pre-indexed, we get a different color
-        # every time a vertex is visited, resulting in sharp color
-        # differences between edges.
+        # Show it.
         nf = scaled.shape[0]
         fcolor = np.ones((nf, 3, 4), dtype=np.float32)
-
-        # Show it.
-        self.mesh_visual = scene.visuals.Mesh(
+        _ = scene.visuals.Mesh(
             parent=self.viewbox.scene,
             face_colors=fcolor,
             vertices=scaled,
@@ -68,12 +54,7 @@ class ViewMesh(QtWidgets.QWidget):
 
     def remove_mesh(self):
         """Remove the current mesh from display"""
-        return
-        try:
-            self.removeItem(self.mesh_item)
-        except ValueError:
-            pass
-        self.mesh_item = None
+        self.canvas = None
 
     def toggle_view(self):
         """Toggle this view"""
@@ -86,3 +67,40 @@ class ViewMesh(QtWidgets.QWidget):
     def closeEvent(self, event):
         self.closed.emit(False)
         event.accept()
+
+    @property
+    def canvas(self):
+        if self._canvas:
+            return self._canvas
+
+        # Create the canvas.
+        canvas = scene.SceneCanvas(keys='interactive')
+        canvas.size = 800, 800
+        self.canvas = canvas
+
+    @canvas.setter
+    def canvas(self, canvas):
+        if canvas:
+            self.add_canvas(canvas)
+        else:
+            self.remove_canvas()
+
+    def add_canvas(self, canvas):
+        self._canvas = canvas
+
+        # Create the scene to view in.
+        viewbox = scene.widgets.ViewBox(parent=canvas.scene)
+        self.viewbox = viewbox
+        viewbox.camera = scene.TurntableCamera()
+        canvas.central_widget.add_widget(viewbox)
+
+        # Add to this widget.
+        self.layout().addWidget(canvas.native)
+
+    def remove_canvas(self):
+        try:
+            self.layout().removeWidget(self.canvas.native)
+        except (AttributeError, ValueError):
+            pass
+        else:
+            self._canvas = None
