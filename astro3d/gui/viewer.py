@@ -245,7 +245,7 @@ class MainWindow(GTK_MainWindow):
         )
 
         # 3D mesh preview
-        self.mesh_viewer = ViewMesh()
+        self.mesh_viewer = ViewMesh(logger=self.logger)
 
         # The Layer manager
         self.layer_manager = LayerManager(logger=self.logger)
