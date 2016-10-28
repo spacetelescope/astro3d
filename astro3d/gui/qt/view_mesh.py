@@ -4,7 +4,6 @@ import numpy as np
 from qtpy import (QtCore, QtWidgets)
 from qtpy.QtCore import Signal as pyqtSignal
 from vispy import scene
-from vispy.geometry import MeshData
 
 from ...util.logger import make_logger
 
@@ -51,24 +50,20 @@ class ViewMesh(QtWidgets.QWidget):
 
         mesh = mesh[:, 1:, :]
         scaled = ((mesh - mesh.min()) / mesh.max()) - 1.0
-        mdata = MeshData(vertices=scaled)
 
         # Mesh with pre-indexed vertices, per-face color
         # Because vertices are pre-indexed, we get a different color
         # every time a vertex is visited, resulting in sharp color
         # differences between edges.
-        verts = mdata.get_vertices(indexed='faces')
-        nf = verts.size//9
+        nf = scaled.shape[0]
         fcolor = np.ones((nf, 3, 4), dtype=np.float32)
-        fcolor[..., 0] = np.linspace(1, 0, nf)[:, np.newaxis]
-        fcolor[..., 1] = np.random.normal(size=nf)[:, np.newaxis]
-        fcolor[..., 2] = np.linspace(0, 1, nf)[:, np.newaxis]
 
         # Show it.
         self.mesh_visual = scene.visuals.Mesh(
             parent=self.viewbox.scene,
-            vertices=verts,
-            face_colors=fcolor
+            face_colors=fcolor,
+            vertices=scaled,
+            shading='flat',
         )
 
     def remove_mesh(self):
