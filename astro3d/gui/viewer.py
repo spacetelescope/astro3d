@@ -213,6 +213,7 @@ class MainWindow(GTK_MainWindow):
         """Shutdown"""
         self.logger.debug('GUI shutting down...')
         self.model.quit()
+        self.mesh_viewer.close()
         config.save()
         self.deleteLater()
 
