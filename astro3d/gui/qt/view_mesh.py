@@ -23,7 +23,6 @@ class ViewMesh(QtWidgets.QWidget):
         self.logger = logger
         super(ViewMesh, self).__init__(*args, **kwargs)
         self.setLayout(QtWidgets.QVBoxLayout())
-        self._canvas = None
 
     # ---------------------------------------------
     # Need to implement the following at some point
@@ -35,16 +34,15 @@ class ViewMesh(QtWidgets.QWidget):
     def update_mesh(self, mesh, model3d):
         self.logger.debug('Called.')
 
-        # Create the canvas
-        _ = self.canvas
-
         # Get the vertices and scale to unit level.
         mesh = mesh[:, 1:, :]
         scaled = ((mesh - mesh.min()) / mesh.max()) - 1.0
 
-        # Show it.
+        # Color the mesh.
         nf = scaled.shape[0]
         fcolor = np.ones((nf, 3, 4), dtype=np.float32)
+
+        # Show it.
         _ = scene.visuals.Mesh(
             parent=self.viewbox.scene,
             face_colors=fcolor,
@@ -54,7 +52,7 @@ class ViewMesh(QtWidgets.QWidget):
 
     def remove_mesh(self):
         """Remove the current mesh from display"""
-        self.canvas = None
+        self.viewbox = None
 
     def toggle_view(self):
         """Toggle this view"""
@@ -69,38 +67,58 @@ class ViewMesh(QtWidgets.QWidget):
         event.accept()
 
     @property
+    def viewbox(self):
+        try:
+            viewbox = self._viewbox
+        except AttributeError:
+            viewbox = None
+
+        if viewbox:
+            return viewbox
+
+        # Create the scene to view in.
+        viewbox = scene.widgets.ViewBox(parent=self.canvas.scene)
+        self.canvas.central_widget.add_widget(viewbox)
+        viewbox.camera = scene.TurntableCamera()
+        self._viewbox = viewbox
+
+        return viewbox
+
+    @viewbox.setter
+    def viewbox(self, viewbox):
+        if viewbox:
+            viewbox.add_parent(self.canvas.scene)
+            self._viewbox = viewbox
+        else:
+            self.canvas = None
+            self._viewbox = None
+
+    @property
     def canvas(self):
-        if self._canvas:
-            return self._canvas
+        try:
+            canvas = self._canvas
+        except AttributeError:
+            canvas = None
+
+        if canvas:
+            return canvas
 
         # Create the canvas.
         canvas = scene.SceneCanvas(keys='interactive')
         canvas.size = 800, 800
         self.canvas = canvas
 
+        return canvas
+
     @canvas.setter
     def canvas(self, canvas):
         if canvas:
-            self.add_canvas(canvas)
+            self.layout().addWidget(canvas.native)
+            self._canvas = canvas
         else:
-            self.remove_canvas()
-
-    def add_canvas(self, canvas):
-        self._canvas = canvas
-
-        # Create the scene to view in.
-        viewbox = scene.widgets.ViewBox(parent=canvas.scene)
-        self.viewbox = viewbox
-        viewbox.camera = scene.TurntableCamera()
-        canvas.central_widget.add_widget(viewbox)
-
-        # Add to this widget.
-        self.layout().addWidget(canvas.native)
-
-    def remove_canvas(self):
-        try:
-            self.layout().removeWidget(self.canvas.native)
-        except (AttributeError, ValueError):
-            pass
-        else:
-            self._canvas = None
+            try:
+                self.layout().removeWidget(self._canvas.native)
+            except (AttributeError, ValueError):
+                pass
+            finally:
+                self._canvas = None
