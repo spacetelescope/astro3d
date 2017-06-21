@@ -44,7 +44,6 @@ class ShapeEditor(QtWidgets.QWidget):
         )
         self.surface = kwargs.pop('surface', None)
         canvas = kwargs.pop('canvas', None)
-        self.model = kwargs.pop('model', None)
 
         super(ShapeEditor, self).__init__(*args, **kwargs)
 
@@ -174,8 +173,7 @@ class ShapeEditor(QtWidgets.QWidget):
         region_mask = partial(
             self.surface.get_shape_mask,
             self.type_item.text(),
-            shape,
-            self.model
+            shape
         )
         shape.item = self.type_item.add_shape(
             shape=shape,

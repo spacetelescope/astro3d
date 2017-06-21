@@ -35,27 +35,9 @@ class ImageView(CanvasView):
         bm = self.get_bindmap()
         bm.add_callback('mode-set', lambda *args: self.redraw(whence=3))
 
-    def get_shape_mask(self, mask_type, shape, model):
+    def get_shape_mask(self, mask_type, shape):
         """Return the RegionMask representing the shape"""
-        self.logger.debug('Called.')
-        self.logger.debug('mask_type="{}"'.format(mask_type))
-        self.logger.debug('shape="{}"'.format(shape))
-        self.logger.debug('model="{}"'.format(model))
         data = self.get_image()
         shape_mask = data.get_shape_mask(shape)
-        self.logger.debug('shape_mask.shape="{}"'.format(shape_mask.shape))
-
-        # If a model was given, create one and get the size.
-        model_shape = None
-        if model is not None:
-            self.logger.debug('Creating model3D')
-            model3d = Model3D(model.image, **model.params.model)
-            model3d._prepare_data()
-            model_shape = model3d.data_original_resized.shape
-            self.logger.debug('model_shape="{}"'.format(model_shape))
-
-        self.logger.debug('again mask_type="{}"'.format(mask_type))
-        model_shape = None
-        region_mask = RegionMask(shape_mask, mask_type, shape=model_shape)
-        self.logger.debug('Done.')
+        region_mask = RegionMask(shape_mask, mask_type)
         return region_mask
