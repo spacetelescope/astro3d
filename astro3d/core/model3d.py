@@ -1517,8 +1517,10 @@ class Model3D(object):
                 warnings.warn('Overwriting existing "{0}" texture mask'
                               .format(mask_type), AstropyUserWarning)
 
-            mask = image_utils.resize_image(mask,
-                                            1. / self._resize_scale_factor)
+            original_shape = self.data_original.shape
+            mask = image_utils.resize_image_absolute(
+                mask, original_shape[1], original_shape[0]
+            )
             region_mask = RegionMask(mask, mask_type)
             self.texture_masks_original[texture_type] = [region_mask]
             new_regions.append(region_mask)

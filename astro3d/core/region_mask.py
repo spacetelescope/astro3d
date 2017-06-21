@@ -4,7 +4,7 @@ from __future__ import (absolute_import, division, print_function,
 import numpy as np
 from astropy import log
 from astropy.io import fits
-from .image_utils import resize_image
+from .image_utils import resize_image_absolute
 
 
 class RegionMask(object):
@@ -43,7 +43,7 @@ class RegionMask(object):
                                  'shape.')
 
         if shape is not None:
-            self.mask = resize_image(self.mask, x_size=shape[1],
+            self.mask = resize_image_absolute(self.mask, x_size=shape[1],
                                      y_size=shape[0])
 
     def write(self, filename, shape=None):

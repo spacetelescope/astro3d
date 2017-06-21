@@ -263,7 +263,8 @@ class MainWindow(GTK_MainWindow):
         self.shape_editor = ShapeEditor(
             surface=image_viewer,
             canvas=self.overlay.canvas,
-            logger=self.logger
+            logger=self.logger,
+            model=self.model
         )
         shape_editor_dock = QtWidgets.QDockWidget('Shape Editor', self)
         shape_editor_dock.setAllowedAreas(

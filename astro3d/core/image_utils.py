@@ -90,6 +90,38 @@ def resize_image(data, scale_factor):
     return data
 
 
+def resize_image_absolute(data, x_size, y_size):
+    """
+    Resize a 2D array by the given scale factor.
+
+    The array is resized by the same factor in each dimension,
+    preserving the original aspect ratio.
+
+    Parameters
+    ----------
+    data : array-like
+        The 2D array to be resized.
+
+    x_size, y_size: int
+        The new dimensions
+
+    Returns
+    -------
+    result : `~numpy.ndarray`
+        The resized array.
+    """
+
+    data = np.asanyarray(data)
+    ny, nx = data.shape
+    data = np.array(Image.fromarray(data.astype(float)).resize(
+        (x_size, y_size)), dtype=data.dtype)
+
+    log.info('The array was resized from {0}x{1} to {2}x{3} '
+             '(ny x nx).'.format(ny, nx, y_size, x_size))
+
+    return data
+
+
 def normalize_data(data, max_value=1.):
     """
     Normalize an array such that its values range from 0 to
