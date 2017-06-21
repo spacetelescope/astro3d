@@ -2,6 +2,7 @@ from ginga.gw.Viewers import CanvasView
 from ginga.canvas.CanvasObject import get_canvas_types
 
 from ...util.logger import make_logger
+from ...core.model3d import Model3D
 from ...core.region_mask import RegionMask
 
 __all__ = ['ImageView']
