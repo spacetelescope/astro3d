@@ -1077,12 +1077,17 @@ class Model3D(object):
         self.data[stellar_mask] = base_heights[stellar_mask]
         self.data += self._stellar_texture_layer
 
-    def _apply_textures(self, star_texture_depth=3.):
+    def _apply_textures(self, star_texture_radius_a=10.,
+                        star_texture_radius_b=5., star_texture_depth=3.):
         """
         Apply all textures to the model.
 
         Parameters
         ----------
+        star_texture_radius_a : float, optional
+
+        star_texture_radius_b : float, optional
+
         star_texture_depth : float, optional
             The maximum depth of the crater-like bowl of the star
             texture.
@@ -1090,7 +1095,9 @@ class Model3D(object):
 
         if self._has_textures:
             self._add_masked_textures()
-            self._apply_stellar_textures(depth=star_texture_depth)
+            self._apply_stellar_textures(radius_a=star_texture_radius_a,
+                                         radius_b=star_texture_radius_b,
+                                         depth=star_texture_depth)
 
             if self._cusp_texture is not None:
                 if not self._has_intensity:
@@ -1163,6 +1170,7 @@ class Model3D(object):
              suppress_background_factor=0.2, smooth_size1=11,
              smooth_size2=15, minvalue_to_zero=0.02, crop_data_threshold=0.,
              crop_data_pad_width=20, intensity_height=27.5,
+             star_texture_radius_a=10., star_texture_radius_b=5.,
              star_texture_depth=3., model_base_height=5.,
              model_base_filter_size=10, model_base_min_thickness=0.5,
              model_base_fill_holes=True):
@@ -1238,6 +1246,10 @@ class Model3D(object):
             The the height (in mm) of the model intensities, i.e.
             *before* any textures, including the spiral galaxy central
             cusp, are applied.
+
+        star_texture_radius_a : float, optional
+
+        star_texture_radius_b : float, optional
 
         star_texture_depth : float, optional
             The maximum depth of the crater-like bowl of the star
@@ -1333,7 +1345,9 @@ class Model3D(object):
             log.info('Discarding data intensity.')
             self.data *= 0.
 
-        self._apply_textures(star_texture_depth=star_texture_depth)
+        self._apply_textures(star_texture_radius_a=star_texture_radius_a,
+                             star_texture_radius_b=star_texture_radius_b,
+                             star_texture_depth=star_texture_depth)
 
         self._make_model_base(base_height=model_base_height,
                               filter_size=model_base_filter_size,
