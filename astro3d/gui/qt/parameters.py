@@ -3,6 +3,7 @@
 from ginga.misc.Bunch import Bunch
 from ginga.gw import Widgets
 from qtpy import (QtCore, QtWidgets)
+from qtpy.QtCore import Qt
 
 from ...util.logger import make_logger
 from .. import signaldb
@@ -13,7 +14,7 @@ from ..config import config
 __all__ = ['Parameters']
 
 
-class Parameters(QtWidgets.QWidget):
+class Parameters(QtWidgets.QScrollArea):
     """Parameters Editor
 
     Paremeters
@@ -199,4 +200,10 @@ class Parameters(QtWidgets.QWidget):
         layout.addWidget(gasspiral_frame.get_widget(), stretch=0)
         layout.addWidget(gasdust_frame.get_widget(), stretch=0)
         layout.addWidget(spacer.get_widget(), stretch=2)
-        self.setLayout(layout)
+        content = QtWidgets.QWidget()
+        content.setLayout(layout)
+
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.setWidgetResizable(True)
+        self.setWidget(content)
