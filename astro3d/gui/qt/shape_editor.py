@@ -135,6 +135,7 @@ class ShapeEditor(QtWidgets.QWidget):
             canvas_mode = 'edit'
         elif new_mode == 'paint':
             self.new_mask()
+            self.set_painting(True)
         elif new_mode == 'paint_edit':
             canvas_mode = 'paint'
         self.canvas.set_draw_mode(canvas_mode)
@@ -343,6 +344,7 @@ class ShapeEditor(QtWidgets.QWidget):
         """
         self.logger.debug('Called state="{}"'.format(state))
         self.painting = state
+        self.children.paint.set_state(state)
 
     def select_layer(self,
                      selected_item=None,
@@ -445,7 +447,6 @@ class ShapeEditor(QtWidgets.QWidget):
             'activated',
             lambda widget, value: self.set_painting(value)
         )
-        painting.set_state(True)
         self.set_painting(True)
 
         paint_frame = Widgets.Frame('Painting')
