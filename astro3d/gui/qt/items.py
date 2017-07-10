@@ -57,6 +57,25 @@ DRAW_PARAMS = defaultdict(
             DRAW_PARAMS_DEFAULT,
             {'color': 'blue'}
         ),
+        'cluster': _merge_dicts(
+            DRAW_PARAMS_DEFAULT,
+            {'color': 'darkgoldenrod',
+             'linewidth': 10,
+             'fill': False,
+             'radius': 4.0}
+        ),
+        'disk': _merge_dicts(
+            DRAW_PARAMS_DEFAULT,
+            {'color': 'cornflowerblue'}
+        ),
+        'dust': _merge_dicts(
+            DRAW_PARAMS_DEFAULT,
+            {'color': 'debianred'}
+        ),
+        'filament': _merge_dicts(
+            DRAW_PARAMS_DEFAULT,
+            {'color': 'aquamarine'}
+        ),
         'gas': _merge_dicts(
             DRAW_PARAMS_DEFAULT,
             {'color': 'green'}
@@ -68,21 +87,6 @@ DRAW_PARAMS = defaultdict(
         'spiral': _merge_dicts(
             DRAW_PARAMS_DEFAULT,
             {'color': 'orange'}
-        ),
-        'dust': _merge_dicts(
-            DRAW_PARAMS_DEFAULT,
-            {'color': 'debianred'}
-        ),
-        'filament': _merge_dicts(
-            DRAW_PARAMS_DEFAULT,
-            {'color': 'aquamarine'}
-        ),
-        'cluster': _merge_dicts(
-            DRAW_PARAMS_DEFAULT,
-            {'color': 'darkgoldenrod',
-             'linewidth': 10,
-             'fill': False,
-             'radius': 4.0}
         ),
         'stars': _merge_dicts(
             DRAW_PARAMS_DEFAULT,
@@ -401,6 +405,11 @@ class Regions(FixedMixin, CheckableItem):
                 text='Add Bulge',
                 func=self.add_region_interactive,
                 args=('bulge',)
+            ),
+            Action(
+                text='Add Disk',
+                func=self.add_region_interactive,
+                args=('disk',)
             ),
             Action(
                 text='Add Gas',
