@@ -420,8 +420,8 @@ class Model3D(object):
             except KeyError:
                 pass
 
-    def write_stl(self, filename_prefix, mm_per_pixel=None, split_model=True,
-                  stl_format='binary', clobber=False):
+    def write_stl(self, filename_prefix, mm_per_pixel=None, split_model=None,
+                  split_model_axis=0, stl_format='binary', clobber=False):
         """
         Write the 3D model to a STL file(s).
 
@@ -438,7 +438,10 @@ class Model3D(object):
 
         split_model : bool, optional
             If `True`, then split the model into two halves, a bottom
-            and top part.
+            and top part.  If `None` then the value of
+            ``self._split_model`` is used.  Setting ``split_model`` to
+            `True` or `False` will override the value of
+            ``self._split_model``.
 
         stl_format : {'binary', 'ascii'}, optional
             Format for the output STL file.  The default is 'binary'.
@@ -458,8 +461,12 @@ class Model3D(object):
         if mm_per_pixel is None:
             mm_per_pixel = self.mm_per_pixel
 
+        if split_model is None:
+            split_model = self._split_model
+
         if split_model:
-            model1, model2 = image_utils.split_image(self.data, axis=0)
+            model1, model2 = image_utils.split_image(self.data,
+                                                     axis=split_model_axis)
             write_mesh(model1, filename_prefix + '_part1',
                        mm_per_pixel=mm_per_pixel,
                        double_sided=self._double_sided,
@@ -1183,6 +1190,12 @@ class Model3D(object):
 
         Parameters
         ----------
+        split_model : bool, optional
+            Whether to split the image model into two parts.  Note that
+            this parameter will be ignored if the ``split_model``
+            keyword in the ``write_stl()`` function is explicitly set
+            (e.g. when using the OO interface outside of the GUI).
+
         intensity : bool, optional
             Whether the 3D model has intensities.  At least one of
             ``intensity`` and ``textures`` must be `True`.
@@ -1316,6 +1329,8 @@ class Model3D(object):
         if not textures and not intensity:
             raise ValueError('The 3D model must have textures and/or '
                              'intensity.')
+
+        self._split_model = split_model
         self._has_intensity = intensity
         self._has_textures = textures
         self._double_sided = double_sided
