@@ -421,7 +421,7 @@ class Model3D(object):
                 pass
 
     def write_stl(self, filename_prefix, mm_per_pixel=None, split_model=True,
-                  stl_format='binary', clobber=False):
+                  split_model_axis=0, stl_format='binary', clobber=False):
         """
         Write the 3D model to a STL file(s).
 
@@ -459,7 +459,8 @@ class Model3D(object):
             mm_per_pixel = self.mm_per_pixel
 
         if split_model:
-            model1, model2 = image_utils.split_image(self.data, axis=0)
+            model1, model2 = image_utils.split_image(self.data,
+                                                     axis=split_model_axis)
             write_mesh(model1, filename_prefix + '_part1',
                        mm_per_pixel=mm_per_pixel,
                        double_sided=self._double_sided,
