@@ -664,7 +664,7 @@ class Model3D(object):
             The base level above which pixel values are compressed.
         """
 
-        if not self._spiral_galaxy:
+        if not self._spiral_galaxy or not self._compress_bulge:
             return None
 
         log.info('Compressing the bulge.')
@@ -1165,7 +1165,8 @@ class Model3D(object):
         self.data[self.data < min_value] = min_value
 
     def make(self, intensity=True, textures=True, double_sided=False,
-             spiral_galaxy=False, compress_bulge_percentile=0.,
+             spiral_galaxy=False, compress_bulge=True,
+             compress_bulge_percentile=0.,
              compress_bulge_factor=0.05, suppress_background_percentile=90.,
              suppress_background_factor=0.2, smooth_size1=11,
              smooth_size2=15, minvalue_to_zero=0.02, crop_data_threshold=0.,
@@ -1182,21 +1183,26 @@ class Model3D(object):
 
         Parameters
         ----------
-        intensity : bool
+        intensity : bool, optional
             Whether the 3D model has intensities.  At least one of
             ``intensity`` and ``textures`` must be `True`.
 
-        textures : bool
+        textures : bool, optional
             Whether the 3D model has textures.  At least one of
             ``intensity`` and ``textures`` must be `True`.
 
-        double_sided : bool
+        double_sided : bool, optional
             Whether the 3D model is double sided.  Double-sided models
             are generated using a simple reflection.
 
-        spiral_galaxy : bool
+        spiral_galaxy : bool, optional
             Whether the 3D model is a spiral galaxy, which uses special
             processing.
+
+        compress_bulge : bool, optional
+            Whether to apply the bulge compression step for spiral
+            galaxies (see `_spiralgalaxy_compress_bulge`).  This keyword
+            has no effect if ``spiral_galaxy=False``.
 
         compress_bulge_percentile : float in range of [0, 100], optional
             The percentile of pixel values within the bulge mask to use
@@ -1314,6 +1320,7 @@ class Model3D(object):
         self._has_textures = textures
         self._double_sided = double_sided
         self._spiral_galaxy = spiral_galaxy
+        self._compress_bulge = compress_bulge
 
         self._prepare_data()
         self._prepare_masks()
