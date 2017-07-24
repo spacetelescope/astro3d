@@ -44,7 +44,7 @@ class RegionMask(object):
 
         if shape is not None:
             self.mask = resize_image_absolute(self.mask, x_size=shape[1],
-                                     y_size=shape[0])
+                                              y_size=shape[0])
 
     def write(self, filename, shape=None):
         """
@@ -66,7 +66,8 @@ class RegionMask(object):
 
         mask = self.mask
         if shape is not None:
-            mask = resize_image(self.mask, x_size=shape[1], y_size=shape[0])
+            mask = resize_image_absolute(self.mask, x_size=shape[1],
+                                         y_size=shape[0])
 
         header = fits.Header()
         header['MASKTYPE'] = self.mask_type
