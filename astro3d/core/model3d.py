@@ -1171,8 +1171,8 @@ class Model3D(object):
         min_value = min_thickness / self.mm_per_pixel    # pixels
         self.data[self.data < min_value] = min_value
 
-    def make(self, intensity=True, textures=True, double_sided=False,
-             spiral_galaxy=False, compress_bulge=True,
+    def make(self, split_model=True, intensity=True, textures=True,
+             double_sided=False, spiral_galaxy=False, compress_bulge=True,
              compress_bulge_percentile=0.,
              compress_bulge_factor=0.05, suppress_background_percentile=90.,
              suppress_background_factor=0.2, smooth_size1=11,
