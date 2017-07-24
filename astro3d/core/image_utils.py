@@ -351,7 +351,7 @@ def split_image(data, axis=0):
     data : array-like
         The input data array.
 
-    axis : int, optional
+    axis : 0 or 1, optional
         The axis to split (e.g. ``axis=0`` splits the y axis).
 
     Returns

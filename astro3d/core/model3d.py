@@ -421,7 +421,7 @@ class Model3D(object):
                 pass
 
     def write_stl(self, filename_prefix, mm_per_pixel=None, split_model=None,
-                  split_model_axis=0, stl_format='binary', clobber=False):
+                  split_model_axis=None, stl_format='binary', clobber=False):
         """
         Write the 3D model to a STL file(s).
 
@@ -436,12 +436,21 @@ class Model3D(object):
             The physical scale of the model.  The default is set by the
             ``Model3D`` class.
 
-        split_model : bool, optional
+        split_model : bool or `None`, optional
             If `True`, then split the model into two halves, a bottom
             and top part.  If `None` then the value of
             ``self._split_model`` is used.  Setting ``split_model`` to
             `True` or `False` will override the value of
             ``self._split_model``.
+
+        split_model_axis : 0, 1, or `None`, optional
+            The axis number to split:
+                * 0:  y axis, i.e. split horizontally
+                * 1:  x axis, i.e. split vertically
+
+            If `None` then the value of ``self._split_model_axis`` is
+            used.  Setting ``split_model`` to 0 or 1 will override the
+            value of ``self._split_model_axis``.
 
         stl_format : {'binary', 'ascii'}, optional
             Format for the output STL file.  The default is 'binary'.
@@ -463,6 +472,9 @@ class Model3D(object):
 
         if split_model is None:
             split_model = self._split_model
+
+        if split_model_axis is None:
+            split_model_axis = self._split_model_axis
 
         if split_model:
             model1, model2 = image_utils.split_image(self.data,
@@ -1171,9 +1183,9 @@ class Model3D(object):
         min_value = min_thickness / self.mm_per_pixel    # pixels
         self.data[self.data < min_value] = min_value
 
-    def make(self, split_model=True, intensity=True, textures=True,
-             double_sided=False, spiral_galaxy=False, compress_bulge=True,
-             compress_bulge_percentile=0.,
+    def make(self, split_model=True, split_model_axis=0, intensity=True,
+             textures=True, double_sided=False, spiral_galaxy=False,
+             compress_bulge=True, compress_bulge_percentile=0.,
              compress_bulge_factor=0.05, suppress_background_percentile=90.,
              suppress_background_factor=0.2, smooth_size1=11,
              smooth_size2=15, minvalue_to_zero=0.02, crop_data_threshold=0.,
@@ -1195,6 +1207,16 @@ class Model3D(object):
             this parameter will be ignored if the ``split_model``
             keyword in the ``write_stl()`` function is explicitly set
             (e.g. when using the OO interface outside of the GUI).
+
+        split_model_axis : 0 or 1, optional
+            The axis number to split when ``split_model=True``:
+                * 0:  y axis, i.e. split horizontally
+                * 1:  x axis, i.e. split vertically
+
+            Note that this parameter will be ignored if the
+            ``split_model_axis`` keyword in the ``write_stl()`` function
+            is explicitly set (e.g. when using the OO interface outside
+            of the GUI).
 
         intensity : bool, optional
             Whether the 3D model has intensities.  At least one of
