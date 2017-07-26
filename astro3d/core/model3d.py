@@ -1041,7 +1041,7 @@ class Model3D(object):
 
     def _apply_stellar_textures(self, star_radius_a=10., star_radius_b=5.,
                                 cluster_radius_a=10., cluster_radius_b=5.,
-                                slope=1.0, depth=3.):
+                                depth=3., slope=1.):
         """
         Apply stellar textures (stars and star clusters) to the image.
 
@@ -1071,13 +1071,13 @@ class Model3D(object):
             The slope term in calculating the radius of the star cluster
             texture (see above).
 
-        slope : float, optional
-            The slope of the star texture sides (for both single stars
-            and star clusters).
-
         depth : float
             The maximum depth of the crater-like bowl of the star
             texture (for both single stars and star clusters).
+
+        slope : float, optional
+            The slope of the star texture sides (for both single stars
+            and star clusters).
         """
 
         if len(self.stellar_tables) == 0:
@@ -1114,7 +1114,7 @@ class Model3D(object):
 
     def _apply_textures(self, star_radius_a=10., star_radius_b=5.,
                         cluster_radius_a=10., cluster_radius_b=5.,
-                        star_texture_depth=3.):
+                        star_texture_depth=3., star_texture_slope=1.):
         """
         Apply all textures to the model.
 
@@ -1139,6 +1139,10 @@ class Model3D(object):
         star_texture_depth : float, optional
             The maximum depth of the crater-like bowl of the star
             texture (for both single stars and star clusters).
+
+        star_texture_slope : float, optional
+            The slope of the star texture sides (for both single stars
+            and star clusters).
         """
 
         if self._has_textures:
@@ -1147,7 +1151,8 @@ class Model3D(object):
                                          star_radius_b=star_radius_b,
                                          cluster_radius_a=cluster_radius_a,
                                          cluster_radius_b=cluster_radius_b,
-                                         depth=star_texture_depth)
+                                         depth=star_texture_depth,
+                                         slope=star_texture_slope)
 
             if self._cusp_texture is not None:
                 if not self._has_intensity:
