@@ -1,6 +1,7 @@
 """
 This module provides tools to create a 3D model from an astronomical image.
 """
+
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 from collections import defaultdict
@@ -8,6 +9,7 @@ from copy import deepcopy, copy
 import glob
 import warnings
 from distutils.version import LooseVersion
+
 from scipy import ndimage
 import numpy as np
 from PIL import Image
@@ -16,6 +18,7 @@ from astropy.io import fits
 from astropy.table import Table
 from astropy.utils.exceptions import AstropyUserWarning
 import photutils
+
 from . import image_utils
 from .textures import (DotsTexture, LinesTexture, HexagonalGrid, StarTexture,
                        make_stellar_textures, stellar_base_height)
@@ -1036,13 +1039,13 @@ class Model3D(object):
         self._textures_all = self._texture_layer.copy()
         self.data += self._texture_layer
 
-    def _apply_stellar_textures(self, radius_a=10., radius_b=5., slope=1.0,
-                                depth=3.):
+    def _apply_stellar_textures(self, star_radius_a=10., star_radius_b=5.,
+                                cluster_radius_a=10., cluster_radius_b=5.,
+                                slope=1.0, depth=3.):
         """
         Apply stellar textures (stars and star clusters) to the image.
 
-        The radius of the star (used in both `StarTexture` and
-        `StarClusterTexture` textures) for each source is linearly
+        The radius of the star texture for each source is linearly
         scaled by the source flux as:
 
             .. math:: radius = radius_a + (radius_b * flux / max_flux)
@@ -1052,18 +1055,29 @@ class Model3D(object):
 
         Parameters
         ----------
-        radius_a : float, optional
-            The intercept term in calculating the star radius (see above).
+        star_radius_a : float, optional
+            The intercept term in calculating the radius of the single
+            star texture (see above).
 
-        radius_b : float, optional
-            The slope term in calculating the star radius (see above).
+        star_radius_b : float, optional
+            The slope term in calculating the radius of the single star
+            texture (see above).
+
+        cluster_radius_a : float, optional
+            The intercept term in calculating the radius of the star
+            cluster texture (see above).
+
+        cluster_radius_b : float, optional
+            The slope term in calculating the radius of the star cluster
+            texture (see above).
 
         slope : float, optional
-            The slope of the star texture sides.
+            The slope of the star texture sides (for both single stars
+            and star clusters).
 
         depth : float
             The maximum depth of the crater-like bowl of the star
-            texture.
+            texture (for both single stars and star clusters).
         """
 
         if len(self.stellar_tables) == 0:
@@ -1082,8 +1096,10 @@ class Model3D(object):
         else:
             mask = None
         self._stellar_texture_layer, base_heights = make_stellar_textures(
-            data, self.stellar_tables, radius_a=radius_a, radius_b=radius_b,
-            depth=depth, slope=slope, exclusion_mask=mask)
+            data, self.stellar_tables, star_radius_a=star_radius_a,
+            star_radius_b=star_radius_b, cluster_radius_a=cluster_radius_a,
+            cluster_radius_b=cluster_radius_b, depth=depth, slope=slope,
+            exclusion_mask=mask)
         log.info('Done making stellar textures')
 
         # replace image values with the stellar texture base heights
@@ -1096,26 +1112,41 @@ class Model3D(object):
         self.data[stellar_mask] = base_heights[stellar_mask]
         self.data += self._stellar_texture_layer
 
-    def _apply_textures(self, star_texture_radius_a=10.,
-                        star_texture_radius_b=5., star_texture_depth=3.):
+    def _apply_textures(self, star_radius_a=10., star_radius_b=5.,
+                        cluster_radius_a=10., cluster_radius_b=5.,
+                        star_texture_depth=3.):
         """
         Apply all textures to the model.
 
         Parameters
         ----------
-        star_texture_radius_a : float, optional
+        star_radius_a : float, optional
+            The intercept term in calculating the radius of the single
+            star texture (see above).
 
-        star_texture_radius_b : float, optional
+        star_radius_b : float, optional
+            The slope term in calculating the radius of the single star
+            texture (see above).
+
+        cluster_radius_a : float, optional
+            The intercept term in calculating the radius of the star
+            cluster texture (see above).
+
+        cluster_radius_b : float, optional
+            The slope term in calculating the radius of the star cluster
+            texture (see above).
 
         star_texture_depth : float, optional
             The maximum depth of the crater-like bowl of the star
-            texture.
+            texture (for both single stars and star clusters).
         """
 
         if self._has_textures:
             self._add_masked_textures()
-            self._apply_stellar_textures(radius_a=star_texture_radius_a,
-                                         radius_b=star_texture_radius_b,
+            self._apply_stellar_textures(star_radius_a=star_radius_a,
+                                         star_radius_b=star_radius_b,
+                                         cluster_radius_a=cluster_radius_a,
+                                         cluster_radius_b=cluster_radius_b,
                                          depth=star_texture_depth)
 
             if self._cusp_texture is not None:
@@ -1190,7 +1221,8 @@ class Model3D(object):
              suppress_background_factor=0.2, smooth_size1=11,
              smooth_size2=15, minvalue_to_zero=0.02, crop_data_threshold=0.,
              crop_data_pad_width=20, intensity_height=27.5,
-             star_texture_radius_a=10., star_texture_radius_b=5.,
+             star_radius_a=10., star_radius_b=5.,
+             cluster_radius_a=10., cluster_radius_b=5.,
              star_texture_depth=3., model_base_height=5.,
              model_base_filter_size=10, model_base_min_thickness=0.5,
              model_base_fill_holes=True):
@@ -1288,13 +1320,25 @@ class Model3D(object):
             *before* any textures, including the spiral galaxy central
             cusp, are applied.
 
-        star_texture_radius_a : float, optional
+        star_radius_a : float, optional
+            The intercept term in calculating the radius of the single
+            star texture (see above).
 
-        star_texture_radius_b : float, optional
+        star_radius_b : float, optional
+            The slope term in calculating the radius of the single star
+            texture (see above).
+
+        cluster_radius_a : float, optional
+            The intercept term in calculating the radius of the star
+            cluster texture (see above).
+
+        cluster_radius_b : float, optional
+            The slope term in calculating the radius of the star cluster
+            texture (see above).
 
         star_texture_depth : float, optional
             The maximum depth of the crater-like bowl of the star
-            texture.
+            texture (for both single stars and star clusters).
 
         model_base_height : float, optional
             The height (in mm) of the model structural base.  See
@@ -1390,8 +1434,10 @@ class Model3D(object):
             log.info('Discarding data intensity.')
             self.data *= 0.
 
-        self._apply_textures(star_texture_radius_a=star_texture_radius_a,
-                             star_texture_radius_b=star_texture_radius_b,
+        self._apply_textures(star_radius_a=star_radius_a,
+                             star_radius_b=star_radius_b,
+                             cluster_radius_a=cluster_radius_a,
+                             cluster_radius_b=cluster_radius_b,
                              star_texture_depth=star_texture_depth)
 
         self._make_model_base(base_height=model_base_height,
