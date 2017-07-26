@@ -1353,6 +1353,7 @@ class Model3D(object):
                              'intensity.')
 
         self._split_model = split_model
+        self._split_model_axis = split_model_axis
         self._has_intensity = intensity
         self._has_textures = textures
         self._double_sided = double_sided
