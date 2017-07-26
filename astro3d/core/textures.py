@@ -527,8 +527,9 @@ class StarClusterTexture(Fittable2DModel):
         return np.maximum.reduce([star1, star2, star3, disk])
 
 
-def make_stellar_models(model_type, stellar_table, radius_a=10, radius_b=5,
-                        depth=5, slope=0.5):
+def make_stellar_models(model_type, stellar_table, star_radius_a=10,
+                        star_radius_b=5, cluster_radius_a=10,
+                        cluster_radius_b=5, depth=5, slope=0.5):
     """
     Create the stellar (star or star cluster) texture models to be
     applied to an image.
@@ -536,8 +537,8 @@ def make_stellar_models(model_type, stellar_table, radius_a=10, radius_b=5,
     Given the position and flux (or magnitude) of each source
     (``stellar_table``), a list of texture models is generated.
 
-    The radius of the star (used in both `StarTexture` and `StarCluster`
-    textures) for each source is linearly scaled by the source flux as:
+    The radius of the star texture for each source is linearly scaled by
+    the source flux as:
 
         .. math:: radius = radius_a + (radius_b * flux / max_flux)
 
@@ -554,17 +555,29 @@ def make_stellar_models(model_type, stellar_table, radius_a=10, radius_b=5,
         contain ``'xcentroid'`` and ``'ycentroid'`` columns and either a
         ``'flux'`` or ``'magnitude'`` column.
 
-    radius_a : float, optional
-        The intercept term in calculating the star radius (see above).
+    star_radius_a : float, optional
+        The intercept term in calculating the radius of the single star
+        texture (see above).
 
-    radius_b : float, optional
-        The slope term in calculating the star radius (see above).
+    star_radius_b : float, optional
+        The slope term in calculating the radius of the single star
+        texture (see above).
+
+    cluster_radius_a : float, optional
+        The intercept term in calculating the radius of the star cluster
+        texture (see above).
+
+    cluster_radius_b : float, optional
+        The slope term in calculating the radius of the star cluster
+        texture (see above).
 
     depth : float, optional
-        The maximum depth of the crater-like bowl of the star texture.
+        The maximum depth of the crater-like bowl of the star texture
+        (for both single stars and star clusters).
 
     slope : float, optional
-        The slope of the star texture sides.
+        The slope of the star texture sides (for both single stars and
+        star clusters).
 
     Returns
     -------
@@ -600,13 +613,16 @@ def make_stellar_models(model_type, stellar_table, radius_a=10, radius_b=5,
     # assumes that all sources in the stellar_table are good
     max_flux = float(np.max(fluxes))
 
+    if model_type == 'stars':
+        radius = star_radius_a + (star_radius_b * fluxes / max_flux)
+    elif model_type == 'star_clusters':
+        radius = cluster_radius_a + (cluster_radius_b * fluxes / max_flux)
+
     models = []
     base_height = 0.
     for i, source in enumerate(stellar_table):
-        xcen = source['xcentroid']
-        ycen = source['ycentroid']
-        radius = radius_a + (radius_b * fluxes[i] / max_flux)
-        model = Texture(xcen, ycen, radius, depth, base_height, slope)
+        model = Texture(source['xcentroid'], source['ycentroid'],
+                        radius[i], depth, base_height, slope)
 
         if model is not None:
             models.append(model)
@@ -679,8 +695,10 @@ def stellar_base_height(data, model, stellar_mask=None, selem=None):
         return None
 
 
-def make_stellar_textures(data, stellar_tables, radius_a=10, radius_b=5,
-                          depth=5, slope=0.5, exclusion_mask=None):
+def make_stellar_textures(data, stellar_tables, star_radius_a=10,
+                          star_radius_b=5, cluster_radius_a=10,
+                          cluster_radius_b=5, depth=5, slope=0.5,
+                          exclusion_mask=None):
     """
     Make an image containing stellar textures (stars and star clusters).
     and an image containing the base heights for each texture.
@@ -697,17 +715,29 @@ def make_stellar_textures(data, stellar_tables, radius_a=10, radius_b=5,
         ``'xcentroid'`` and ``'ycentroid'`` columns and either a
         ``'flux'`` or ``'magnitude'`` column.
 
-    radius_a : float, optional
-        The intercept term in calculating the star radius (see above).
+    star_radius_a : float, optional
+        The intercept term in calculating the radius of the single star
+        texture (see above).
 
-    radius_b : float, optional
-        The slope term in calculating the star radius (see above).
+    star_radius_b : float, optional
+        The slope term in calculating the radius of the single star
+        texture (see above).
+
+    cluster_radius_a : float, optional
+        The intercept term in calculating the radius of the star cluster
+        texture (see above).
+
+    cluster_radius_b : float, optional
+        The slope term in calculating the radius of the star cluster
+        texture (see above).
 
     depth : float, optional
-        The maximum depth of the crater-like bowl of the star texture.
+        The maximum depth of the crater-like bowl of the star texture
+        (for both single stars and star clusters).
 
     slope : float, optional
-        The slope of the star texture sides.
+        The slope of the star texture sides (for both single stars and
+        star clusters).
 
     exclusion_mask : 2D `~numpy.ndarray` (bool), optional
         A 2D boolean mask.  Textures will not be included if any portion
@@ -735,8 +765,9 @@ def make_stellar_textures(data, stellar_tables, radius_a=10, radius_b=5,
     # include both stars and star clusters
     for stellar_type, table in stellar_tables.items():
         stellar_models.extend(make_stellar_models(
-            stellar_type, table, radius_a=radius_a, radius_b=radius_b,
-            depth=depth, slope=slope))
+            stellar_type, table, star_radius_a=star_radius_a,
+            star_radius_b=star_radius_b, cluster_radius_a=cluster_radius_a,
+            cluster_radius_b=cluster_radius_b, depth=depth, slope=slope))
 
     # create mask of all stellar textures
     stellar_mask = np.zeros(data.shape)
