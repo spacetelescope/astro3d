@@ -1,6 +1,7 @@
 """Interface between configuration store and widgets"""
 from ast import literal_eval
 from collections import MutableMapping
+from copy import copy
 
 from ginga.gw.Widgets import (
     CheckBox,
@@ -173,13 +174,22 @@ class StoreWidgets(MutableMapping):
             self.store_widgets[key] = widget
 
     # ABC required methods
+    def update(self, other):
+        """Merge another StoreWidgets"""
+        if not isinstance(other, StoreWidgets):
+            raise TypeError(
+                'Cannot update StoreWidgets with a non-StoreWidgets object.'
+            )
+        self.store_widgets.update(other.store_widgets)
+        self.widgets.update(other.widgets)
+
     def __copy__(self):
         """Produce a shallow copy"""
         new_store = type(self)()
         new_store._originating_store = self._originating_store
         new_store.container = self.container
         new_store.widgets = self.widgets.copy()
-        new_store.store_widget = self.store_widgets.copy()
+        new_store.store_widgets = self.store_widgets.copy()
         return new_store
 
     def __getitem__(self, key):

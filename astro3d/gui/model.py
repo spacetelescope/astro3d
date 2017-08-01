@@ -147,14 +147,8 @@ class Model(QStandardItemModel):
         """
         self.logger.debug('Starting processing...')
 
-        make_params = {
-            key: value
-            for key, value in self.params_widget_store.stages.items()
-        }
-        make_params.update({
-            key: value
-            for key, value in self.params_widget_store.model_make.items()
-        })
+        make_params = copy(self.params_widget_store.stages)
+        make_params.update(self.params_widget_store.model_make)
         try:
             model3d = self.create_model3d(
                 model_params=self.params_widget_store.model
