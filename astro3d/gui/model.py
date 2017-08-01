@@ -2,6 +2,7 @@
 
 from __future__ import absolute_import, print_function
 
+from copy import copy
 from itertools import count
 from os.path import basename
 from qtpy import (QtCore, QtGui)
@@ -66,6 +67,10 @@ class Model(QStandardItemModel):
                 {p: config.get(section, p) for p in config.options(section)}
             )
         self.params = params
+        self.params_widget_store = Bunch({
+            key: None
+            for key in params
+        })
 
         # Get texture info
         self.textures = TextureConfig(config)
@@ -142,10 +147,18 @@ class Model(QStandardItemModel):
         """
         self.logger.debug('Starting processing...')
 
-        make_params = self.params.stages.copy()
-        make_params.update(self.params.model_make)
+        make_params = {
+            key: value
+            for key, value in self.params_widget_store.stages.items()
+        }
+        make_params.update({
+            key: value
+            for key, value in self.params_widget_store.model_make.items()
+        })
         try:
-            model3d = self.create_model3d(self.params.model)
+            model3d = self.create_model3d(
+                model_params=self.params_widget_store.model
+            )
         except RuntimeError as e:
             signaldb.ProcessFail('Processing failure.', e)
         else:

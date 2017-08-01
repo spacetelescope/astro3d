@@ -6,9 +6,7 @@ from qtpy import (QtCore, QtWidgets)
 from qtpy.QtCore import Qt
 
 from ...util.logger import make_logger
-from .. import signaldb
-from ..util import build_widgets
-from ..config import config
+from ..store_widgets import StoreWidgets
 
 
 __all__ = ['Parameters']
@@ -66,9 +64,13 @@ class Parameters(QtWidgets.QScrollArea):
         # Processing parameters
         captions = [('Save Model', 'button'),
                     ('Preview Model', 'button')]
-        params_widget, params_bunch = build_widgets(
+        params_store = StoreWidgets(
             self.model.params.stages,
-            extra=captions)
+            extra=captions
+        )
+        self.model.params_widget_store.stages = params_store
+        params_widget = params_store.container
+        params_bunch = params_store.widgets
         self.children.update(params_bunch)
 
         params_bunch.save_model.add_callback(
@@ -86,9 +88,10 @@ class Parameters(QtWidgets.QScrollArea):
         params_frame.set_widget(params_widget)
 
         # Model parameters
-        model_widget, model_bunch = build_widgets(
-            self.model.params.model
-        )
+        model_store = StoreWidgets(self.model.params.model)
+        self.model.params_widget_store.model = model_store
+        model_widget = model_store.container
+        model_bunch = model_store.widgets
         self.children.update(model_bunch)
 
         model_frame = Widgets.Frame()
@@ -98,15 +101,16 @@ class Parameters(QtWidgets.QScrollArea):
         self.children['model_expander'] = model_expander
 
         # Model Making parameters
-        model_widget, model_bunch = build_widgets(
-            self.model.params.model_make
-        )
-        self.children.update(model_bunch)
+        model_make_store = StoreWidgets(self.model.params.model_make)
+        self.model.params_widget_store.model_make = model_make_store
+        model_make_widget = model_make_store.container
+        model_make_bunch = model_make_store.widgets
+        self.children.update(model_make_bunch)
 
-        model_frame = Widgets.Frame()
-        model_frame.set_widget(model_widget)
+        model_make_frame = Widgets.Frame()
+        model_make_frame.set_widget(model_make_widget)
         model_make_expander = Widgets.Expander('Model Making Params')
-        model_make_expander.set_widget(model_frame)
+        model_make_expander.set_widget(model_make_frame)
         self.children['model_make_expander'] = model_make_expander
 
         # Gas/Spiral parameters
