@@ -1,7 +1,7 @@
 """Shape Editor"""
 
 from functools import partial
-from numpy import (zeros, uint8)
+from numpy import (logical_not, zeros, uint8)
 
 from ginga import colors
 from ginga.misc.Bunch import Bunch
@@ -116,7 +116,6 @@ class ShapeEditor(QtWidgets.QWidget):
     def mode(self, new_mode):
 
         # Close off the current state.
-        self.logger.debug('Called new_mode="{}"'.format(new_mode))
         for mode in self.mode_frames:
             for frame in self.mode_frames[mode]:
                 frame.hide()
@@ -145,7 +144,6 @@ class ShapeEditor(QtWidgets.QWidget):
         self.children.tw.set_text(instructions[new_mode])
 
     def new_region(self, type_item):
-        self.logger.debug('Called type_item="{}"'.format(type_item))
         if self.canvas is None:
             raise RuntimeError('Internal error: no canvas to draw on.')
 
@@ -187,7 +185,6 @@ class ShapeEditor(QtWidgets.QWidget):
 
     def edit_cb(self, *args, **kwargs):
         """Edit callback"""
-        self.logger.debug('Called with args="{}" kwargs="{}".'.format(args, kwargs))
         signaldb.ModelUpdate()
 
     def edit_select_cb(self, canvas, obj):
@@ -204,7 +201,6 @@ class ShapeEditor(QtWidgets.QWidget):
 
     def edit_deselect_cb(self, *args, **kwargs):
         """Deselect"""
-        self.logger.debug('Called with args="{}" kwargs="{}".'.format(args, kwargs))
         self.canvas.clear_selected()
 
     def rotate_object(self, w):
@@ -299,6 +295,11 @@ class ShapeEditor(QtWidgets.QWidget):
         )
         self.canvas.add(polygon)
         view, contains = self.surface.get_image().get_shape_view(polygon)
+
+        # BUG: At some point this get_shape_view started returning the
+        # inverse of what was expected. Need to explore why.
+        contains = logical_not(contains)
+
         if self.painting:
             self.mask[view][contains] = self.draw_params['fillalpha'] * 255
         else:
@@ -306,7 +307,6 @@ class ShapeEditor(QtWidgets.QWidget):
         self.canvas.delete_object(polygon)
 
     def new_mask(self):
-        self.logger.debug('Called.')
         self.draw_params = self.type_item.draw_params
         color = self.draw_params['color']
         r, g, b = colors.lookup_color(color)
@@ -342,7 +342,6 @@ class ShapeEditor(QtWidgets.QWidget):
         state: bool
             True for painting, False for erasing
         """
-        self.logger.debug('Called state="{}"'.format(state))
         self.painting = state
         self.children.paint.set_state(state)
 
@@ -351,11 +350,6 @@ class ShapeEditor(QtWidgets.QWidget):
                      deselected_item=None,
                      source=None):
         """Change layer selection"""
-        self.logger.debug(
-            'selected="{}" deselected="{}" source="{}"'.format(
-                selected_item, deselected_item, source
-            )
-        )
 
         # If the selection was initiated by
         # selecting the object directly, there is
@@ -393,7 +387,6 @@ class ShapeEditor(QtWidgets.QWidget):
     def _build_gui(self):
         """Build out the GUI"""
         # Remove old layout
-        self.logger.debug('Called.')
         if self.layout() is not None:
             QtWidgets.QWidget().setLayout(self.layout())
         self.children = Bunch()
@@ -414,7 +407,6 @@ class ShapeEditor(QtWidgets.QWidget):
         )
         dtypes_widget, dtypes_bunch = Widgets.build_info(captions)
         self.children.update(dtypes_bunch)
-        self.logger.debug('children="{}"'.format(self.children))
 
         combobox = dtypes_bunch.draw_type
         for name in self.drawkinds:
