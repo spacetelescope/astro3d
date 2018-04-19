@@ -98,9 +98,10 @@ class MainWindow(GTK_MainWindow):
                 file_list = res[0]
             else:
                 file_list = res
-            self.model.read_maskpathlist(file_list)
-            signaldb.ModelUpdate()
-            config.set('gui', 'folder_regions', dirname(file_list[0]))
+            if len(file_list):
+                self.model.read_maskpathlist(file_list)
+                signaldb.ModelUpdate()
+                config.set('gui', 'folder_regions', dirname(file_list[0]))
 
     def starpath_from_dialog(self):
         res = QtWidgets.QFileDialog.getOpenFileName(
