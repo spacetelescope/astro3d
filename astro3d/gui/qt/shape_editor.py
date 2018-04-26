@@ -296,10 +296,6 @@ class ShapeEditor(QtWidgets.QWidget):
         self.canvas.add(polygon)
         view, contains = self.surface.get_image().get_shape_view(polygon)
 
-        # BUG: At some point this get_shape_view started returning the
-        # inverse of what was expected. Need to explore why.
-        contains = logical_not(contains)
-
         if self.painting:
             self.mask[view][contains] = self.draw_params['fillalpha'] * 255
         else:
