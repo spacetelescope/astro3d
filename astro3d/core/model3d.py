@@ -539,6 +539,17 @@ class Model3D(object):
             self._resize_scale_factor)
         self.data = deepcopy(self.data_original_resized)
 
+    def _prepare_flux(self):
+        """Ensure flux column has data.
+        """
+        for table_type, table in self.stellar_tables_original.items():
+            if all(table['flux'] == 0.0):
+                for row in table:
+                    row['flux'] = self.data_original[
+                        int(row['xcentroid']),
+                        int(row['ycentroid'])
+                    ]
+
     def _prepare_masks(self):
         """
         Prepare texture and region masks.
@@ -1409,6 +1420,7 @@ class Model3D(object):
         self._spiral_galaxy = spiral_galaxy
         self._compress_bulge = compress_bulge
 
+        self._prepare_flux()
         self._prepare_data()
         self._prepare_masks()
         self._scale_stellar_table_positions(
@@ -1745,6 +1757,13 @@ def read_stellar_table(filename, stellar_type):
     """
 
     table = Table.read(filename, format='ascii')
-    table.keep_columns(['xcentroid', 'ycentroid', 'flux'])
+    try:
+        table.keep_columns(['xcentroid', 'ycentroid', 'flux'])
+    except KeyError:
+        table.columns[0].name = 'xcentroid'
+        table.columns[1].name = 'ycentroid'
+        table['flux'] = np.zeros(len(table))
+        table.keep_columns(['xcentroid', 'ycentroid', 'flux'])
+
     log.info('Loaded "{0}" table from "{1}"'.format(stellar_type, filename))
     return table

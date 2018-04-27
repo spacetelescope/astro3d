@@ -2,17 +2,19 @@
 This module provides tools to define textures and apply them to an
 image.
 """
-from __future__ import (absolute_import, division, print_function,
-                        unicode_literals)
 import warnings
-import numpy as np
-from scipy.ndimage import binary_dilation
+
+from astropy import log
 from astropy.modeling import Parameter, Fittable2DModel
 from astropy.modeling.models import Disk2D
 from astropy.utils.exceptions import AstropyUserWarning
-
+import numpy as np
+from scipy.ndimage import binary_dilation
 
 __doctest_skip__ = ['LinesTexture', 'DotsTexture']
+
+# Configure logging
+log.setLevel('DEBUG')
 
 
 def mask_texture_image(texture_image, mask):
@@ -612,6 +614,7 @@ def make_stellar_models(model_type, stellar_table, star_radius_a=10,
 
     # assumes that all sources in the stellar_table are good
     max_flux = float(np.max(fluxes))
+    log.debug('max_flux = "{}"'.format(max_flux))
 
     if model_type == 'stars':
         radius = star_radius_a + (star_radius_b * fluxes / max_flux)
