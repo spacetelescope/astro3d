@@ -1,8 +1,7 @@
 """Thread to process 3D model"""
-from __future__ import print_function
-from functools import partial
-from time import sleep
+import traceback
 
+from astropy import log
 from numpy import concatenate
 from qtpy import QtCore
 from qtpy.QtCore import Signal as pyqtSignal
@@ -12,6 +11,9 @@ from ...core.meshes import (make_triangles, reflect_triangles)
 from ...gui import signaldb
 
 __all__ = ['MeshThread']
+
+# Configure logging
+log.setLevel('DEBUG')
 
 
 class MeshWorker(QtCore.QObject):
@@ -69,6 +71,7 @@ class MeshWorker(QtCore.QObject):
             if self.make_params['double_sided']:
                 triset = concatenate((triset, reflect_triangles(triset)))
         except Exception as e:
+            log.debug(traceback.format_exc())
             self.exception.emit(e)
             return
 
