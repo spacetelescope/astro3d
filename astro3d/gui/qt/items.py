@@ -276,12 +276,8 @@ class RegionItem(CheckableItem):
         new.fix_family()
 
 
-class ClusterItem(CheckableItem):
-    """A cluster"""
-    def __init__(self, *args, **kwargs):
-        super(ClusterItem, self).__init__(*args, **kwargs)
-        self.draw_params = DRAW_PARAMS['cluster']
-
+class CatalogItem(CheckableItem):
+    """Items that are catalogs"""
     @property
     def _actions(self):
         base_actions = super(ClusterItem, self)._actions
@@ -297,30 +293,8 @@ class ClusterItem(CheckableItem):
     def remove(self):
         self.parent().removeRow(self.row())
 
-
-class StarsItem(CheckableItem):
-    """A star list"""
-    def __init__(self, *args, **kwargs):
-        super(StarsItem, self).__init__(*args, **kwargs)
-        self.draw_params = DRAW_PARAMS['stars']
-
-    @property
-    def _actions(self):
-        base_actions = super(StarsItem, self)._actions
-        actions = [
-            Action(
-                text='Remove',
-                func=self.remove,
-                args=()
-            )
-        ] + base_actions
-        return actions
-
-    def remove(self):
-        self.parent().removeRow(self.row())
-
     def add_entry(self, x, y, flux=1.0):
-        """Add a star"""
+        """Add an entry"""
         table = self.value
         table.add_row([x, y, flux])
         self.emitDataChanged()
@@ -347,6 +321,20 @@ class StarsItem(CheckableItem):
             self.remove_entry(draw_obj.idx)
         elif event.key == 's':
             self.add_entry(*coords)
+
+
+class ClusterItem(CatalogItem):
+    """A cluster"""
+    def __init__(self, *args, **kwargs):
+        super(ClusterItem, self).__init__(*args, **kwargs)
+        self.draw_params = DRAW_PARAMS['cluster']
+
+
+class StarsItem(CatalogItem):
+    """A star list"""
+    def __init__(self, *args, **kwargs):
+        super(StarsItem, self).__init__(*args, **kwargs)
+        self.draw_params = DRAW_PARAMS['stars']
 
 
 class TypeItem(FixedMixin, CheckableItem):
@@ -518,11 +506,28 @@ class Clusters(FixedMixin, CheckableItem):
         super(Clusters, self).__init__(*args, **kwargs)
         self.setText('Clusters')
 
-    def add(self, cluster, id):
-        item = ClusterItem(id, value=cluster)
+    def add(self, catalog, id):
+        item = ClusterItem(id, value=catalog)
         item.setCheckState(Qt.Checked)
         self.appendRow(item)
         item.fix_family()
+
+    def new_catalog(self):
+        """Create a new catalog"""
+        catalog = Table(names=['xcentroid', 'ycentroid', 'flux'])
+        self.add(catalog, 'cluster@' + str(next(self._sequence)))
+
+    @property
+    def _actions(self):
+        base_actions = super(Clusters, self)._actions
+        actions = [
+            Action(
+                text='Add Catalog',
+                func=self.new_catalog,
+                args=()
+            ),
+        ] + base_actions
+        return actions
 
 
 class Stars(FixedMixin, CheckableItem):
@@ -532,16 +537,16 @@ class Stars(FixedMixin, CheckableItem):
         super(Stars, self).__init__(*args, **kwargs)
         self.setText('Stars')
 
-    def add(self, stars, id):
-        item = StarsItem(id, value=stars)
+    def add(self, catalog, id):
+        item = StarsItem(id, value=catalog)
         item.setCheckState(Qt.Checked)
         self.appendRow(item)
         item.fix_family()
 
     def new_catalog(self):
         """Create a new catalog"""
-        stars = Table(names=['xcentroid', 'ycentroid', 'flux'])
-        self.add(stars, 'stars@' + str(next(self._sequence)))
+        catalog = Table(names=['xcentroid', 'ycentroid', 'flux'])
+        self.add(catalog, 'stars@' + str(next(self._sequence)))
 
     @property
     def _actions(self):
