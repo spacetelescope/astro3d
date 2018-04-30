@@ -5,6 +5,7 @@ from collections import (defaultdict, namedtuple)
 import copy
 from itertools import count
 
+from astropy.table import Table
 from ginga.canvas.types.image import Image
 from qtpy import (QtCore, QtGui, QtWidgets)
 
@@ -536,6 +537,23 @@ class Stars(FixedMixin, CheckableItem):
         item.setCheckState(Qt.Checked)
         self.appendRow(item)
         item.fix_family()
+
+    def new_catalog(self):
+        """Create a new catalog"""
+        stars = Table(names=['xcentroid', 'ycentroid', 'flux'])
+        self.add(stars, 'stars@' + str(next(self._sequence)))
+
+    @property
+    def _actions(self):
+        base_actions = super(Stars, self)._actions
+        actions = [
+            Action(
+                text='Add Catalog',
+                func=self.new_catalog,
+                args=()
+            ),
+        ] + base_actions
+        return actions
 
 
 # Utilities
