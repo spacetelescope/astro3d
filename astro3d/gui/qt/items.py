@@ -322,7 +322,7 @@ class StarsItem(CheckableItem):
         """Add a star"""
         table = self.value
         table.add_row([x, y, flux])
-        signaldb.ModelUpdate()
+        self.emitDataChanged()
 
     def remove_entry(self, idx):
         """Remove entry from the catalog"""

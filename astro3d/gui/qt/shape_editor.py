@@ -87,7 +87,7 @@ class ShapeEditor(QtWidgets.QWidget):
         canvas.set_callback('draw-event', self.draw_cb)
         canvas.set_callback('edit-event', self.edit_cb)
         canvas.set_callback('edit-select', self.edit_select_cb)
-        canvas.set_callback('key-up-none', cb_debug)
+        canvas.set_callback('key-up-none', self.key_event_handler)
 
         # Initial canvas state
         canvas.enable_edit(True)
@@ -392,7 +392,19 @@ class ShapeEditor(QtWidgets.QWidget):
                     self.canvas._prepare_to_move(selected_item.view, x, y)
                     self.mode = 'edit_select'
 
+        self.selected_item = selected_item
         self.canvas.process_drawing()
+
+    def key_event_handler(self, viewer, event, x, y):
+        """Handle key events"""
+
+        if self.mode == 'catalog':
+            if event.key == 's':
+                try:
+                    self.selected_item.add_entry(x, y)
+                except Exception:
+                    # We tried. No matter
+                    pass
 
     def _build_gui(self):
         """Build out the GUI"""
