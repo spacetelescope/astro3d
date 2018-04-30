@@ -7,6 +7,7 @@ from itertools import count
 from os.path import basename
 from qtpy import (QtCore, QtGui)
 
+from astropy.table import vstack as table_vstack
 from ginga.misc.Bunch import Bunch
 
 from ..core.model3d import (Model3D, read_stellar_table)
@@ -199,11 +200,23 @@ class Model(QStandardItemModel):
                     """Not a RegionMask, ignore"""
                     pass
 
-        for catalog in self.cluster_catalogs.available():
-            model3d.add_stellar_table(catalog.value, 'star_clusters')
+        full_catalog = [
+            catalog.value
+            for catalog in self.cluster_catalogs.available()
+        ]
+        if len(full_catalog):
+            model3d.add_stellar_table(
+                table_vstack(full_catalog), 'star_clusters'
+            )
 
-        for catalog in self.stars_catalogs.available():
-            model3d.add_stellar_table(catalog.value, 'stars')
+        full_catalog = [
+            catalog.value
+            for catalog in self.stars_catalogs.available()
+        ]
+        if len(full_catalog):
+            model3d.add_stellar_table(
+                table_vstack(full_catalog), 'stars'
+            )
 
         return model3d
 

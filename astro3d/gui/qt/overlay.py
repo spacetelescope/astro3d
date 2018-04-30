@@ -1,6 +1,4 @@
 """Region overlay handling"""
-from __future__ import absolute_import, print_function
-
 from functools import partial
 
 import numpy as np
@@ -195,18 +193,29 @@ class Overlay(BaseOverlay):
         self.logger.debug('Called.')
         if not layer.is_available:
             return None
-        if layer.view is None:
-            table = layer.value
-            container = self._dc.CompoundObject()
-            container.initialize(None, self.canvas.viewer, self.logger)
-            for row in table:
-                point = self._dc.Point(
-                    x=row['xcentroid'],
-                    y=row['ycentroid'],
-                    **layer.draw_params
-                )
-                container.add_object(point)
-            layer.view = container
+        table = layer.value
+        self.logger.debug('len(table)="{}"'.format(len(table)))
+        container = self._dc.CompoundObject()
+        container.initialize(None, self.canvas.viewer, self.logger)
+        for row in table:
+            point = self._dc.Point(
+                x=row['xcentroid'],
+                y=row['ycentroid'],
+                **layer.draw_params
+            )
+            point.pickable = True
+            point.editable = False
+            point.idx = row.index
+            point.item = layer
+            point.add_callback('pick-key', layer.key_callback)
+            for cb_name in ['pick-down',
+                            'pick-up',
+                            'pick-move',
+                            'pick-hover',
+            ]:
+                point.add_callback(cb_name, cb_debug)
+            container.add_object(point)
+        layer.view = container
         self.canvas.add(layer.view, tag=layer.text())
         return layer.view
 
@@ -390,3 +399,7 @@ def masktorgb(mask, color='red', opacity=0.3):
     ac[idx] = int(opacity * 255)
 
     return rgbobj
+
+
+def cb_debug(*args, **kwargs):
+    print('overlay.cb_debug: args="{}" kwargs="{}"'.format(args, kwargs))
