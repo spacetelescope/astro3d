@@ -1,7 +1,7 @@
 """Shape Editor"""
 
 from functools import partial
-from numpy import (logical_not, zeros, uint8)
+from numpy import (zeros, uint8)
 
 from ginga import colors
 from ginga.misc.Bunch import Bunch
@@ -13,6 +13,7 @@ from ...core.region_mask import RegionMask
 from ...util.logger import make_logger
 from .. import signaldb
 from ..helps import instructions
+from .items import (ClusterItem, StarsItem)
 
 __all__ = ['ShapeEditor']
 
@@ -86,6 +87,7 @@ class ShapeEditor(QtWidgets.QWidget):
         canvas.set_callback('draw-event', self.draw_cb)
         canvas.set_callback('edit-event', self.edit_cb)
         canvas.set_callback('edit-select', self.edit_select_cb)
+        canvas.set_callback('key-up-none', cb_debug)
 
         # Initial canvas state
         canvas.enable_edit(True)
@@ -114,6 +116,7 @@ class ShapeEditor(QtWidgets.QWidget):
 
     @mode.setter
     def mode(self, new_mode):
+        self.logger.debug('new_mode = "{}"'.format(new_mode))
 
         # Close off the current state.
         for mode in self.mode_frames:
@@ -137,6 +140,9 @@ class ShapeEditor(QtWidgets.QWidget):
             self.set_painting(True)
         elif new_mode == 'paint_edit':
             canvas_mode = 'paint'
+        elif new_mode == 'catalog':
+            canvas_mode = 'pick'
+        self.logger.debug('canvas_mode = "{}"'.format(canvas_mode))
         self.canvas.set_draw_mode(canvas_mode)
 
         # Success. Remember the mode
@@ -347,6 +353,8 @@ class ShapeEditor(QtWidgets.QWidget):
                      source=None):
         """Change layer selection"""
 
+        self.logger.debug('selected_item = "{}"'.format(selected_item))
+
         # If the selection was initiated by
         # selecting the object directly, there is
         # no reason to handle here.
@@ -360,23 +368,29 @@ class ShapeEditor(QtWidgets.QWidget):
             """We tried. No matter"""
             pass
 
-        try:
-            shape = selected_item.view
-            self.draw_params = shape.type_draw_params
-        except AttributeError:
-            """We tried. No matter"""
-            pass
+        # Check for catalog items
+        if isinstance(selected_item, (ClusterItem, StarsItem)):
+            self.mode = 'catalog'
+
+        # Otherwise, base mode off of shape.
         else:
-            if shape.kind == 'image':
-                self.mask_image = shape.get_image()
-                self.mask = self.mask_image.get_slice('A')
-                self.mask_id = selected_item.text()
+            try:
+                shape = selected_item.view
                 self.draw_params = shape.type_draw_params
-                self.mode = 'paint_edit'
+            except AttributeError:
+                """We tried. No matter"""
+                pass
             else:
-                x, y = selected_item.view.get_center_pt()
-                self.canvas._prepare_to_move(selected_item.view, x, y)
-                self.mode = 'edit_select'
+                if shape.kind == 'image':
+                    self.mask_image = shape.get_image()
+                    self.mask = self.mask_image.get_slice('A')
+                    self.mask_id = selected_item.text()
+                    self.draw_params = shape.type_draw_params
+                    self.mode = 'paint_edit'
+                else:
+                    x, y = selected_item.view.get_center_pt()
+                    self.canvas._prepare_to_move(selected_item.view, x, y)
+                    self.mode = 'edit_select'
 
         self.canvas.process_drawing()
 
@@ -534,3 +548,7 @@ def image_shape_to_regionmask(shape, mask_type):
         mask=shape.get_image().get_slice('A') > 0,
         mask_type=mask_type
     )
+
+
+def cb_debug(*args, **kwargs):
+    print('shape_editor.cb_debug: args = "{}" kwargs="{}"'.format(args, kwargs))

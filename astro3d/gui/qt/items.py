@@ -318,6 +318,35 @@ class StarsItem(CheckableItem):
     def remove(self):
         self.parent().removeRow(self.row())
 
+    def add_entry(self, x, y, flux=1.0):
+        """Add a star"""
+        table = self.value
+        table.add_row([x, y, flux])
+        signaldb.ModelUpdate()
+
+    def remove_entry(self, idx):
+        """Remove entry from the catalog"""
+        table = self.value
+        try:
+            table.remove_row(idx)
+        except Exception as e:
+            self.logger.debug(e)
+        else:
+            self.logger.debug('removal successful! Signalling...')
+            self.emitDataChanged()
+
+    def key_callback(self, draw_obj, canvas_obj, event, coords):
+        """Handle key-press callback"""
+        self.logger.debug(
+            'obj.idx="{}" event="{}" key="{}"'.format(
+                draw_obj.idx, event, event.key
+            )
+        )
+        if event.key == 'd':
+            self.remove_entry(draw_obj.idx)
+        elif event.key == 's':
+            self.add_entry(*coords)
+
 
 class TypeItem(FixedMixin, CheckableItem):
     """Types of regions"""
