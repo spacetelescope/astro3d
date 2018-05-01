@@ -45,9 +45,9 @@ class Model(QStandardItemModel):
         # Setup the basic structure
         self.image = None
         self.regions = Regions(logger=self.logger)
-        self.textures = Textures()
-        self.cluster_catalogs = Clusters()
-        self.stars_catalogs = Stars()
+        self.textures = Textures(logger=self.logger)
+        self.cluster_catalogs = Clusters(logger=self.logger)
+        self.stars_catalogs = Stars(logger=self.logger)
         self.process_thread = None
 
         root = self.invisibleRootItem()
@@ -74,7 +74,11 @@ class Model(QStandardItemModel):
         })
 
         # Get texture info
-        self.textures = TextureConfig(config)
+        self.texture_defs = TextureConfig(config)
+        for texture in self.texture_defs.textures:
+            self.textures.add_type(
+                texture, color=self.texture_defs.texture_colors[texture]
+            )
 
         # Signals related to item modification
         self.itemChanged.connect(self._update)
@@ -115,14 +119,17 @@ class Model(QStandardItemModel):
             m = Model3D.from_fits(pathname)
         self.image = m.data_original
 
-    def read_maskpathlist(self, pathlist):
+    def read_maskpathlist(self, pathlist, container_layer=None):
         """Read a list of mask files"""
+        if container_layer is None:
+            container_layer = self.regions
+
         signaldb.ModelUpdate.set_enabled(False, push=True)
         try:
             for path in pathlist:
                 mask = RegionMask.from_fits(path)
                 id = basename(path)
-                self.regions.add_mask(mask=mask, id=id)
+                container_layer.add_mask(mask=mask, id=id)
         finally:
             signaldb.ModelUpdate.reset_enabled()
 
@@ -184,15 +191,23 @@ class Model(QStandardItemModel):
         model3d = Model3D(self.image, **model_params)
 
         # Setup textures
-        model3d.texture_order = self.textures.texture_order
-        model3d.translate_texture.update(self.textures.translate_texture)
-        model3d.textures.update(self.textures.textures)
+        model3d.texture_order = self.texture_defs.texture_order
+        model3d.translate_texture.update(self.texture_defs.translate_texture)
+        model3d.textures.update(self.texture_defs.textures)
 
         # Setup regions
         if exclude_regions is None:
             exclude_regions = []
 
         for region in self.regions.regions:
+            if region.mask_type not in exclude_regions:
+                try:
+                    model3d.add_mask(region)
+                except AttributeError:
+                    """Not a RegionMask, ignore"""
+                    pass
+
+        for region in self.textures.regions:
             if region.mask_type not in exclude_regions:
                 try:
                     model3d.add_mask(region)

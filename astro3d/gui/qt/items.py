@@ -43,6 +43,7 @@ def _merge_dicts(*dictionaries):
         result.update(dictionary)
     return result
 
+
 DRAW_PARAMS_DEFAULT = {
     'color': 'red',
     'alpha': 0.3,
@@ -52,7 +53,7 @@ DRAW_PARAMS_DEFAULT = {
 }
 
 DRAW_PARAMS = defaultdict(
-    lambda: DRAW_PARAMS_DEFAULT,
+    lambda: copy.deepcopy(DRAW_PARAMS_DEFAULT),
     {
         'bulge': _merge_dicts(
             DRAW_PARAMS_DEFAULT,
@@ -394,14 +395,26 @@ class TypeItem(FixedMixin, CheckableItem):
         self.add_mask(merged, id)
 
 
-class Regions(FixedMixin, CheckableItem):
-    """Regions container"""
+class RegionBase(FixedMixin, CheckableItem):
+    """Base layer container for all conceptual and texture region masks"""
 
     def __init__(self, *args, **kwargs):
-        super(Regions, self).__init__(*args, **kwargs)
-        self.setText('Regions')
+        super(RegionBase, self).__init__(*args, **kwargs)
 
         self.types = InstanceDefaultDict(TypeItem)
+
+    @property
+    def _actions(self):
+        base_actions = super(RegionBase, self)._actions
+        actions = [
+            ActionSeparator(),
+            Action(
+                text='Merge all regions',
+                func=self.merge_masks,
+                args=()
+            ),
+        ] + base_actions
+        return actions
 
     @property
     def regions(self):
@@ -414,6 +427,66 @@ class Regions(FixedMixin, CheckableItem):
             if self.child(type_id).child(region_id).is_available
         )
         return regions
+
+    def add_mask(self, mask, id):
+        """Add a new region from a RegionMask"""
+        type_item = self.types[mask.mask_type]
+        region_item = RegionItem(id, value=mask)
+        region_item.setCheckState(Qt.Checked)
+        type_item.appendRow(region_item)
+        if not type_item.index().isValid():
+            self.appendRow(type_item)
+        region_item.fix_family()
+
+    def add_region_interactive(self, mask_type):
+        """Add a type"""
+        self.logger.debug('Called mask_type="{}"'.format(mask_type))
+        type_item = self.types[mask_type]
+        if not type_item.index().isValid():
+            self.appendRow(type_item)
+        signaldb.NewRegion(type_item)
+
+    def merge_masks(self):
+        """Merge masks for all types"""
+        for type_id in range(self.rowCount()):
+            if self.child(type_id).is_available:
+                self.child(type_id).merge_masks()
+
+    def add_type(self, type, color=None):
+        """Add a type to the region container
+
+        If the type already exists, nothing happens.
+
+        Parameters
+        ----------
+        type: str
+            Name of the type to addAction
+
+        color: str or None
+            Color to use for drawing.
+
+        Returns
+        -------
+        type_item: TypeItem
+            The layer for the new type.
+        """
+        type_item = self.types[type]
+        if not type_item.index().isValid():
+            self.appendRow(type_item)
+
+        if color is not None:
+            draw_params = DRAW_PARAMS[type_item.text()]
+            draw_params['color'] = color
+
+        return type_item
+
+
+class Regions(RegionBase):
+    """Container for all conceptual region masks"""
+
+    def __init__(self, *args, **kwargs):
+        super(Regions, self).__init__(*args, **kwargs)
+        self.setText('Regions')
 
     @property
     def _actions(self):
@@ -460,40 +533,11 @@ class Regions(FixedMixin, CheckableItem):
                 func=signaldb.CreateGasSpiralMasks,
                 args=()
             ),
-            Action(
-                text='Merge all regions',
-                func=self.merge_masks,
-                args=()
-            ),
         ] + base_actions
         return actions
 
-    def add_mask(self, mask, id):
-        """Add a new region from a RegionMask"""
-        type_item = self.types[mask.mask_type]
-        region_item = RegionItem(id, value=mask)
-        region_item.setCheckState(Qt.Checked)
-        type_item.appendRow(region_item)
-        if not type_item.index().isValid():
-            self.appendRow(type_item)
-        region_item.fix_family()
 
-    def add_region_interactive(self, mask_type):
-        """Add a type"""
-        self.logger.debug('Called mask_type="{}"'.format(mask_type))
-        type_item = self.types[mask_type]
-        if not type_item.index().isValid():
-            self.appendRow(type_item)
-        signaldb.NewRegion(type_item)
-
-    def merge_masks(self):
-        """Merge masks for all types"""
-        for type_id in range(self.rowCount()):
-            if self.child(type_id).is_available:
-                self.child(type_id).merge_masks()
-
-
-class Textures(FixedMixin, CheckableItem):
+class Textures(RegionBase):
     """Textures container"""
     def __init__(self, *args, **kwargs):
         super(Textures, self).__init__(*args, **kwargs)
