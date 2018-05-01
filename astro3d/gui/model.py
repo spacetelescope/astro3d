@@ -74,7 +74,7 @@ class Model(QStandardItemModel):
         })
 
         # Get texture info
-        self.textures = TextureConfig(config)
+        self.texture_defs = TextureConfig(config)
 
         # Signals related to item modification
         self.itemChanged.connect(self._update)
@@ -184,9 +184,9 @@ class Model(QStandardItemModel):
         model3d = Model3D(self.image, **model_params)
 
         # Setup textures
-        model3d.texture_order = self.textures.texture_order
-        model3d.translate_texture.update(self.textures.translate_texture)
-        model3d.textures.update(self.textures.textures)
+        model3d.texture_order = self.texture_defs.texture_order
+        model3d.translate_texture.update(self.texture_defs.translate_texture)
+        model3d.textures.update(self.texture_defs.textures)
 
         # Setup regions
         if exclude_regions is None:
