@@ -53,7 +53,7 @@ DRAW_PARAMS_DEFAULT = {
 }
 
 DRAW_PARAMS = defaultdict(
-    lambda: DRAW_PARAMS_DEFAULT,
+    lambda: copy.deepcopy(DRAW_PARAMS_DEFAULT),
     {
         'bulge': _merge_dicts(
             DRAW_PARAMS_DEFAULT,
@@ -452,7 +452,7 @@ class RegionBase(FixedMixin, CheckableItem):
             if self.child(type_id).is_available:
                 self.child(type_id).merge_masks()
 
-    def add_type(self, type):
+    def add_type(self, type, color=None):
         """Add a type to the region container
 
         If the type already exists, nothing happens.
@@ -462,6 +462,9 @@ class RegionBase(FixedMixin, CheckableItem):
         type: str
             Name of the type to addAction
 
+        color: str or None
+            Color to use for drawing.
+
         Returns
         -------
         type_item: TypeItem
@@ -470,6 +473,11 @@ class RegionBase(FixedMixin, CheckableItem):
         type_item = self.types[type]
         if not type_item.index().isValid():
             self.appendRow(type_item)
+
+        if color is not None:
+            draw_params = DRAW_PARAMS[type_item.text()]
+            draw_params['color'] = color
+
         return type_item
 
 

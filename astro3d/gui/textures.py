@@ -29,10 +29,11 @@ class TextureConfig(object):
 
         # Map to the Model3d attributes
         self.texture_order = params['textures']['texture_order']
+        self.texture_colors = params['textures']['texture_colors']
         self.translate_texture = params['texture_mappings']
 
         # Acquire the textures
-        self.textures = {}
-        textures = self.textures
-        for texture in self.texture_order:
-            textures[texture] = eval(params['textures'][texture])
+        self.textures = {
+            texture: eval(params['textures'][texture])
+            for texture in self.texture_order
+        }
