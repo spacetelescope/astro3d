@@ -75,6 +75,8 @@ class Model(QStandardItemModel):
 
         # Get texture info
         self.texture_defs = TextureConfig(config)
+        for texture in self.texture_defs.textures:
+            self.textures.add_type(texture)
 
         # Signals related to item modification
         self.itemChanged.connect(self._update)

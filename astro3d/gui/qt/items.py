@@ -452,6 +452,26 @@ class RegionBase(FixedMixin, CheckableItem):
             if self.child(type_id).is_available:
                 self.child(type_id).merge_masks()
 
+    def add_type(self, type):
+        """Add a type to the region container
+
+        If the type already exists, nothing happens.
+
+        Parameters
+        ----------
+        type: str
+            Name of the type to addAction
+
+        Returns
+        -------
+        type_item: TypeItem
+            The layer for the new type.
+        """
+        type_item = self.types[type]
+        if not type_item.index().isValid():
+            self.appendRow(type_item)
+        return type_item
+
 
 class Regions(RegionBase):
     """Container for all conceptual region masks"""
