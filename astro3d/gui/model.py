@@ -119,14 +119,17 @@ class Model(QStandardItemModel):
             m = Model3D.from_fits(pathname)
         self.image = m.data_original
 
-    def read_maskpathlist(self, pathlist):
+    def read_maskpathlist(self, pathlist, container_layer=None):
         """Read a list of mask files"""
+        if container_layer is None:
+            container_layer = self.regions
+
         signaldb.ModelUpdate.set_enabled(False, push=True)
         try:
             for path in pathlist:
                 mask = RegionMask.from_fits(path)
                 id = basename(path)
-                self.regions.add_mask(mask=mask, id=id)
+                container_layer.add_mask(mask=mask, id=id)
         finally:
             signaldb.ModelUpdate.reset_enabled()
 

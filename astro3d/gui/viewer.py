@@ -103,6 +103,25 @@ class MainWindow(GTK_MainWindow):
                 signaldb.ModelUpdate()
                 config.set('gui', 'folder_regions', dirname(file_list[0]))
 
+    def texturepath_from_dialog(self):
+        res = QtWidgets.QFileDialog.getOpenFileNames(
+            self, "Open Texture files",
+            config.get('gui', 'folder_textures'),
+            "FITS files (*.fits)"
+        )
+        self.logger.debug('res="{}"'.format(res))
+        if len(res) > 0:
+            if isinstance(res, tuple):
+                file_list = res[0]
+            else:
+                file_list = res
+            if len(file_list):
+                self.model.read_maskpathlist(
+                    file_list, container_layer=self.model.textures
+                )
+                signaldb.ModelUpdate()
+                config.set('gui', 'folder_textures', dirname(file_list[0]))
+
     def starpath_from_dialog(self):
         res = QtWidgets.QFileDialog.getOpenFileName(
             self,
@@ -349,6 +368,12 @@ class MainWindow(GTK_MainWindow):
         clusters.triggered.connect(self.clusterpath_from_dialog)
         self.actions.clusters = clusters
 
+        textures = QtWidgets.QAction('&Textures', self)
+        textures.setShortcut('Ctrl+T')
+        textures.setStatusTip('Open Textures')
+        textures.triggered.connect(self.texturepath_from_dialog)
+        self.actions.textures = textures
+
         save_all = QtWidgets.QAction('&Save', self)
         save_all.setShortcut(QtGui.QKeySequence.Save)
         save_all.triggered.connect(self.save_all_from_dialog)
@@ -384,6 +409,7 @@ class MainWindow(GTK_MainWindow):
         file_menu.addAction(self.actions.regions)
         file_menu.addAction(self.actions.clusters)
         file_menu.addAction(self.actions.stars)
+        file_menu.addAction(self.actions.textures)
         file_menu.addSeparator()
         file_menu.addAction(self.actions.save_all)
         file_menu.addAction(self.actions.quit)
