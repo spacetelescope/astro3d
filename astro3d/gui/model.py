@@ -202,6 +202,14 @@ class Model(QStandardItemModel):
                     """Not a RegionMask, ignore"""
                     pass
 
+        for region in self.textures.regions:
+            if region.mask_type not in exclude_regions:
+                try:
+                    model3d.add_mask(region)
+                except AttributeError:
+                    """Not a RegionMask, ignore"""
+                    pass
+
         full_catalog = [
             catalog.value
             for catalog in self.cluster_catalogs.available()
