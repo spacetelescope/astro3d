@@ -45,9 +45,9 @@ class Model(QStandardItemModel):
         # Setup the basic structure
         self.image = None
         self.regions = Regions(logger=self.logger)
-        self.textures = Textures()
-        self.cluster_catalogs = Clusters()
-        self.stars_catalogs = Stars()
+        self.textures = Textures(logger=self.logger)
+        self.cluster_catalogs = Clusters(logger=self.logger)
+        self.stars_catalogs = Stars(logger=self.logger)
         self.process_thread = None
 
         root = self.invisibleRootItem()
