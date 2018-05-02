@@ -23,6 +23,9 @@ QObject = QtCore.QObject
 
 
 __all__ = [
+    'CatalogItem',
+    'Catalogs',
+    'CatalogTypeItem',
     'ClusterItem',
     'Clusters',
     'LayerItem',
@@ -44,7 +47,7 @@ def _merge_dicts(*dictionaries):
     return result
 
 
-DRAW_PARAMS_DEFAULT = {
+REGION_DRAW_PARAMS_DEFAULT = {
     'color': 'red',
     'alpha': 0.3,
     'fill': True,
@@ -52,50 +55,59 @@ DRAW_PARAMS_DEFAULT = {
     'linewidth': 0.,
 }
 
-DRAW_PARAMS = defaultdict(
-    lambda: copy.deepcopy(DRAW_PARAMS_DEFAULT),
+CATALOG_DRAW_PARAMS_DEFAULT = _merge_dicts(
+    REGION_DRAW_PARAMS_DEFAULT,
+    {
+        'linewidth': 10,
+        'fill': False,
+        'radius': 4.0
+    }
+)
+
+REGION_DRAW_PARAMS = defaultdict(
+    lambda: copy.deepcopy(REGION_DRAW_PARAMS_DEFAULT),
     {
         'bulge': _merge_dicts(
-            DRAW_PARAMS_DEFAULT,
+            REGION_DRAW_PARAMS_DEFAULT,
             {'color': 'blue'}
         ),
-        'cluster': _merge_dicts(
-            DRAW_PARAMS_DEFAULT,
-            {'color': 'darkgoldenrod',
-             'linewidth': 10,
-             'fill': False,
-             'radius': 4.0}
-        ),
         'disk': _merge_dicts(
-            DRAW_PARAMS_DEFAULT,
+            REGION_DRAW_PARAMS_DEFAULT,
             {'color': 'cornflowerblue'}
         ),
         'dust': _merge_dicts(
-            DRAW_PARAMS_DEFAULT,
+            REGION_DRAW_PARAMS_DEFAULT,
             {'color': 'debianred'}
         ),
         'filament': _merge_dicts(
-            DRAW_PARAMS_DEFAULT,
+            REGION_DRAW_PARAMS_DEFAULT,
             {'color': 'aquamarine'}
         ),
         'gas': _merge_dicts(
-            DRAW_PARAMS_DEFAULT,
+            REGION_DRAW_PARAMS_DEFAULT,
             {'color': 'green'}
         ),
         'remove_star': _merge_dicts(
-            DRAW_PARAMS_DEFAULT,
+            REGION_DRAW_PARAMS_DEFAULT,
             {'color': 'red'}
         ),
         'spiral': _merge_dicts(
-            DRAW_PARAMS_DEFAULT,
+            REGION_DRAW_PARAMS_DEFAULT,
             {'color': 'orange'}
         ),
+    }
+)
+
+CATALOG_DRAW_PARAMS = defaultdict(
+    lambda: copy.deepcopy(CATALOG_DRAW_PARAMS_DEFAULT),
+    {
+        'cluster': _merge_dicts(
+            CATALOG_DRAW_PARAMS_DEFAULT,
+            {'color': 'darkgoldenrod'}
+        ),
         'stars': _merge_dicts(
-            DRAW_PARAMS_DEFAULT,
-            {'color': 'purple',
-             'linewidth': 10,
-             'fill': False,
-             'radius': 4.0}
+            CATALOG_DRAW_PARAMS_DEFAULT,
+            {'color': 'purple'}
         )
     }
 )
@@ -247,154 +259,6 @@ class CheckableItem(LayerItem):
         self.setCheckState(Qt.Unchecked if self.checkState() else Qt.Checked)
 
 
-class RegionItem(CheckableItem):
-    """The regions"""
-    @property
-    def _actions(self):
-        base_actions = super(RegionItem, self)._actions
-        actions = [
-            Action(
-                text='Duplicate',
-                func=self.duplicate,
-                args=()
-            ),
-            Action(
-                text='Remove',
-                func=self.remove,
-                args=()
-            ),
-        ] + base_actions
-        return actions
-
-    def remove(self):
-        self.parent().removeRow(self.row())
-
-    def duplicate(self):
-        """Duplicate this item and put into model"""
-        new = self.clone()
-        new.setText(self.text() + 'copy@' + str(next(self._sequence)))
-        self.parent().appendRow(new)
-        new.fix_family()
-
-
-class CatalogItem(CheckableItem):
-    """Items that are catalogs"""
-    @property
-    def _actions(self):
-        base_actions = super(ClusterItem, self)._actions
-        actions = [
-            Action(
-                text='Remove',
-                func=self.remove,
-                args=()
-            )
-        ] + base_actions
-        return actions
-
-    def remove(self):
-        self.parent().removeRow(self.row())
-
-    def add_entry(self, x, y, flux=1.0):
-        """Add an entry"""
-        table = self.value
-        table.add_row([x, y, flux])
-        self.emitDataChanged()
-
-    def remove_entry(self, idx):
-        """Remove entry from the catalog"""
-        table = self.value
-        try:
-            table.remove_row(idx)
-        except Exception as e:
-            self.logger.debug(e)
-        else:
-            self.logger.debug('removal successful! Signalling...')
-            self.emitDataChanged()
-
-    def key_callback(self, draw_obj, canvas_obj, event, coords):
-        """Handle key-press callback"""
-        self.logger.debug(
-            'obj.idx="{}" event="{}" key="{}"'.format(
-                draw_obj.idx, event, event.key
-            )
-        )
-        if event.key == 'd':
-            self.remove_entry(draw_obj.idx)
-        elif event.key == 's':
-            self.add_entry(*coords)
-
-
-class ClusterItem(CatalogItem):
-    """A cluster"""
-    def __init__(self, *args, **kwargs):
-        super(ClusterItem, self).__init__(*args, **kwargs)
-        self.draw_params = DRAW_PARAMS['cluster']
-
-
-class StarsItem(CatalogItem):
-    """A star list"""
-    def __init__(self, *args, **kwargs):
-        super(StarsItem, self).__init__(*args, **kwargs)
-        self.draw_params = DRAW_PARAMS['stars']
-
-
-class TypeItem(FixedMixin, CheckableItem):
-    """Types of regions"""
-    def __init__(self, *args, **kwargs):
-        super(TypeItem, self).__init__(*args, **kwargs)
-
-        self.draw_params = DRAW_PARAMS[self.text()]
-
-    @property
-    def _actions(self):
-        base_actions = super(TypeItem, self)._actions
-        actions = [
-            Action(
-                text='Add Region',
-                func=self.add_region_interactive,
-                args=()
-            ),
-            Action(
-                text="Merge regions",
-                func=self.merge_masks,
-                args=()
-            ),
-        ] + base_actions
-        return actions
-
-    def add_region_interactive(self):
-        """Add a new region."""
-        signaldb.NewRegion(self)
-
-    def add_shape(self, shape, mask, id):
-        region_item = RegionItem(id, value=mask, view=shape)
-        region_item.setCheckState(Qt.Checked)
-        self.appendRow(region_item)
-        region_item.fix_family()
-        return region_item
-
-    def add_mask(self, mask, id):
-        region_item = RegionItem(id, value=mask)
-        region_item.setCheckState(Qt.Checked)
-        self.appendRow(region_item)
-        region_item.fix_family()
-        return region_item
-
-    def merge_masks(self):
-        """Merge all masks"""
-        regionmasks = []
-        for region in self.available():
-            regionmasks.append(region.value)
-            region.toggle_available()
-
-        if len(regionmasks) == 0:
-            return
-        mergedmask = combine_region_masks(regionmasks)
-        merged = RegionMask(mergedmask, self.text())
-        id = 'merged@' + str(next(self._sequence))
-        self.add_mask(merged, id)
-
-
 class RegionBase(FixedMixin, CheckableItem):
     """Base layer container for all conceptual and texture region masks"""
 
@@ -475,7 +339,7 @@ class RegionBase(FixedMixin, CheckableItem):
             self.appendRow(type_item)
 
         if color is not None:
-            draw_params = DRAW_PARAMS[type_item.text()]
+            draw_params = REGION_DRAW_PARAMS[type_item.text()]
             draw_params['color'] = color
 
         return type_item
@@ -537,11 +401,228 @@ class Regions(RegionBase):
         return actions
 
 
+class RegionItem(CheckableItem):
+    """The regions"""
+    @property
+    def _actions(self):
+        base_actions = super(RegionItem, self)._actions
+        actions = [
+            Action(
+                text='Duplicate',
+                func=self.duplicate,
+                args=()
+            ),
+            Action(
+                text='Remove',
+                func=self.remove,
+                args=()
+            ),
+        ] + base_actions
+        return actions
+
+    def remove(self):
+        self.parent().removeRow(self.row())
+
+    def duplicate(self):
+        """Duplicate this item and put into model"""
+        new = self.clone()
+        new.setText(self.text() + 'copy@' + str(next(self._sequence)))
+        self.parent().appendRow(new)
+        new.fix_family()
+
+
 class Textures(RegionBase):
     """Textures container"""
     def __init__(self, *args, **kwargs):
         super(Textures, self).__init__(*args, **kwargs)
         self.setText('Textures')
+
+
+class TypeItem(FixedMixin, CheckableItem):
+    """Types of regions"""
+    def __init__(self, *args, **kwargs):
+        super(TypeItem, self).__init__(*args, **kwargs)
+
+        self.draw_params = REGION_DRAW_PARAMS[self.text()]
+
+    @property
+    def _actions(self):
+        base_actions = super(TypeItem, self)._actions
+        actions = [
+            Action(
+                text='Add Region',
+                func=self.add_region_interactive,
+                args=()
+            ),
+            Action(
+                text="Merge regions",
+                func=self.merge_masks,
+                args=()
+            ),
+        ] + base_actions
+        return actions
+
+    def add_region_interactive(self):
+        """Add a new region."""
+        signaldb.NewRegion(self)
+
+    def add_shape(self, shape, mask, id):
+        region_item = RegionItem(id, value=mask, view=shape)
+        region_item.setCheckState(Qt.Checked)
+        self.appendRow(region_item)
+        region_item.fix_family()
+        return region_item
+
+    def add_mask(self, mask, id):
+        region_item = RegionItem(id, value=mask)
+        region_item.setCheckState(Qt.Checked)
+        self.appendRow(region_item)
+        region_item.fix_family()
+        return region_item
+
+    def merge_masks(self):
+        """Merge all masks"""
+        regionmasks = []
+        for region in self.available():
+            regionmasks.append(region.value)
+            region.toggle_available()
+
+        if len(regionmasks) == 0:
+            return
+        mergedmask = combine_region_masks(regionmasks)
+        merged = RegionMask(mergedmask, self.text())
+        id = 'merged@' + str(next(self._sequence))
+        self.add_mask(merged, id)
+
+
+class Catalogs(FixedMixin, CheckableItem):
+    """Catalog container"""
+    def __init__(self, *args, **kwargs):
+        super(Catalogs, self).__init__(*args, **kwargs)
+        self.setText('Catalogs')
+        self.types = InstanceDefaultDict(CatalogTypeItem)
+
+    @property
+    def catalogs(self):
+        """Iterate over all the catalogs"""
+        catalogs = (
+            self.child(type_id).child(catalog_id).value
+            for type_id in range(self.rowCount())
+            if self.child(type_id).is_available
+            for catalog_id in range(self.child(type_id).rowCount())
+            if self.child(type_id).child(catalog_id).is_available
+        )
+        return catalogs
+
+    def add_type(self, type, color=None):
+        """Add a type to the container
+
+        If the type already exists, nothing happens.
+
+        Parameters
+        ----------
+        type: str
+            Name of the type to addAction
+
+        color: str or None
+            Color to use for drawing.
+
+        Returns
+        -------
+        type_item: CatalogTypeItem
+            The layer for the new type.
+        """
+        type_item = self.types[type]
+        if not type_item.index().isValid():
+            self.appendRow(type_item)
+
+        if color is not None:
+            draw_params = CATALOG_DRAW_PARAMS[type_item.text()]
+            draw_params['color'] = color
+
+        return type_item
+
+
+class CatalogTypeItem(FixedMixin, CheckableItem):
+    """Catalog type container"""
+    def __init__(self, *args, **kwargs):
+        super(CatalogTypeItem, self).__init__(*args, **kwargs)
+
+        self.draw_params = CATALOG_DRAW_PARAMS[self.text()]
+
+    def add(self, catalog, id):
+        item = CatalogItem(id, value=catalog)
+        item.setCheckState(Qt.Checked)
+        self.appendRow(item)
+        item.fix_family()
+
+    def new_catalog(self):
+        """Create a new catalog"""
+        catalog = Table(names=['xcentroid', 'ycentroid', 'flux'])
+        self.add(catalog, self.text() + '@' + str(next(self._sequence)))
+
+    @property
+    def _actions(self):
+        base_actions = super(CatalogTypeItem, self)._actions
+        actions = [
+            Action(
+                text='Add Catalog',
+                func=self.new_catalog,
+                args=()
+            ),
+        ] + base_actions
+        return actions
+
+
+class CatalogItem(CheckableItem):
+    """Items that are catalogs"""
+    def __init__(self, *args, **kwargs):
+        super(CatalogItem, self).__init__(*args, **kwargs)
+        self.draw_params = CATALOG_DRAW_PARAMS[self.text()]
+
+    @property
+    def _actions(self):
+        base_actions = super(CatalogItem, self)._actions
+        actions = [
+            Action(
+                text='Remove',
+                func=self.remove,
+                args=()
+            )
+        ] + base_actions
+        return actions
+
+    def remove(self):
+        self.parent().removeRow(self.row())
+
+    def add_entry(self, x, y, flux=1.0):
+        """Add an entry"""
+        table = self.value
+        table.add_row([x, y, flux])
+        self.emitDataChanged()
+
+    def remove_entry(self, idx):
+        """Remove entry from the catalog"""
+        table = self.value
+        try:
+            table.remove_row(idx)
+        except Exception as e:
+            self.logger.debug(e)
+        else:
+            self.logger.debug('removal successful! Signalling...')
+            self.emitDataChanged()
+
+    def key_callback(self, draw_obj, canvas_obj, event, coords):
+        """Handle key-press callback"""
+        self.logger.debug(
+            'obj.idx="{}" event="{}" key="{}"'.format(
+                draw_obj.idx, event, event.key
+            )
+        )
+        if event.key == 'd':
+            self.remove_entry(draw_obj.idx)
+        elif event.key == 's':
+            self.add_entry(*coords)
 
 
 class Clusters(FixedMixin, CheckableItem):
@@ -603,6 +684,20 @@ class Stars(FixedMixin, CheckableItem):
             ),
         ] + base_actions
         return actions
+
+
+class ClusterItem(CatalogItem):
+    """A cluster"""
+    def __init__(self, *args, **kwargs):
+        super(ClusterItem, self).__init__(*args, **kwargs)
+        self.draw_params = CATALOG_DRAW_PARAMS['cluster']
+
+
+class StarsItem(CatalogItem):
+    """A star list"""
+    def __init__(self, *args, **kwargs):
+        super(StarsItem, self).__init__(*args, **kwargs)
+        self.draw_params = CATALOG_DRAW_PARAMS['stars']
 
 
 # Utilities

@@ -132,10 +132,22 @@ class Overlay(BaseOverlay):
                 view = self.add_region(layer)
             elif isinstance(
                     layer,
-                    (Regions, Textures, Clusters, Stars, TypeItem)
+                    (
+                        Catalogs,
+                        CatalogTypeItem,
+                        Clusters,
+                        Regions,
+                        Stars,
+                        Textures,
+                        TypeItem
+                    )
             ):
                 view = self.add_overlay(layer)
-            elif isinstance(layer, (ClusterItem, StarsItem)):
+            elif isinstance(layer, (
+                    CatalogItem,
+                    ClusterItem,
+                    StarsItem
+            )):
                 view = self.add_table(layer)
 
         self.logger.debug('Returned view="{}"'.format(view))

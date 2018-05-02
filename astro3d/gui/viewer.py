@@ -137,6 +137,21 @@ class MainWindow(GTK_MainWindow):
             config.set('gui', 'folder_regions', dirname(res[0]))
             signaldb.ModelUpdate()
 
+    def catalogpath_from_dialog(self):
+        res = QtWidgets.QFileDialog.getOpenFileName(
+            self,
+            "Open Catalog",
+            config.get('gui', 'folder_regions')
+        )
+        if isinstance(res, tuple):
+            pathname = res[0]
+        else:
+            pathname = str(res)
+        if len(pathname) != 0:
+            self.model.read_star_catalog(pathname)
+            config.set('gui', 'folder_regions', dirname(res[0]))
+            signaldb.ModelUpdate()
+
     def clusterpath_from_dialog(self):
         res = QtWidgets.QFileDialog.getOpenFileName(
             self,
@@ -374,6 +389,12 @@ class MainWindow(GTK_MainWindow):
         textures.triggered.connect(self.texturepath_from_dialog)
         self.actions.textures = textures
 
+        catalogs = QtWidgets.QAction('&Catalogs', self)
+        catalogs.setShortcut('Shift+Ctrl+C')
+        catalogs.setStatusTip('Open a Catalog')
+        catalogs.triggered.connect(self.catalogpath_from_dialog)
+        self.actions.catalogs = catalogs
+
         save_all = QtWidgets.QAction('&Save', self)
         save_all.setShortcut(QtGui.QKeySequence.Save)
         save_all.triggered.connect(self.save_all_from_dialog)
@@ -410,6 +431,7 @@ class MainWindow(GTK_MainWindow):
         file_menu.addAction(self.actions.clusters)
         file_menu.addAction(self.actions.stars)
         file_menu.addAction(self.actions.textures)
+        file_menu.addAction(self.actions.catalogs)
         file_menu.addSeparator()
         file_menu.addAction(self.actions.save_all)
         file_menu.addAction(self.actions.quit)

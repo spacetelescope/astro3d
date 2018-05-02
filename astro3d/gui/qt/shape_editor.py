@@ -13,7 +13,7 @@ from ...core.region_mask import RegionMask
 from ...util.logger import make_logger
 from .. import signaldb
 from ..helps import instructions
-from .items import (ClusterItem, StarsItem)
+from .items import (CatalogItem, ClusterItem, StarsItem)
 
 __all__ = ['ShapeEditor']
 
@@ -369,7 +369,7 @@ class ShapeEditor(QtWidgets.QWidget):
             pass
 
         # Check for catalog items
-        if isinstance(selected_item, (ClusterItem, StarsItem)):
+        if isinstance(selected_item, (CatalogItem, ClusterItem, StarsItem)):
             self.mode = 'catalog'
 
         # Otherwise, base mode off of shape.

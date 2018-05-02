@@ -15,7 +15,13 @@ from ..core.region_mask import RegionMask
 from ..util.logger import make_logger
 from . import signaldb
 from .qt.process import MeshThread
-from .qt.items import (Regions, Textures, Clusters, Stars)
+from .qt.items import (
+    Catalogs,
+    Clusters,
+    Regions,
+    Stars,
+    Textures,
+)
 from .config import config
 from .textures import TextureConfig
 
@@ -46,6 +52,7 @@ class Model(QStandardItemModel):
         self.image = None
         self.regions = Regions(logger=self.logger)
         self.textures = Textures(logger=self.logger)
+        self.catalogs = Catalogs(logger=self.logger)
         self.cluster_catalogs = Clusters(logger=self.logger)
         self.stars_catalogs = Stars(logger=self.logger)
         self.process_thread = None
@@ -55,6 +62,7 @@ class Model(QStandardItemModel):
         root.appendRow(self.cluster_catalogs)
         root.appendRow(self.stars_catalogs)
         root.appendRow(self.textures)
+        root.appendRow(self.catalogs)
         self._root = root
 
         # Load initial values.
@@ -77,6 +85,10 @@ class Model(QStandardItemModel):
         self.texture_defs = TextureConfig(config)
         for texture_name, texture_def in self.texture_defs.textures.items():
             self.textures.add_type(
+                texture_name, color=texture_def['color']
+            )
+        for texture_name, texture_def in self.texture_defs.catalog_textures.items():
+            self.catalogs.add_type(
                 texture_name, color=texture_def['color']
             )
 
@@ -115,7 +127,7 @@ class Model(QStandardItemModel):
         """Read image from pathname"""
         try:
             m = Model3D.from_rgb(pathname)
-        except:
+        except Exception:
             m = Model3D.from_fits(pathname)
         self.image = m.data_original
 
@@ -195,7 +207,7 @@ class Model(QStandardItemModel):
         model3d.translate_texture.update(self.texture_defs.translate_texture)
         model3d.textures.update({
             name: pars['model']
-            for name, pars in  self.texture_defs.textures.items()
+            for name, pars in self.texture_defs.textures.items()
         })
 
         # Setup regions
