@@ -75,9 +75,9 @@ class Model(QStandardItemModel):
 
         # Get texture info
         self.texture_defs = TextureConfig(config)
-        for texture in self.texture_defs.textures:
+        for texture_name, texture_def in self.texture_defs.textures.items():
             self.textures.add_type(
-                texture, color=self.texture_defs.texture_colors[texture]
+                texture_name, color=texture_def['color']
             )
 
         # Signals related to item modification
@@ -193,7 +193,10 @@ class Model(QStandardItemModel):
         # Setup textures
         model3d.texture_order = self.texture_defs.texture_order
         model3d.translate_texture.update(self.texture_defs.translate_texture)
-        model3d.textures.update(self.texture_defs.textures)
+        model3d.textures.update({
+            name: pars['model']
+            for name, pars in  self.texture_defs.textures.items()
+        })
 
         # Setup regions
         if exclude_regions is None:
