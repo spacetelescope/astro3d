@@ -105,7 +105,6 @@ class Model3D(object):
 
         self.texture_order = ['small_dots', 'dots', 'lines']
         self.region_mask_types = ['smooth', 'remove_star']
-        self.allowed_stellar_types = ['stars', 'star_clusters']
 
         self.translate_texture = {}
         self.translate_texture['small_dots'] = ['gas']
@@ -432,7 +431,7 @@ class Model3D(object):
             will be '<filename_prefix>_<stellar_type>.txt'.
         """
 
-        for stellar_type in self.allowed_stellar_types:
+        for stellar_type in self.stellar_tables_original:
             try:
                 self.write_stellar_table(filename_prefix, stellar_type)
             except KeyError:
