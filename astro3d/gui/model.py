@@ -2,6 +2,7 @@
 
 from __future__ import absolute_import, print_function
 
+from collections import defaultdict
 from copy import copy
 from itertools import count
 from os.path import basename
@@ -15,7 +16,13 @@ from ..core.region_mask import RegionMask
 from ..util.logger import make_logger
 from . import signaldb
 from .qt.process import MeshThread
-from .qt.items import (Regions, Textures, Clusters, Stars)
+from .qt.items import (
+    Catalogs,
+    Clusters,
+    Regions,
+    Stars,
+    Textures,
+)
 from .config import config
 from .textures import TextureConfig
 
@@ -46,6 +53,7 @@ class Model(QStandardItemModel):
         self.image = None
         self.regions = Regions(logger=self.logger)
         self.textures = Textures(logger=self.logger)
+        self.catalogs = Catalogs(logger=self.logger)
         self.cluster_catalogs = Clusters(logger=self.logger)
         self.stars_catalogs = Stars(logger=self.logger)
         self.process_thread = None
@@ -55,6 +63,7 @@ class Model(QStandardItemModel):
         root.appendRow(self.cluster_catalogs)
         root.appendRow(self.stars_catalogs)
         root.appendRow(self.textures)
+        root.appendRow(self.catalogs)
         self._root = root
 
         # Load initial values.
@@ -75,10 +84,12 @@ class Model(QStandardItemModel):
 
         # Get texture info
         self.texture_defs = TextureConfig(config)
-        for texture in self.texture_defs.textures:
+        for texture_name, texture_def in self.texture_defs.textures.items():
             self.textures.add_type(
-                texture, color=self.texture_defs.texture_colors[texture]
+                texture_name, color=texture_def['color']
             )
+        for texture_name, texture_def in self.texture_defs.catalog_textures.items():
+            self.catalogs.add_type(texture_name, texture_def)
 
         # Signals related to item modification
         self.itemChanged.connect(self._update)
@@ -115,7 +126,7 @@ class Model(QStandardItemModel):
         """Read image from pathname"""
         try:
             m = Model3D.from_rgb(pathname)
-        except:
+        except Exception:
             m = Model3D.from_fits(pathname)
         self.image = m.data_original
 
@@ -133,17 +144,13 @@ class Model(QStandardItemModel):
         finally:
             signaldb.ModelUpdate.reset_enabled()
 
-    def read_star_catalog(self, pathname):
+    def read_stellar_catalog(self, pathname, catalog_item=None):
         """Read in a star catalog"""
+        if catalog_item is None:
+            catalog_item = self.stars_catalogs
         id = basename(pathname)
-        stars = read_stellar_table(pathname, 'stars')
-        self.stars_catalogs.add(stars, id)
-
-    def read_cluster_catalog(self, pathname):
-        """Read in a star cluster catalog"""
-        id = basename(pathname)
-        cluster = read_stellar_table(pathname, 'star_clusters')
-        self.cluster_catalogs.add(cluster, id)
+        table = read_stellar_table(pathname, catalog_item.text().lower())
+        catalog_item.add(table, id)
 
     def process(self):
         """Create the 3D model.
@@ -193,7 +200,10 @@ class Model(QStandardItemModel):
         # Setup textures
         model3d.texture_order = self.texture_defs.texture_order
         model3d.translate_texture.update(self.texture_defs.translate_texture)
-        model3d.textures.update(self.texture_defs.textures)
+        model3d.textures.update({
+            name: pars['model']
+            for name, pars in self.texture_defs.textures.items()
+        })
 
         # Setup regions
         if exclude_regions is None:
@@ -215,6 +225,7 @@ class Model(QStandardItemModel):
                     """Not a RegionMask, ignore"""
                     pass
 
+        # Gather all the catalogs
         full_catalog = [
             catalog.value
             for catalog in self.cluster_catalogs.available()
@@ -232,6 +243,14 @@ class Model(QStandardItemModel):
             model3d.add_stellar_table(
                 table_vstack(full_catalog), 'stars'
             )
+
+        full_catalogs = defaultdict(list)
+        for type_id, table in self.catalogs.catalogs:
+            full_catalogs[type_id].append(table)
+        for type_id, table_list in full_catalogs.items():
+            model3d.add_stellar_table(table_vstack(table_list), type_id)
+        for type_id, texture_def in self.catalogs.texture_defs.items():
+            model3d.add_stellar_texture_def(type_id, texture_def)
 
         return model3d
 

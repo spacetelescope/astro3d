@@ -531,7 +531,8 @@ class StarClusterTexture(Fittable2DModel):
 
 def make_stellar_models(model_type, stellar_table, star_radius_a=10,
                         star_radius_b=5, cluster_radius_a=10,
-                        cluster_radius_b=5, depth=5, slope=0.5):
+                        cluster_radius_b=5, depth=5, slope=0.5,
+                        texture_def=None):
     """
     Create the stellar (star or star cluster) texture models to be
     applied to an image.
@@ -581,18 +582,22 @@ def make_stellar_models(model_type, stellar_table, star_radius_a=10,
         The slope of the star texture sides (for both single stars and
         star clusters).
 
+    texture_def : dict
+        For `model_type` other than `star` or `star_cluster`, use
+        this texture for rendering
+
     Returns
     -------
     models : list
         A list of `StarTexture` or `StarClusterTexture` model objects.
     """
 
+    if texture_def is not None:
+        Texture = texture_def['model']
     if model_type == 'stars':
         Texture = StarTexture
     elif model_type == 'star_clusters':
         Texture = StarClusterTexture
-    else:
-        raise ValueError('model_type must be "stars" or "star_clusters"')
 
     if len(stellar_table) == 0:
         return []
@@ -616,10 +621,10 @@ def make_stellar_models(model_type, stellar_table, star_radius_a=10,
     max_flux = float(np.max(fluxes))
     log.debug('max_flux = "{}"'.format(max_flux))
 
-    if model_type == 'stars':
-        radius = star_radius_a + (star_radius_b * fluxes / max_flux)
-    elif model_type == 'star_clusters':
+    if model_type == 'star_clusters':
         radius = cluster_radius_a + (cluster_radius_b * fluxes / max_flux)
+    else:
+        radius = star_radius_a + (star_radius_b * fluxes / max_flux)
 
     models = []
     base_height = 0.
@@ -701,7 +706,7 @@ def stellar_base_height(data, model, stellar_mask=None, selem=None):
 def make_stellar_textures(data, stellar_tables, star_radius_a=10,
                           star_radius_b=5, cluster_radius_a=10,
                           cluster_radius_b=5, depth=5, slope=0.5,
-                          exclusion_mask=None):
+                          exclusion_mask=None, texture_defs=None):
     """
     Make an image containing stellar textures (stars and star clusters).
     and an image containing the base heights for each texture.
@@ -748,6 +753,9 @@ def make_stellar_textures(data, stellar_tables, star_radius_a=10,
         used to prevent overlapping textures with the central galaxy
         cusp texture.
 
+    texture_defs: dict
+        Stellar type to texture mapping
+
     Returns
     -------
     textures : `~numpy.ndarray`
@@ -765,12 +773,15 @@ def make_stellar_textures(data, stellar_tables, star_radius_a=10,
     """
 
     stellar_models = []
+    if texture_defs is None:
+        texture_defs = {}
     # include both stars and star clusters
     for stellar_type, table in stellar_tables.items():
         stellar_models.extend(make_stellar_models(
             stellar_type, table, star_radius_a=star_radius_a,
             star_radius_b=star_radius_b, cluster_radius_a=cluster_radius_a,
-            cluster_radius_b=cluster_radius_b, depth=depth, slope=slope))
+            cluster_radius_b=cluster_radius_b, depth=depth, slope=slope,
+            texture_def=texture_defs.get(stellar_type, None)))
 
     # create mask of all stellar textures
     stellar_mask = np.zeros(data.shape)

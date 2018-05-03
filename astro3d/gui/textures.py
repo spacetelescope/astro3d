@@ -18,7 +18,8 @@ class TextureConfig(object):
     def __init__(self, config):
         self.params = {
             'textures': {},
-            'texture_mappings': {}
+            'texture_mappings': {},
+            'catalog_textures': {}
         }
         params = self.params
         for section in params:
@@ -27,13 +28,16 @@ class TextureConfig(object):
                 for p in config.options(section)
             })
 
-        # Map to the Model3d attributes
-        self.texture_order = params['textures']['texture_order']
-        self.texture_colors = params['textures']['texture_colors']
+        # Acquire the region textures
         self.translate_texture = params['texture_mappings']
-
-        # Acquire the textures
+        self.texture_order = params['texture_mappings']['texture_order']
         self.textures = {
-            texture: eval(params['textures'][texture])
-            for texture in self.texture_order
+            name: eval(pars)
+            for name, pars in params['textures'].items()
+        }
+
+        # Acquire the catalog textures
+        self.catalog_textures = {
+            name: eval(pars)
+            for name, pars in params['catalog_textures'].items()
         }

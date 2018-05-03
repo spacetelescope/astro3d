@@ -105,7 +105,6 @@ class Model3D(object):
 
         self.texture_order = ['small_dots', 'dots', 'lines']
         self.region_mask_types = ['smooth', 'remove_star']
-        self.allowed_stellar_types = ['stars', 'star_clusters']
 
         self.translate_texture = {}
         self.translate_texture['small_dots'] = ['gas']
@@ -131,6 +130,8 @@ class Model3D(object):
             profile='linear', thickness=lines_thickness,
             height=lines_height, spacing=lines_spacing,
             orientation=0)
+
+        self.stellar_textures = {}
 
     @classmethod
     def from_fits(cls, filename):
@@ -339,6 +340,19 @@ class Model3D(object):
 
         self.stellar_tables_original[stellar_type] = table
 
+    def add_stellar_texture_def(self, stellar_type, texture_def):
+        """Association a type with a texture
+
+        Parameters
+        ----------
+        stellar_type: str
+            The stellar type
+
+        texture_def: dict
+            Texture definition
+        """
+        self.stellar_textures[stellar_type] = texture_def
+
     def read_stellar_table(self, filename, stellar_type):
         """
         Read a table of stars or star clusters from a file.
@@ -417,7 +431,7 @@ class Model3D(object):
             will be '<filename_prefix>_<stellar_type>.txt'.
         """
 
-        for stellar_type in self.allowed_stellar_types:
+        for stellar_type in self.stellar_tables_original:
             try:
                 self.write_stellar_table(filename_prefix, stellar_type)
             except KeyError:
@@ -1110,7 +1124,7 @@ class Model3D(object):
             data, self.stellar_tables, star_radius_a=star_radius_a,
             star_radius_b=star_radius_b, cluster_radius_a=cluster_radius_a,
             cluster_radius_b=cluster_radius_b, depth=depth, slope=slope,
-            exclusion_mask=mask)
+            exclusion_mask=mask, texture_defs=self.stellar_textures)
         log.info('Done making stellar textures')
 
         # replace image values with the stellar texture base heights

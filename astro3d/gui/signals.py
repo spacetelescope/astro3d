@@ -74,9 +74,13 @@ class StageChange(Signal):
 
 
 # GUI events
-class NewRegion(Signal):
-    """New region being created"""
+class CatalogFromFile(Signal):
+    """Initiate a catalog from file read"""
 
 
 class LayerSelected(Signal):
     """Layers have been selected/deselected"""
+
+
+class NewRegion(Signal):
+    """New region being created"""
