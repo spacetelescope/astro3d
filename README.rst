@@ -14,13 +14,11 @@ Requirements
 
 Installation
 ------------
-In general, the installation procecure follows the `Astroconda` installation directions.
+In general, the installation procecure follows the Astroconda installation directions http://astroconda.readthedocs.io
 
 Also note, all command line actions need to be done in the `bash` shell. One can always start a bash shell as follows::
     
     $ bash
-
-.. Astroconda: http:astroconda.readthedocs.io
 
 Start a terminal window
 ^^^^^^^^^^^^^^^^^^^^^^^
@@ -38,9 +36,7 @@ If you have never installed anaconda before, or want to start fresh, this is the
     $ cd
     $ rm -rf anaconda3
     
-Go to the `Anaconda download site`, and download the command line installer appropriate for your system. Choose the Python3.x version.
-
-.. Anaconda download site: https://www.anaconda.com/download/
+Go to the Anaconda download site,https://www.anaconda.com/download/,  and download the command line installer appropriate for your system. Choose the Python3.x version.
 
 After downloading, perform the installation::
 
