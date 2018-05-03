@@ -196,17 +196,24 @@ class Model3D(object):
             region type (e.g. 'smooth') translated from the mask type.
         """
 
+        # Check if a straight up translation
         if mask_type in self.translate_texture:
             return mask_type
-        else:
-            tx_type = None
-            for tx_type, mask_types in self.translate_texture.items():
-                if mask_type in mask_types:
-                    return tx_type
-            if tx_type is None:
+
+        # Check if in a translation
+        tx_type = None
+        for tx_type, mask_types in self.translate_texture.items():
+            if mask_type in mask_types:
+                return tx_type
+
+        # Check if in the order
+        if mask_type in self.texture_order:
+            return mask_type
+
+        # Otherwise, major fail.
+        if tx_type is None:
                 warnings.warn('"{0}" is not a valid mask type.'
                               .format(mask_type), AstropyUserWarning)
-            return
 
     def add_mask(self, mask):
         """
@@ -226,9 +233,12 @@ class Model3D(object):
 
         mask_type = mask.mask_type
         mtype = self._translate_mask_type(mask_type)
+        log.debug('mask_type="{}" mtype="{}"'.format(mask_type, mtype))
         if mtype in self.region_mask_types:
+            log.debug('Putting in region_masks_original')
             self.region_masks_original[mtype].append(mask)
         else:
+            log.debug('Putting in texture_masks_original')
             self.texture_masks_original[mtype].append(mask)
         return mask_type
 

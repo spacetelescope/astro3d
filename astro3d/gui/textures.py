@@ -17,6 +17,7 @@ class TextureConfig(object):
 
     def __init__(self, config):
         self.params = {
+            'texture_info': {},
             'textures': {},
             'texture_mappings': {},
             'catalog_textures': {}
@@ -30,7 +31,7 @@ class TextureConfig(object):
 
         # Acquire the region textures
         self.translate_texture = params['texture_mappings']
-        self.texture_order = params['texture_mappings']['texture_order']
+        self.texture_order = params['texture_info']['texture_order']
         self.textures = {
             name: eval(pars)
             for name, pars in params['textures'].items()
