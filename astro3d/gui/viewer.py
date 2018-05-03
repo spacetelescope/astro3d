@@ -122,22 +122,7 @@ class MainWindow(GTK_MainWindow):
                 signaldb.ModelUpdate()
                 config.set('gui', 'folder_textures', dirname(file_list[0]))
 
-    def starpath_from_dialog(self):
-        res = QtWidgets.QFileDialog.getOpenFileName(
-            self,
-            "Open Stellar Catalog",
-            config.get('gui', 'folder_regions')
-        )
-        if isinstance(res, tuple):
-            pathname = res[0]
-        else:
-            pathname = str(res)
-        if len(pathname) != 0:
-            self.model.read_star_catalog(pathname)
-            config.set('gui', 'folder_regions', dirname(res[0]))
-            signaldb.ModelUpdate()
-
-    def catalogpath_from_dialog(self):
+    def catalogpath_from_dialog(self, catalog_item=None):
         res = QtWidgets.QFileDialog.getOpenFileName(
             self,
             "Open Catalog",
@@ -148,24 +133,17 @@ class MainWindow(GTK_MainWindow):
         else:
             pathname = str(res)
         if len(pathname) != 0:
-            self.model.read_star_catalog(pathname)
+            self.model.read_stellar_catalog(
+                pathname, catalog_item=catalog_item
+            )
             config.set('gui', 'folder_regions', dirname(res[0]))
             signaldb.ModelUpdate()
 
+    def starpath_from_dialog(self):
+        self.catalogpath_from_dialog(self.model.stars_catalogs)
+
     def clusterpath_from_dialog(self):
-        res = QtWidgets.QFileDialog.getOpenFileName(
-            self,
-            "Open Star Cluster Catalog",
-            config.get('gui', 'folder_regions')
-        )
-        if isinstance(res, tuple):
-            pathname = res[0]
-        else:
-            pathname = str(res)
-        if len(pathname) != 0:
-            self.model.read_cluster_catalog(pathname)
-            config.set('gui', 'folder_regions', dirname(res[0]))
-            signaldb.ModelUpdate()
+        self.catalogpath_from_dialog(self.model.cluster_catalogs)
 
     def path_by_drop(self, viewer, paths):
         pathname = paths[0]
@@ -450,17 +428,19 @@ class MainWindow(GTK_MainWindow):
         """Setup the overall signal structure"""
         self.image_viewer.set_callback('drag-drop', self.path_by_drop)
 
-        signaldb.Quit.connect(self.quit)
+        self.process_busy.canceled.connect(signaldb.ProcessForceQuit)
+
+        signaldb.CatalogFromFile.connect(self.catalogpath_from_dialog)
+
+        signaldb.CreateGasSpiralMasks.connect(
+            self.parameters.create_gas_spiral_masks
+        )
+
+        signaldb.LayerSelected.connect(self.shape_editor.select_layer)
+        signaldb.LayerSelected.connect(self.layer_manager.select_from_object)
+
         signaldb.NewImage.connect(self.image_update)
-        signaldb.ProcessStart.connect(self.mesh_viewer.process)
-        signaldb.ProcessStart.connect(
-            lambda: self.process_busy.setValue(0)
-        )
-        signaldb.ProcessFinish.connect(self.mesh_viewer.update_mesh)
-        signaldb.ProcessFinish.connect(
-            lambda x, y: self.process_busy.reset()
-        )
-        signaldb.ProcessForceQuit.connect(self.process_busy.reset)
+
         signaldb.ProcessFail.connect(
             lambda text, error: self.process_busy.reset()
         )
@@ -468,10 +448,14 @@ class MainWindow(GTK_MainWindow):
             lambda text, error: signaldb.ProcessFinish.clear(single_shot=True)
         )
         signaldb.ProcessFail.connect(self.info_box.show_error)
-        signaldb.LayerSelected.connect(self.shape_editor.select_layer)
-        signaldb.LayerSelected.connect(self.layer_manager.select_from_object)
-        signaldb.CreateGasSpiralMasks.connect(
-            self.parameters.create_gas_spiral_masks
+        signaldb.ProcessFinish.connect(self.mesh_viewer.update_mesh)
+        signaldb.ProcessFinish.connect(
+            lambda x, y: self.process_busy.reset()
+        )
+        signaldb.ProcessForceQuit.connect(self.process_busy.reset)
+        signaldb.ProcessStart.connect(self.mesh_viewer.process)
+        signaldb.ProcessStart.connect(
+            lambda: self.process_busy.setValue(0)
         )
 
-        self.process_busy.canceled.connect(signaldb.ProcessForceQuit)
+        signaldb.Quit.connect(self.quit)

@@ -144,17 +144,13 @@ class Model(QStandardItemModel):
         finally:
             signaldb.ModelUpdate.reset_enabled()
 
-    def read_star_catalog(self, pathname):
+    def read_stellar_catalog(self, pathname, catalog_item=None):
         """Read in a star catalog"""
+        if catalog_item is None:
+            catalog_item = self.stars_catalogs
         id = basename(pathname)
-        stars = read_stellar_table(pathname, 'stars')
-        self.stars_catalogs.add(stars, id)
-
-    def read_cluster_catalog(self, pathname):
-        """Read in a star cluster catalog"""
-        id = basename(pathname)
-        cluster = read_stellar_table(pathname, 'star_clusters')
-        self.cluster_catalogs.add(cluster, id)
+        table = read_stellar_table(pathname, catalog_item.text().lower())
+        catalog_item.add(table, id)
 
     def process(self):
         """Create the 3D model.

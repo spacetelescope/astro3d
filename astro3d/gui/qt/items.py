@@ -585,7 +585,12 @@ class CatalogTypeItem(FixedMixin, CheckableItem):
         base_actions = super(CatalogTypeItem, self)._actions
         actions = [
             Action(
-                text='Add Catalog',
+                text='Read catalog file',
+                func=signaldb.CatalogFromFile,
+                args=(self,)
+            ),
+            Action(
+                text='Create new catalog',
                 func=self.new_catalog,
                 args=()
             ),
