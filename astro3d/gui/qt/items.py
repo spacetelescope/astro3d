@@ -506,7 +506,10 @@ class Catalogs(FixedMixin, CheckableItem):
     def catalogs(self):
         """Iterate over all the catalogs"""
         catalogs = (
-            self.child(type_id).child(catalog_id).value
+            (
+                self.child(type_id).text(),
+                self.child(type_id).child(catalog_id).value
+            )
             for type_id in range(self.rowCount())
             if self.child(type_id).is_available
             for catalog_id in range(self.child(type_id).rowCount())
@@ -514,7 +517,19 @@ class Catalogs(FixedMixin, CheckableItem):
         )
         return catalogs
 
-    def add_type(self, type, color=None):
+    @property
+    def texture_defs(self):
+        """Retrieve texture definitions"""
+        texture_defs = {
+            self.child(type_id).text(): self.child(type_id).value
+            for type_id in range(self.rowCount())
+            if self.child(type_id).is_available
+            for catalog_id in range(self.child(type_id).rowCount())
+            if self.child(type_id).child(catalog_id).is_available
+        }
+        return texture_defs
+
+    def add_type(self, type, texture_def):
         """Add a type to the container
 
         If the type already exists, nothing happens.
@@ -522,10 +537,13 @@ class Catalogs(FixedMixin, CheckableItem):
         Parameters
         ----------
         type: str
-            Name of the type to addAction
+            Name of the type to add.
 
-        color: str or None
-            Color to use for drawing.
+        texture_def: dict
+            The texture being used for this catalog.
+            The follow keys are required:
+                - 'model': The texture model
+                - 'color': color to render in the gui
 
         Returns
         -------
@@ -533,12 +551,13 @@ class Catalogs(FixedMixin, CheckableItem):
             The layer for the new type.
         """
         type_item = self.types[type]
+        type_item.value = texture_def
         if not type_item.index().isValid():
             self.appendRow(type_item)
 
-        if color is not None:
-            draw_params = CATALOG_DRAW_PARAMS[type_item.text()]
-            draw_params['color'] = color
+        # Setup gui rendering
+        draw_params = CATALOG_DRAW_PARAMS[type_item.text()]
+        draw_params['color'] = texture_def['color']
 
         return type_item
 

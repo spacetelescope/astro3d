@@ -2,6 +2,7 @@
 
 from __future__ import absolute_import, print_function
 
+from collections import defaultdict
 from copy import copy
 from itertools import count
 from os.path import basename
@@ -88,9 +89,7 @@ class Model(QStandardItemModel):
                 texture_name, color=texture_def['color']
             )
         for texture_name, texture_def in self.texture_defs.catalog_textures.items():
-            self.catalogs.add_type(
-                texture_name, color=texture_def['color']
-            )
+            self.catalogs.add_type(texture_name, texture_def)
 
         # Signals related to item modification
         self.itemChanged.connect(self._update)
@@ -230,6 +229,7 @@ class Model(QStandardItemModel):
                     """Not a RegionMask, ignore"""
                     pass
 
+        # Gather all the catalogs
         full_catalog = [
             catalog.value
             for catalog in self.cluster_catalogs.available()
@@ -247,6 +247,14 @@ class Model(QStandardItemModel):
             model3d.add_stellar_table(
                 table_vstack(full_catalog), 'stars'
             )
+
+        full_catalogs = defaultdict(list)
+        for type_id, table in self.catalogs.catalogs:
+            full_catalogs[type_id].append(table)
+        for type_id, table_list in full_catalogs.items():
+            model3d.add_stellar_table(table_vstack(table_list), type_id)
+        for type_id, texture_def in self.catalogs.texture_defs.items():
+            model3d.add_stellar_texture_def(type_id, texture_def)
 
         return model3d
 
