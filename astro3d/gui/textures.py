@@ -2,12 +2,7 @@
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
-from ..core.textures import (
-    DotsTexture,
-    LinesTexture,
-    HexagonalGrid,
-    StarTexture
-)
+from ..core.textures import *
 
 __all__ = ['TextureConfig']
 
