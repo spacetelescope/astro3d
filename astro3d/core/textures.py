@@ -12,6 +12,14 @@ import numpy as np
 from scipy.ndimage import binary_dilation
 
 __doctest_skip__ = ['LinesTexture', 'DotsTexture']
+__all__ = [
+    'DotsTexture',
+    'HexagonalGrid',
+    'InvertStarTexture',
+    'LinesTexture',
+    'StarClusterTexture',
+    'StarTexture',
+]
 
 # Configure logging
 log.setLevel('DEBUG')
@@ -457,6 +465,37 @@ class StarTexture(Fittable2DModel):
         return model
 
 
+class InvertStarTexture(StarTexture):
+    """
+    A 2d star texture with an inverted bowl
+    """
+    @staticmethod
+    def evaluate(x, y, x_0, y_0, radius, depth, base_height, slope):
+        """Star model function."""
+
+        # NOTE: min_height is added to keep the star texture values > 0 at
+        #       the bowl center (r=0) when base_height is zero
+        min_height = 0.0001
+
+        xx = x - x_0
+        yy = y - y_0
+        r = np.sqrt(xx**2 + yy**2)
+        star = (depth * (1.0 - r / radius))**2 + depth + base_height + min_height
+
+        amplitude = depth + base_height
+        bowl_region = (r <= radius)
+        sides_region = np.logical_and(r > radius,
+                                      r <= (radius + (amplitude / slope)))
+        sides = amplitude + (slope * (radius - r))
+        model = np.select([bowl_region, sides_region], [star, sides])
+
+        # make the model zero below the base_height
+        zero_region = (model < (base_height + min_height))
+        model[zero_region] = 0
+
+        return model
+
+
 class StarClusterTexture(Fittable2DModel):
     """
     A 2D star cluster texture model.
@@ -594,6 +633,10 @@ def make_stellar_models(model_type, stellar_table, star_radius_a=10,
 
     if texture_def is not None:
         Texture = texture_def['model']
+        star_radius_a = texture_def.get('radius_a', star_radius_a)
+        star_radius_b = texture_def.get('radius_b', star_radius_b)
+        depth = texture_def.get('depth', depth)
+        slope = texture_def.get('slope', slope)
     if model_type == 'stars':
         Texture = StarTexture
     elif model_type == 'star_clusters':
