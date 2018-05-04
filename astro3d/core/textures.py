@@ -594,6 +594,10 @@ def make_stellar_models(model_type, stellar_table, star_radius_a=10,
 
     if texture_def is not None:
         Texture = texture_def['model']
+        star_radius_a = texture_def.get('radius_a', star_radius_a)
+        star_radius_b = texture_def.get('radius_b', star_radius_b)
+        depth = texture_def.get('depth', depth)
+        slope = texture_def.get('slope', slope)
     if model_type == 'stars':
         Texture = StarTexture
     elif model_type == 'star_clusters':
