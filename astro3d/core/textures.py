@@ -15,7 +15,7 @@ __doctest_skip__ = ['LinesTexture', 'DotsTexture']
 __all__ = [
     'DotsTexture',
     'HexagonalGrid',
-    'InvertStarTexture',
+    'InvertedStarTexture',
     'LinesTexture',
     'StarClusterTexture',
     'StarTexture',
@@ -466,7 +466,7 @@ class StarTexture(Fittable2DModel):
         return model
 
 
-class InvertStarTexture(Fittable2DModel):
+class InvertedStarTexture(Fittable2DModel):
     """
     An inverted 2D star texture model.
 
