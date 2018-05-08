@@ -15,7 +15,7 @@ __doctest_skip__ = ['LinesTexture', 'DotsTexture']
 __all__ = [
     'DotsTexture',
     'HexagonalGrid',
-    'InvertStarTexture',
+    'InvertedStarTexture',
     'LinesTexture',
     'StarClusterTexture',
     'StarTexture',
@@ -445,13 +445,14 @@ class StarTexture(Fittable2DModel):
         # NOTE: min_height is added to keep the star texture values > 0 at
         #       the bowl center (r=0) when base_height is zero
         min_height = 0.0001
+        baseh = base_height + min_height
 
         xx = x - x_0
         yy = y - y_0
         r = np.sqrt(xx**2 + yy**2)
-        star = depth * (r / radius)**2 + base_height + min_height
+        star = depth * (r / radius)**2 + baseh
 
-        amplitude = depth + base_height
+        amplitude = depth + baseh
         bowl_region = (r <= radius)
         sides_region = np.logical_and(r > radius,
                                       r <= (radius + (amplitude / slope)))
@@ -459,30 +460,75 @@ class StarTexture(Fittable2DModel):
         model = np.select([bowl_region, sides_region], [star, sides])
 
         # make the model zero below the base_height
-        zero_region = (model < (base_height + min_height))
+        zero_region = (model < baseh)
         model[zero_region] = 0
 
         return model
 
 
-class InvertStarTexture(StarTexture):
+class InvertedStarTexture(Fittable2DModel):
     """
-    A 2d star texture with an inverted bowl
+    An inverted 2D star texture model.
+
+    The star texture is an inverted parabolic "bowl" with a circular
+    base of given ``radius``, bowl ``height``, ``base_height``, and
+    ``slope``.
+
+    Parameters
+    ----------
+    x_0 : float
+        x position of the center of the star texture.
+
+    y_0 : float
+        y position of the center of the star texture.
+
+    radius : float
+        The circular radius of the star texture.
+
+    height : float
+        The maximum height of the crater-like bowl of the star texture.
+
+    base_height : float
+        The base height of the star texture.  This is the texture height
+        at the "bowl" minimum.
+
+    slope : float
+        The slope of the star texture sides.
     """
+
+    x_0 = Parameter()
+    y_0 = Parameter()
+    radius = Parameter()
+    height = Parameter()
+    base_height = Parameter()
+    slope = Parameter()
+
+    def bounding_box(self):
+        """
+        Tuple defining the default ``bounding_box`` limits in each
+        dimension, ``((y_low, y_high), (x_low, x_high))``
+        """
+
+        extent = self.radius + (self.height * self.slope)
+
+        return ((self.y_0 - extent, self.y_0 + extent),
+                (self.x_0 - extent, self.x_0 + extent))
+
     @staticmethod
-    def evaluate(x, y, x_0, y_0, radius, depth, base_height, slope):
+    def evaluate(x, y, x_0, y_0, radius, height, base_height, slope):
         """Star model function."""
 
         # NOTE: min_height is added to keep the star texture values > 0 at
         #       the bowl center (r=0) when base_height is zero
         min_height = 0.0001
+        baseh = base_height + min_height
 
         xx = x - x_0
         yy = y - y_0
         r = np.sqrt(xx**2 + yy**2)
-        star = (depth * (1.0 - r / radius))**2 + depth + base_height + min_height
+        star = -height * (r / radius)**2 + baseh + (2. * height)
 
-        amplitude = depth + base_height
+        amplitude = height + baseh    # amplitude at "edge" of inverted bowl
         bowl_region = (r <= radius)
         sides_region = np.logical_and(r > radius,
                                       r <= (radius + (amplitude / slope)))
@@ -490,7 +536,7 @@ class InvertStarTexture(StarTexture):
         model = np.select([bowl_region, sides_region], [star, sides])
 
         # make the model zero below the base_height
-        zero_region = (model < (base_height + min_height))
+        zero_region = (model < baseh)
         model[zero_region] = 0
 
         return model
