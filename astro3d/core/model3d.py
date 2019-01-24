@@ -848,7 +848,7 @@ class Model3D(object):
 
         log.info('Extracting source label: {0}'.format(label))
         segm.keep_labels(label)
-        segm_mask = segm.data.astype(bool)
+        segm_mask = ~segm.data.astype(bool)
         self.data *= segm_mask
 
         for mask_type, mask in self.texture_masks.items():
