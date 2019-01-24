@@ -721,7 +721,7 @@ class Model3D(object):
             The base level above which pixel values are compressed.
         """
 
-        if not self._spiral_galaxy or not self._compress_bulge:
+        if not self._compress_bulge:
             return None
 
         log.info('Compressing the bulge.')
