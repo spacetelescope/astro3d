@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from astro3d.core.model3d import Model3D
-
+from astro3d.core.model3d import read_stellar_table
 
 pytestmark = pytest.mark.skipif(
     environ.get('ASTRO3D_TESTDATA') is None,
@@ -15,6 +15,54 @@ pytestmark = pytest.mark.skipif(
         ' pointing to the test data set.'
     )
 )
+
+
+def test_catalog_read(caplog):
+    """test catalog reading
+
+    Parameters
+    ----------
+    caplog: log from the test, provided by the pytest
+    `caplog` fixture
+    """
+
+    # Get the data
+    data_path = Path(environ['ASTRO3D_TESTDATA'])
+    catalog = data_path / 'special_features' / 'catalog_uppercase_names.txt'
+
+    # Execute
+    table = read_stellar_table(str(catalog), 'stars')
+
+    # Ensure no warnings
+    assert 'Cannot find required column names' not in caplog.text
+
+    # Ensure other table characteristics
+    assert len(table.colnames) >= 3
+    assert set(('xcentroid', 'ycentroid', 'flux')).issubset(table.colnames)
+
+
+def test_catalog_read_badnames(caplog):
+    """test catalog reading
+
+    Parameters
+    ----------
+    caplog: log from the test, provided by the pytest
+    `caplog` fixture
+    """
+
+    # Get the data
+    data_path = Path(environ['ASTRO3D_TESTDATA'])
+    catalog = data_path / 'special_features' / 'catalog_bad_names.txt'
+
+    # Execute
+    table = read_stellar_table(str(catalog), 'stars')
+
+    # Ensure warnings
+    assert 'Cannot find required column names' in caplog.text
+
+    # Ensure other table characteristics
+    assert len(table.colnames) >= 2
+    assert set(('xcentroid', 'ycentroid')).issubset(table.colnames)
 
 
 @pytest.mark.xfail(

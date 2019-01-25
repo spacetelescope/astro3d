@@ -1781,9 +1781,15 @@ def read_stellar_table(filename, stellar_type):
     """
 
     table = Table.read(filename, format='ascii')
+    for col_name in table.colnames:
+        table[col_name].name = col_name.lower()
     try:
         table.keep_columns(['xcentroid', 'ycentroid', 'flux'])
     except KeyError:
+        log.warning(
+            'Cannot find required column names ["xcentroid", "ycentroid", "flux"]'
+            '\nAssuming the first two columns are the centroids and flux is ignored.'
+        )
         table.columns[0].name = 'xcentroid'
         table.columns[1].name = 'ycentroid'
         table['flux'] = np.zeros(len(table))
