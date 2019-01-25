@@ -1,6 +1,9 @@
 # this contains imports plugins that configure py.test for astropy tests.
 # by importing them here in conftest.py they are discoverable by py.test
 # no matter how it is invoked within the source tree.
+from os import chdir
+from pathlib import Path
+import pytest
 
 from astropy.tests.pytest_plugins import *
 
@@ -36,3 +39,26 @@ from astropy.tests.pytest_plugins import *
 #     TESTED_VERSIONS[packagename] = version
 # except NameError:   # Needed to support Astropy <= 1.0.0
 #     pass
+
+# ######################################
+# astro3d package-specific configuration
+# ######################################
+
+
+@pytest.fixture(scope='function')
+def jail(tmp_path):
+    """Force test to run in a clean temporary folder
+
+    Parameters
+    ----------
+    tmp_path: pathlib.Path
+        The temporary folder to change to.
+        Normally magically provided by the pytest fixture
+        `pytest.tmp_path` when pytest is the test runner.
+    """
+    old_folder = Path.cwd()
+    try:
+        chdir(tmp_path)
+        yield
+    finally:
+        chdir(old_folder)

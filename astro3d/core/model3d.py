@@ -721,7 +721,7 @@ class Model3D(object):
             The base level above which pixel values are compressed.
         """
 
-        if not self._spiral_galaxy or not self._compress_bulge:
+        if not self._compress_bulge:
             return None
 
         log.info('Compressing the bulge.')
@@ -848,7 +848,7 @@ class Model3D(object):
 
         log.info('Extracting source label: {0}'.format(label))
         segm.keep_labels(label)
-        segm_mask = segm.data.astype(bool)
+        segm_mask = ~segm.data.astype(bool)
         self.data *= segm_mask
 
         for mask_type, mask in self.texture_masks.items():
