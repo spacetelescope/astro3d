@@ -726,16 +726,18 @@ class Model3D(object):
 
         log.info('Compressing the bulge.')
         texture_type = self._translate_mask_type('bulge')
-        bulge_mask = self.texture_masks[texture_type]
-        if bulge_mask is not None:
-            base_level = np.percentile(self.data[bulge_mask],
-                                       percentile)
-            compress_mask = self.data > base_level
-            new_values = (base_level + (self.data[compress_mask] -
-                                        base_level) * factor)
-            self.data[compress_mask] = new_values
-        else:
-            warnings.warn('A "bulge" mask must be input.')
+        try:
+            bulge_mask = self.texture_masks[texture_type]
+        except KeyError:
+            log.warning('A "bulge" mask must be defined.')
+            return None
+        base_level = np.percentile(self.data[bulge_mask],
+                                   percentile)
+        compress_mask = self.data > base_level
+        new_values = (base_level + (self.data[compress_mask] -
+                                    base_level) * factor)
+        self.data[compress_mask] = new_values
+
         return base_level
 
     def _suppress_background(self, percentile=90., factor=0.2,
@@ -997,9 +999,11 @@ class Model3D(object):
             return
 
         texture_type = self._translate_mask_type('bulge')
-        bulge_mask = self.texture_masks[texture_type]
-        if bulge_mask is None:
-            return
+        try:
+            bulge_mask = self.texture_masks[texture_type]
+        except KeyError:
+            log.warning('A "bulge" mask must be defined.')
+            return None
 
         self.x_cusp, self.y_cusp = self._find_galaxy_center(bulge_mask)
         base_height = 0.
@@ -1308,8 +1312,7 @@ class Model3D(object):
 
         compress_bulge : bool, optional
             Whether to apply the bulge compression step for spiral
-            galaxies (see `_spiralgalaxy_compress_bulge`).  This keyword
-            has no effect if ``spiral_galaxy=False``.
+            galaxies (see `_spiralgalaxy_compress_bulge`).
 
         compress_bulge_percentile : float in range of [0, 100], optional
             The percentile of pixel values within the bulge mask to use
@@ -1442,7 +1445,7 @@ class Model3D(object):
         self._has_textures = textures
         self._double_sided = double_sided
         self._spiral_galaxy = spiral_galaxy
-        self._compress_bulge = compress_bulge
+        self._compress_bulge = compress_bulge or spiral_galaxy
 
         self._prepare_flux()
         self._prepare_data()
