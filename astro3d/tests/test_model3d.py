@@ -91,23 +91,59 @@ def test_replace_stars():
 
 
 @pytest.mark.usefixtures('jail')
-def test_make_bulge():
-    """Test a full run of a spiral model"""
+@pytest.mark.parametrize(
+    'id, make_kwargs, use_bulge_mask',
+    [
+        ('full',                 {'spiral_galaxy': True,  'compress_bulge': True},  True),
+        ('none',                 {'spiral_galaxy': False, 'compress_bulge': False}, True),
+        ('spiral_only',          {'spiral_galaxy': True,  'compress_bulge': False}, True),
+        ('compress_only',        {'spiral_galaxy': False, 'compress_bulge': True},  True),
+        ('full_nomask',          {'spiral_galaxy': True,  'compress_bulge': True},  False),
+        ('none_nomask',          {'spiral_galaxy': False, 'compress_bulge': False}, False),
+        ('spiral_only_nomask',   {'spiral_galaxy': True,  'compress_bulge': False}, False),
+        ('compress_only_nomask', {'spiral_galaxy': False, 'compress_bulge': True},  False),
+    ]
+)
+def test_bulge_handling(id, make_kwargs, use_bulge_mask, caplog):
+    """Test bulge/spiral model handling
+
+    Parameters
+    ----------
+    id: str
+        Test identifier used to pick input and truth data.
+
+    make_kwargs: dict
+        The `Astro3d.make` keyword arguments.
+
+    use_bulge_mask: bool
+        Use a bulge mask.
+
+    caplog: fixture
+        The magical `pytest.caplog` fixture that encapsulates the log output.
+    """
 
     # Get the data
     data_path = Path(environ['ASTRO3D_TESTDATA'])
 
     model = Model3D.from_fits(data_path / 'ngc3344_crop.fits')
-    model.read_all_masks(str(data_path / 'features' / 'ngc3344_bulge.fits'))
+    if use_bulge_mask:
+        model.read_all_masks(str(data_path / 'features' / 'ngc3344_bulge.fits'))
 
     # Create and save the model
     model.make(
-        intensity=True, textures=True, double_sided=False, spiral_galaxy=True
+        intensity=True, textures=True, double_sided=False, **make_kwargs
     )
     model.write_stl('model3d', split_model=False)
 
     # Check against truth
-    assert cmp('model3d.stl', data_path / 'truth' / 'model3d_make_bulge' / 'model3d.stl')
+    if use_bulge_mask:
+        truth_path = data_path / 'truth' / 'model3d_make_bulge' / id / 'model3d.stl'
+    else:
+        truth_path = data_path / 'truth' / 'model3d_make_bulge' / 'none_nomask' / 'model3d.stl'
+    assert cmp('model3d.stl', truth_path)
+
+    if not use_bulge_mask and id is not 'none_nomask':
+        assert 'A "bulge" mask must be defined.' in caplog.text
 
 
 @pytest.mark.usefixtures('jail')
