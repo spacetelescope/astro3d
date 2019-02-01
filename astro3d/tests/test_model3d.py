@@ -17,6 +17,28 @@ pytestmark = pytest.mark.skipif(
 )
 
 
+@pytest.mark.usefixtures('jail')
+def test_remove_stars():
+    """Test star removal handling
+    """
+
+    # Get the data
+    data_path = Path(environ['ASTRO3D_TESTDATA'])
+
+    model = Model3D.from_fits(data_path / 'ngc3344_crop.fits')
+    model.read_all_masks(str(data_path / 'features' / 'ngc3344_remove_star_*.fits'))
+
+    # Create and save the model
+    model.make(
+        intensity=True, textures=True, double_sided=False, spiral_galaxy=False
+    )
+    model.write_stl('model3d', split_model=False)
+
+    # Check against truth
+    truth_path = data_path / 'truth' / 'model3d_make_remove_stars' / 'model3d.stl'
+    assert cmp('model3d.stl', truth_path)
+
+
 def test_catalog_read(caplog):
     """test catalog reading
 
@@ -63,31 +85,6 @@ def test_catalog_read_badnames(caplog):
     # Ensure other table characteristics
     assert len(table.colnames) >= 2
     assert set(('xcentroid', 'ycentroid')).issubset(table.colnames)
-
-
-@pytest.mark.xfail(
-    reason='See issue #7',
-    run=False
-)
-@pytest.mark.usefixtures('jail')
-def test_replace_stars():
-    """Test a full run of a spiral model"""
-
-    # Get the data
-    data_path = Path(environ['ASTRO3D_TESTDATA'])
-
-    model = Model3D.from_fits(data_path / 'ngc3344_crop.fits')
-    model.read_all_masks(str(data_path / 'features' / 'ngc3344_bulge.fits'))
-    model.read_all_masks(str(data_path / 'special_features' / 'issue7_remove_star.fits'))
-
-    # Create and save the model
-    model.make(
-        intensity=True, textures=True, double_sided=False, spiral_galaxy=True
-    )
-    model.write_stl('model3d', split_model=False)
-
-    # Check against truth
-    assert cmp('model3d.stl', data_path / 'truth' / 'model3d_issue7_remove_star' / 'model3d.stl')
 
 
 @pytest.mark.usefixtures('jail')
