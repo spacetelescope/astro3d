@@ -10,14 +10,16 @@ import glob
 import warnings
 from distutils.version import LooseVersion
 
-from scipy import ndimage
-import numpy as np
-from PIL import Image
 from astropy import log
 from astropy.io import fits
 from astropy.table import Table
 from astropy.utils.exceptions import AstropyUserWarning
+import numpy as np
+import numpy.ma as ma
 import photutils
+from PIL import Image
+from scipy import ndimage
+from scipy.interpolate import griddata
 
 from . import image_utils
 from .textures import (DotsTexture, LinesTexture, HexagonalGrid, StarTexture,
@@ -663,35 +665,20 @@ class Model3D(object):
 
         log.info('Removing bright stars identified in "remove_star" mask(s).')
         for mask in self.region_masks['remove_star']:
-            y, x = mask.nonzero()
-            xsize, ysize = x.ptp(), y.ptp()
+            self._replace_masked(mask)
 
-            # Four shifted masked regions (bottom, top, left, right)
-            # immediately adjacent to the masked region
-            regions_x = [x, x, x - xsize, x + xsize]
-            regions_y = [y - ysize, y + ysize, y, y]
+    def _replace_masked(self, mask):
+        """Replace masked region by interpolation
 
-            nearest_regions = []
-            warn_msg = []
-            for x, y in zip(regions_x, regions_y):
-                try:
-                    values = self.data[y, x]
-                except IndexError as err:
-                    # don't include regions outside of the image
-                    warn_msg.append('\t{0}'.format(err))
-                else:
-                    nearest_regions.append(values)
+        The masked region is replaced by interpolation of the unmasked
+        areas around the edge of the masked.
 
-            if len(nearest_regions) == 0:
-                warnings.warn('The _remove_stars() method '
-                              'failed:\n{0}'.format(
-                                  '\n'.join(warn_msg)), AstropyUserWarning)
-                continue
-
-            # regions_median = [np.median(region) for region in
-            #                   nearest_regions]
-            # self.data[mask] = nearest_regions[np.argmax(regions_median)]
-            self.data[mask] = np.array(nearest_regions).mean(axis=0)
+        Parameters
+        ----------
+        mask: ndarray
+            The mask to replace
+        """
+        replace_mask_by_interpolation(self.data, mask)
 
     def _spiralgalaxy_compress_bulge(self, percentile=0., factor=0.05):
         """
@@ -1800,3 +1787,90 @@ def read_stellar_table(filename, stellar_type):
 
     log.info('Loaded "{0}" table from "{1}"'.format(stellar_type, filename))
     return table
+
+
+def replace_mask_by_interpolation(data, mask):
+    """Replace masked data with interpolated values from regions surrounding the masked
+
+    Parameters
+    ---------
+    data: ndarray
+        The data which will be modified in-place.
+
+    mask: ndarray
+        The mask
+    """
+
+    # Get all image coordinates
+    image_x, image_y = np.mgrid[:data.shape[0], :data.shape[1]]
+
+    # Get mask coordinates
+    mask_x, mask_y = mask.nonzero()
+
+    # Determine fitting mask. This is an area around the mask regions.
+    # First create a mask that is larger than the given mask.
+    mask_x_large, mask_y_large = grow_region(mask_x, mask_y)
+    fit_mask = mask.copy()
+    fit_mask[mask_x_large, mask_y_large] = True
+
+    # Next, remove the original mask and invert to mask out
+    # everything else except the edges of the original mask.
+    fit_mask[mask] = False
+    fit_mask = ~fit_mask
+
+    # Get the edge data
+    edge_data = ma.array(data, mask=fit_mask)
+    edge_x, edge_y = edge_data.nonzero()
+    edge_valid_data = edge_data.compressed()
+
+    # Calculate the interpolation
+    interpolation = griddata(
+        list(zip(edge_x, edge_y)), edge_valid_data, (image_x, image_y), method='linear'
+    )
+    replacement = interpolation[mask_x, mask_y]
+
+    # Replace in the original data
+    data[mask] = replacement
+
+
+def grow_region(x, y, npixels=3):
+    """Grow a region by a number of pixels
+
+    Parameters
+    ----------
+    x, y: ndarray
+        The x and y coordinates of the region to grow
+
+    Returns
+    -------
+    x_grow, y_grow: ndarray
+        The new, larger region
+    """
+    x_grow = x
+    y_grow = y
+
+    for idx in range(npixels):
+        x_grow = np.concatenate((
+            x_grow,
+            x_grow,
+            x_grow,
+            x_grow + 1,
+            x_grow + 1,
+            x_grow + 1,
+            x_grow - 1,
+            x_grow - 1,
+            x_grow - 1,
+        ))
+        y_grow = np.concatenate((
+            y_grow,
+            y_grow + 1,
+            y_grow - 1,
+            y_grow,
+            y_grow + 1,
+            y_grow - 1,
+            y_grow,
+            y_grow + 1,
+            y_grow - 1,
+        ))
+
+    return x_grow, y_grow
