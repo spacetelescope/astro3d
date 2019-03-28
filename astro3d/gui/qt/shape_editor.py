@@ -147,7 +147,7 @@ class ShapeEditor(QtWidgets.QWidget):
 
         # Success. Remember the mode
         self._mode = new_mode
-        self.children.tw.set_text(instructions[new_mode])
+        self.children.instructions.set_text(instructions[new_mode])
 
     def new_region(self, type_item):
         if self.canvas is None:
@@ -415,13 +415,13 @@ class ShapeEditor(QtWidgets.QWidget):
         spacer = Widgets.Label('')
 
         # Instructions
-        tw = Widgets.TextArea(wrap=True, editable=False)
+        instructions_text = Widgets.TextArea(wrap=True, editable=False)
         font = QtGui.QFont('sans serif', 12)
-        tw.set_font(font)
-        tw_frame = Widgets.Expander("Instructions")
-        tw_frame.set_widget(tw)
-        self.children['tw'] = tw
-        self.children['tw_frame'] = tw_frame
+        instructions_text.set_font(font)
+        instructions_frame = Widgets.Expander("Instructions")
+        instructions_frame.set_widget(instructions_text)
+        self.children['instructions'] = instructions_text
+        self.children['instructions_frame'] = instructions_frame
 
         # Setup for the drawing types
         captions = (
@@ -487,7 +487,7 @@ class ShapeEditor(QtWidgets.QWidget):
         layout = QtWidgets.QVBoxLayout()
         layout.setContentsMargins(QtCore.QMargins(20, 20, 20, 20))
         layout.setSpacing(1)
-        layout.addWidget(tw_frame.get_widget(), stretch=0)
+        layout.addWidget(instructions_frame.get_widget(), stretch=0)
         layout.addWidget(draw_frame.get_widget(), stretch=0)
         layout.addWidget(paint_frame.get_widget(), stretch=0)
         layout.addWidget(edit_frame.get_widget(), stretch=0)
