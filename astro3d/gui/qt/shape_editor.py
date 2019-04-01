@@ -1,5 +1,6 @@
 """Shape Editor"""
 
+from collections import defaultdict
 from functools import partial
 from numpy import (zeros, uint8)
 
@@ -9,21 +10,27 @@ from ginga.RGBImage import RGBImage
 from ginga.gw import Widgets
 from qtpy import (QtCore, QtGui, QtWidgets)
 
+from .items import (CatalogItem, ClusterItem, StarsItem)
+from .. import signaldb
 from ...core.region_mask import RegionMask
 from ...util.logger import make_logger
-from .. import signaldb
-from ..helps import instructions
-from .items import (CatalogItem, ClusterItem, StarsItem)
+from ...util.text_catalog import TEXT_CATALOG
 
 __all__ = ['ShapeEditor']
 
-
+# Valid shapes to edit
 VALID_KINDS = [
     'freepolygon', 'paint',
     'circle', 'rectangle',
     'triangle', 'righttriangle',
     'square', 'ellipse', 'box'
 ]
+
+# Shape editor instructions
+INSTRUCTIONS = defaultdict(
+    lambda: TEXT_CATALOG['shape_editor']['default'],
+    TEXT_CATALOG['shape_editor']
+)
 
 
 class ShapeEditor(QtWidgets.QWidget):
@@ -147,7 +154,7 @@ class ShapeEditor(QtWidgets.QWidget):
 
         # Success. Remember the mode
         self._mode = new_mode
-        self.children.instructions.set_text(instructions[new_mode])
+        self.children.instructions.set_text(INSTRUCTIONS[new_mode])
 
     def new_region(self, type_item):
         if self.canvas is None:
