@@ -11,8 +11,18 @@ from .gui.qt.process import MeshThread
 from .gui import (Controller, MainWindow, Model, signaldb)
 from .gui.start_ui_app import start_ui_app
 
+logger = make_logger(__name__)
+
 
 class Application(Controller):
+    """Start the astro3d Qt application
+
+    Parameters
+    ----------
+    argv: list or None
+        Argument list to pass to `argparse.ArgumentParser`.
+        If None, use `sys.argv`.
+    """
 
     # The UI event loop.
     ui_app = None
@@ -20,13 +30,14 @@ class Application(Controller):
     def __init__(self, argv=None):
 
         self.mesh_thread = None
-        self.logger = make_logger(name='astro3d', level=logging.DEBUG)
+        self.logger = logger
+
+        self.parse_command_line(argv)
+
         self._create_signals()
         self.model = Model(
             logger=self.logger
         )
-
-        self._argparse(argv)
 
         if self.__class__.ui_app is None:
             self.__class__.ui_app = start_ui_app(argv)
@@ -57,8 +68,27 @@ class Application(Controller):
     def process_finish(self, mesh, model3d):
         self.logger.debug('3D generation completed.')
 
-    def _argparse(self, argv):
-        parser = ArgumentParser()
+    def parse_command_line(self, argv):
+        """Parse command line arguments
+
+        Parameters
+        ----------
+        argv: list or None
+            Argument list to pass to `argparse.ArgumentParser`.
+            If None, use `sys.argv`.
+        """
+        parser = ArgumentParser(
+            description='astro3d: Create 3D models of astronomical images'
+        )
+        parser.add_argument(
+            '-D', '--debug',
+            help='Turn on debugging information',
+            action='store_true'
+        )
+        args = parser.parse_args(argv)
+
+        if args.debug:
+            self.logger.setLevel(logging.DEBUG)
 
     def _create_signals(self):
         signaldb.logger = self.logger
