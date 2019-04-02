@@ -4,20 +4,25 @@
 
 # Instructions
 instructions_default: |
-  Use File menu to read in the image and various region definitions which define what to render in 3D.
+  <div style="margin: 10px">
+  <h1>Basic Work Flow</h1>
+  <p>Use File menu to read in the image and various region definitions which define what to render in 3D.</p>
 
-  Use View-Mesh View to show/hide the 3D renderered view.
+  <p>Use View-Mesh View to show/hide the 3D renderered view.</p>
   
-  Stages toggle the various processing stages.
+  <p>Stages toggle the various processing stages.</p>
 
-  By default, processing occurs automatically. This can be toggled on/off through Preferences->Auto Reprocess
+  <p>By default, processing occurs automatically. This can be toggled on/off through Preferences->Auto Reprocess</p>
 
-  When the mouse is on the image, type "H" for a cheat sheat on shortcut keys to change the display.
+  <p>There are a number of basic image manipulation key commands available. The image display is based on <b><tt>ginga</tt></b>.
+  The key commands can be found in the <a href='https://ginga.readthedocs.io/en/stable/quickref.html'<tt>ginga</tt> documentation</a>
 
-  To create new regions, right-click on "Regions".
+  <p>To create new regions, right-click on "Regions".
   To delete, hide, or edit existing regions, click on or right-click on the desired region.
+  </p>
 
-  When complete, use File->Save to save all regions and the STL model files.
+  <p>When complete, use File->Save to save all regions and the STL model files.</p>
+  </div>
 #
 # Shape editor
 #
