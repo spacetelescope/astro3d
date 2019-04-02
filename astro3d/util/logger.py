@@ -4,8 +4,7 @@ import logging
 
 # Default logging format
 DEFAULT_FORMAT = (
-    '%(asctime)s'
-    ' | %(levelname)1.1s'
+    '%(levelname)s:'
     ' %(filename)s:%(lineno)d (%(funcName)s)'
     ' | %(message)s'
 )

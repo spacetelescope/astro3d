@@ -11,7 +11,7 @@ from .gui.qt.process import MeshThread
 from .gui import (Controller, MainWindow, Model, signaldb)
 from .gui.start_ui_app import start_ui_app
 
-logger = make_logger(__name__)
+logger = make_logger(__package__)
 
 
 class Application(Controller):
