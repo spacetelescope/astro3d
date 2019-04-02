@@ -36,3 +36,17 @@ def make_logger(name, level=logging.INFO, log_format=None):
     logger.addHandler(handler)
 
     return logger
+
+
+def make_null_logger(name):
+    """Create a null logger for the given name
+
+    Parameters
+    ----------
+    name: str
+        The name of the logger. Usually `__name__` from the caller.
+
+    """
+    logger = logging.getLogger(name)
+    logger.addHandler(logging.NullHandler())
+    return logger
