@@ -1,0 +1,65 @@
+#
+# Informational text catalog
+#
+
+# Instructions
+instructions_default: |
+  <div style="margin: 10px">
+  <h1>Basic Work Flow</h1>
+  <p>Use File menu to read in the image and various region definitions which define what to render in 3D.</p>
+
+  <p>Use View-Mesh View to show/hide the 3D renderered view.</p>
+  
+  <p>Stages toggle the various processing stages.</p>
+
+  <p>By default, processing occurs automatically. This can be toggled on/off through Preferences->Auto Reprocess</p>
+
+  <p>There are a number of basic image manipulation key commands available. The image display is based on <b><tt>ginga</tt></b>.
+  The key commands can be found in the <a href='https://ginga.readthedocs.io/en/stable/quickref.html'<tt>ginga</tt> documentation</a>
+
+  <p>To create new regions, right-click on "Regions".
+  To delete, hide, or edit existing regions, click on or right-click on the desired region.
+  </p>
+
+  <p>When complete, use File->Save to save all regions and the STL model files.</p>
+  </div>
+#
+# Shape editor
+#
+shape_editor:
+  default: |
+    To create new regions, right-click on "Regions".
+
+    To delete, hide, or edit existing regions, click on or right-click on the desired region.
+  draw: |
+    Select the shape desired.
+  
+    To create/modify a pixel mask, select "paint".
+  edit: |
+    Click-drag to move the region.
+
+    Click-drag any of the "control points" to to change the size or shape of the region.
+  
+    Enter an angle and hit RETURN to change region rotation.
+  
+    Enter a scale factor and hit RETURN to change region size.
+  edit_select: |
+    Click-drag to move the region.
+
+    Click-drag any of the "control points" to change the size or shape of the region.
+  
+    Enter an angle and hit RETURN to change region rotation.
+  
+    Enter a scale factor and hit RETURN to change region size.
+  paint: |
+    Click-drag to either add to or erase a mask.
+  
+    Choose whether you are "Paint"ing or "Erase"ing.
+  
+    Brush size determines how much area is affected while painting.
+  paint_edit: |
+    Click-drag to either add to or erase a mask.
+  
+    Choose whether you are "Paint"ing or "Erase"ing.
+  
+    Brush size determines how much area is affected while painting.

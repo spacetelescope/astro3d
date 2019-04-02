@@ -1,5 +1,6 @@
 """Shape Editor"""
 
+from collections import defaultdict
 from functools import partial
 from numpy import (zeros, uint8)
 
@@ -9,21 +10,27 @@ from ginga.RGBImage import RGBImage
 from ginga.gw import Widgets
 from qtpy import (QtCore, QtGui, QtWidgets)
 
+from .items import (CatalogItem, ClusterItem, StarsItem)
+from .. import signaldb
 from ...core.region_mask import RegionMask
 from ...util.logger import make_logger
-from .. import signaldb
-from ..helps import instructions
-from .items import (CatalogItem, ClusterItem, StarsItem)
+from ...util.text_catalog import TEXT_CATALOG
 
 __all__ = ['ShapeEditor']
 
-
+# Valid shapes to edit
 VALID_KINDS = [
     'freepolygon', 'paint',
     'circle', 'rectangle',
     'triangle', 'righttriangle',
     'square', 'ellipse', 'box'
 ]
+
+# Shape editor instructions
+INSTRUCTIONS = defaultdict(
+    lambda: TEXT_CATALOG['shape_editor']['default'],
+    TEXT_CATALOG['shape_editor']
+)
 
 
 class ShapeEditor(QtWidgets.QWidget):
@@ -147,7 +154,7 @@ class ShapeEditor(QtWidgets.QWidget):
 
         # Success. Remember the mode
         self._mode = new_mode
-        self.children.tw.set_text(instructions[new_mode])
+        self.children.instructions.set_text(INSTRUCTIONS[new_mode])
 
     def new_region(self, type_item):
         if self.canvas is None:
@@ -415,13 +422,13 @@ class ShapeEditor(QtWidgets.QWidget):
         spacer = Widgets.Label('')
 
         # Instructions
-        tw = Widgets.TextArea(wrap=True, editable=False)
+        instructions_text = Widgets.TextArea(wrap=True, editable=False)
         font = QtGui.QFont('sans serif', 12)
-        tw.set_font(font)
-        tw_frame = Widgets.Expander("Instructions")
-        tw_frame.set_widget(tw)
-        self.children['tw'] = tw
-        self.children['tw_frame'] = tw_frame
+        instructions_text.set_font(font)
+        instructions_frame = Widgets.Expander("Instructions")
+        instructions_frame.set_widget(instructions_text)
+        self.children['instructions'] = instructions_text
+        self.children['instructions_frame'] = instructions_frame
 
         # Setup for the drawing types
         captions = (
@@ -487,7 +494,7 @@ class ShapeEditor(QtWidgets.QWidget):
         layout = QtWidgets.QVBoxLayout()
         layout.setContentsMargins(QtCore.QMargins(20, 20, 20, 20))
         layout.setSpacing(1)
-        layout.addWidget(tw_frame.get_widget(), stretch=0)
+        layout.addWidget(instructions_frame.get_widget(), stretch=0)
         layout.addWidget(draw_frame.get_widget(), stretch=0)
         layout.addWidget(paint_frame.get_widget(), stretch=0)
         layout.addWidget(edit_frame.get_widget(), stretch=0)

@@ -13,6 +13,7 @@ from . import signaldb
 from .qt import (
     ImageView,
     InfoBox,
+    InstructionViewer,
     LayerManager,
     OverlayView,
     Parameters,
@@ -227,6 +228,7 @@ class MainWindow(GTK_MainWindow):
         self.logger.debug('GUI shutting down...')
         self.model.quit()
         self.mesh_viewer.close()
+        self.instruction_viewer.close()
         config.save()
         self.deleteLater()
 
@@ -257,6 +259,9 @@ class MainWindow(GTK_MainWindow):
             model=self.model,
             logger=self.logger
         )
+
+        # Basic instructions window
+        self.instruction_viewer = InstructionViewer()
 
         # 3D mesh preview
         self.mesh_viewer = ViewMesh(logger=self.logger)
@@ -381,6 +386,15 @@ class MainWindow(GTK_MainWindow):
         self.mesh_viewer.closed.connect(preview_toggle.setChecked)
         self.actions.preview_toggle = preview_toggle
 
+        instruction_toggle = QtWidgets.QAction('&Instructions', self)
+        instruction_toggle.setShortcut('Ctrl+I')
+        instruction_toggle.setStatusTip('Open Instruction Window')
+        instruction_toggle.setCheckable(True)
+        instruction_toggle.setChecked(False)
+        instruction_toggle.toggled.connect(self.instruction_viewer.toggle_view)
+        self.instruction_viewer.closed.connect(instruction_toggle.setChecked)
+        self.actions.instruction_toggle = instruction_toggle
+
         reprocess = QtWidgets.QAction('Reprocess', self)
         reprocess.setShortcut('Shift+Ctrl+R')
         reprocess.setStatusTip('Reprocess the model')
@@ -408,6 +422,7 @@ class MainWindow(GTK_MainWindow):
         file_menu.addAction(self.actions.quit)
 
         view_menu = menubar.addMenu('View')
+        view_menu.addAction(self.actions.instruction_toggle)
         view_menu.addAction(self.actions.preview_toggle)
         view_menu.addAction(self.layer_dock.toggleViewAction())
 
