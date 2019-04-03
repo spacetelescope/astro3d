@@ -112,7 +112,6 @@ class MeshThread(object):
         worker_thread.start()
 
     def finished(self, results):
-        print('MeshThread: finished')
         triset, model3d = results
         signaldb.ProcessFinish(triset, model3d)
 
