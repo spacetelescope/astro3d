@@ -5,27 +5,20 @@ from ginga.gw import Widgets
 from qtpy import (QtCore, QtWidgets)
 from qtpy.QtCore import Qt
 
-from ...util.logger import make_logger
+from ...util.logger import make_null_logger
 from ..store_widgets import StoreWidgets
 
+# Configure logging
+logger = make_null_logger(__name__)
 
 __all__ = ['Parameters']
 
 
 class Parameters(QtWidgets.QScrollArea):
     """Parameters Editor
-
-    Paremeters
-    ----------
-    logger: logging.Logger
-        The common logger.
     """
 
     def __init__(self, *args, **kwargs):
-        self.logger = kwargs.pop(
-            'logger',
-            make_logger('astro3d Shape Editor')
-        )
         self.model = kwargs.pop('model')
         self.parent = kwargs.pop('parent')
         super(Parameters, self).__init__(*args, **kwargs)
@@ -57,7 +50,7 @@ class Parameters(QtWidgets.QScrollArea):
 
     def _build_gui(self):
         """Build out the GUI"""
-        self.logger.debug('Called.')
+        logger.debug('Called.')
         self.children = Bunch()
         spacer = Widgets.Label('')
 
