@@ -13,7 +13,7 @@ from ginga.misc.Bunch import Bunch
 
 from ..core.model3d import (Model3D, read_stellar_table)
 from ..core.region_mask import RegionMask
-from ..util.logger import make_logger
+from ..util.logger import make_null_logger
 from . import signaldb
 from .qt.process import MeshThread
 from .qt.items import (
@@ -26,6 +26,8 @@ from .qt.items import (
 from .config import config
 from .textures import TextureConfig
 
+# Logging
+logger = make_null_logger(__name__)
 
 # Shortcuts
 QStandardItemModel = QtGui.QStandardItemModel
@@ -42,20 +44,15 @@ class Model(QStandardItemModel):
     _sequence = count(1)
 
     def __init__(self, *args, **kwargs):
-        logger = kwargs.pop('logger', None)
-        if logger is None:
-            logger = make_logger('astro3d Layer Manager')
-        self.logger = logger
-
         super(Model, self).__init__(*args, **kwargs)
 
         # Setup the basic structure
         self.image = None
-        self.regions = Regions(logger=self.logger)
-        self.textures = Textures(logger=self.logger)
-        self.catalogs = Catalogs(logger=self.logger)
-        self.cluster_catalogs = Clusters(logger=self.logger)
-        self.stars_catalogs = Stars(logger=self.logger)
+        self.regions = Regions()
+        self.textures = Textures()
+        self.catalogs = Catalogs()
+        self.cluster_catalogs = Clusters()
+        self.stars_catalogs = Stars()
         self.process_thread = None
 
         root = self.invisibleRootItem()
@@ -160,7 +157,7 @@ class Model(QStandardItemModel):
         (triset, model3d):
             A tuple of the 3D mesh and the model3d it was based on.
         """
-        self.logger.debug('Starting processing...')
+        logger.debug('Starting processing...')
 
         make_params = copy(self.params_widget_store.stages)
         make_params.update(self.params_widget_store.model_make)
@@ -192,7 +189,7 @@ class Model(QStandardItemModel):
 
         # Really need an image.
         if self.image is None:
-            raise(RuntimeError, 'Cannot created Model3D. No image defined')
+            raise RuntimeError('Cannot created Model3D. No image defined')
         if model_params is None:
             model_params = {}
         model3d = Model3D(self.image, **model_params)
@@ -371,7 +368,7 @@ class Model(QStandardItemModel):
         if not index_ul.isValid():
             return
         item = self.itemFromIndex(index_ul)
-        self.logger.debug('item="{}"'.format(item.text()))
+        logger.debug('item="{}"'.format(item.text()))
         item.fix_family()
 
     def _update(self, item):
@@ -384,7 +381,7 @@ class Model(QStandardItemModel):
         item: Qt::QStandardItem
             The item that has changed.
         """
-        self.logger.debug('item="{}"'.format(item.text()))
+        logger.debug('item="{}"'.format(item.text()))
         self.itemChanged.disconnect(self._update)
         item.fix_family()
         self.itemChanged.connect(self._update)

@@ -15,8 +15,10 @@ from collections import namedtuple
 import inspect
 import warnings
 
-from .logger import make_logger
+from .logger import make_null_logger
 
+# Configure logging
+logger = make_null_logger(__name__)
 
 __all__ = ['Signal',
            'Signals',
@@ -31,9 +33,6 @@ class Signal(object):
 
         Parameters
         ----------
-        logger: logging.Logger
-            Logger to use. If None, one will be created.
-
         *args: (func, ...)
             Remaining arguments will be functions to connect
             to this signal.
@@ -42,15 +41,13 @@ class Signal(object):
         self._methods = dict()
         self._enabled = True
         self._states = []
-        logger = kwargs.pop('logger', make_logger('Signal'))
-        self.logger = logger
 
         for arg in args:
             self.connect(arg)
 
     def __call__(self, *args, **kwargs):
         # Call handler functions
-        self.logger.debug(
+        logger.debug(
             'Signal {}: Emitting with args:"{}", kwargs:"{}"'.format(
                 self.__class__.__name__,
                 args,
@@ -59,7 +56,7 @@ class Signal(object):
         )
 
         if not self.enabled:
-            self.logger.debug(
+            logger.debug(
                 'Signal {}: Disabled, exiting...'.format(
                     self.__class__.__name__
                 )
@@ -147,7 +144,7 @@ class Signal(object):
         single_shot: bool
             If True, the function/method is removed after being called.
         """
-        self.logger.debug(
+        logger.debug(
             'Signal {}: Connecting function:"{}"'.format(
                 self.__class__.__name__,
                 func
@@ -171,21 +168,21 @@ class Signal(object):
             self._slots.add(slot)
 
     def disconnect(self, func):
-        self.logger.debug(
+        logger.debug(
             'Signal {}: Disconnecting func:"{}"'.format(
                 self.__class__.__name__,
                 func
             )
         )
         if inspect.ismethod(func):
-            self.logger.debug(
+            logger.debug(
                 'func is a method: "{}"'.format(func)
             )
             if func.__self__ in self._methods:
-                self.logger.debug(
+                logger.debug(
                     'class "{}" is in list'.format(func.__self__)
                 )
-                self.logger.debug(
+                logger.debug(
                     'methods="{}"'.format(self._methods[func.__self__])
                 )
                 slots = [
@@ -193,13 +190,13 @@ class Signal(object):
                     for slot in self._methods[func.__self__]
                     if slot.func == func.__func__
                 ]
-                self.logger.debug(
+                logger.debug(
                     'slots="{}"'.format(slots)
                 )
                 try:
                     self._methods[func.__self__].remove(slots[0])
                 except IndexError:
-                    self.logger.debug('slot not found.')
+                    logger.debug('slot not found.')
                     pass
         else:
             slots = [
@@ -221,7 +218,7 @@ class Signal(object):
             If True, only remove single shot
             slots.
         """
-        self.logger.debug(
+        logger.debug(
             'Signal {}: Clearing slots'.format(
                 self.__class__.__name__
             )

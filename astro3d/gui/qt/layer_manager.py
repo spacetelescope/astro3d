@@ -2,9 +2,12 @@
 
 from qtpy import QtWidgets
 
-from ...util.logger import make_logger
+from ...util.logger import make_null_logger
 from .items import LayerItem, Action
 from .. import signaldb
+
+# Configure logging
+logger = make_null_logger(__name__)
 
 __all__ = ['LayerManager']
 
@@ -13,11 +16,6 @@ class LayerManager(QtWidgets.QTreeView):
     """Manager the various layers"""
 
     def __init__(self, *args, **kwargs):
-        logger = kwargs.pop('logger', None)
-        if logger is None:
-            logger = make_logger('astro3d Layer Manager')
-        self.logger = logger
-
         super(LayerManager, self).__init__(*args, **kwargs)
         self.setHeaderHidden(True)
 
@@ -36,7 +34,7 @@ class LayerManager(QtWidgets.QTreeView):
 
         selected_layer = get_selected_item(selected)
         deselected_layer = get_selected_item(deselected)
-        self.logger.debug('selected="{}" deselected="{}"'.format(
+        logger.debug('selected="{}" deselected="{}"'.format(
             selected_layer,
             deselected_layer
         ))
@@ -61,7 +59,7 @@ class LayerManager(QtWidgets.QTreeView):
             pass
 
     def contextMenuEvent(self, event):
-        self.logger.debug('event = "{}"'.format(event))
+        logger.debug('event = "{}"'.format(event))
 
         indexes = self.selectedIndexes()
         if len(indexes) > 0:
@@ -77,7 +75,7 @@ class LayerManager(QtWidgets.QTreeView):
 
             taken = menu.exec_(event.globalPos())
             if taken:
-                self.logger.debug(
+                logger.debug(
                     'taken action = "{}", data="{}"'.format(
                         taken,
                         taken.data()

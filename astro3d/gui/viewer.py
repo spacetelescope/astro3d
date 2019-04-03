@@ -7,7 +7,7 @@ from attrdict import AttrDict
 from ginga.AstroImage import AstroImage
 
 
-from ..util.logger import make_logger
+from ..util.logger import make_null_logger
 from qtpy import (QtCore, QtGui, QtWidgets)
 from . import signaldb
 from .qt import (
@@ -22,6 +22,8 @@ from .qt import (
 )
 from .config import config
 
+# Configure logging
+logger = make_null_logger(__name__)
 
 # Supported image formats
 SUPPORT_IMAGE_FORMATS = (
@@ -59,12 +61,18 @@ class Image(AstroImage):
 
 
 class MainWindow(GTK_MainWindow):
-    """Main Viewer"""
-    def __init__(self, model, logger=None, parent=None):
+    """Main Viewer
+
+    Parameters
+    ----------
+    model: astro3d.gui.model.Model
+        The gui data model
+
+    parent: Qt object
+        Parent Qt object
+    """
+    def __init__(self, model, parent=None):
         super(MainWindow, self).__init__(parent)
-        if logger is None:
-            logger = make_logger('astro3d viewer')
-        self.logger = logger
         self.model = model
 
         signaldb.ModelUpdate.set_enabled(False)
@@ -93,7 +101,7 @@ class MainWindow(GTK_MainWindow):
             config.get('gui', 'folder_regions'),
             "FITS files (*.fits)"
         )
-        self.logger.debug('res="{}"'.format(res))
+        logger.debug('res="{}"'.format(res))
         if len(res) > 0:
             if isinstance(res, tuple):
                 file_list = res[0]
@@ -110,7 +118,7 @@ class MainWindow(GTK_MainWindow):
             config.get('gui', 'folder_textures'),
             "FITS files (*.fits)"
         )
-        self.logger.debug('res="{}"'.format(res))
+        logger.debug('res="{}"'.format(res))
         if len(res) > 0:
             if isinstance(res, tuple):
                 file_list = res[0]
@@ -157,7 +165,7 @@ class MainWindow(GTK_MainWindow):
             'Specify prefix to save all as',
             config.get('gui', 'folder_save')
         )
-        self.logger.debug('result="{}"'.format(result))
+        logger.debug('result="{}"'.format(result))
         if len(result) > 0:
             if isinstance(result, tuple):
                 path = result[0]
@@ -173,7 +181,7 @@ class MainWindow(GTK_MainWindow):
     def open_path(self, pathname):
         """Open the image from pathname"""
         self.model.read_image(pathname)
-        self.image = Image(logger=self.logger)
+        self.image = Image(logger=logger)
         self.image.set_data(self.model.image)
         self.image_update(self.image)
 
@@ -219,13 +227,13 @@ class MainWindow(GTK_MainWindow):
         try:
             signaldb.ModelUpdate()
         except Exception as e:
-            self.logger.warn('Processing error: "{}"'.format(e))
+            logger.warning('Processing error: "{}"'.format(e))
         finally:
             signaldb.ModelUpdate.reset_enabled()
 
     def quit(self, *args, **kwargs):
         """Shutdown"""
-        self.logger.debug('GUI shutting down...')
+        logger.debug('GUI shutting down...')
         self.model.quit()
         self.mesh_viewer.close()
         self.instruction_viewer.close()
@@ -247,7 +255,7 @@ class MainWindow(GTK_MainWindow):
         ####
 
         # Image View
-        image_viewer = ImageView(self.logger)
+        image_viewer = ImageView()
         self.image_viewer = image_viewer
         image_viewer.set_desired_size(512, 512)
         image_viewer_widget = image_viewer.get_widget()
@@ -256,18 +264,17 @@ class MainWindow(GTK_MainWindow):
         # Region overlays
         self.overlay = OverlayView(
             parent=image_viewer,
-            model=self.model,
-            logger=self.logger
+            model=self.model
         )
 
         # Basic instructions window
         self.instruction_viewer = InstructionViewer()
 
         # 3D mesh preview
-        self.mesh_viewer = ViewMesh(logger=self.logger)
+        self.mesh_viewer = ViewMesh()
 
         # The Layer manager
-        self.layer_manager = LayerManager(logger=self.logger)
+        self.layer_manager = LayerManager()
         self.layer_manager.setModel(self.model)
         layer_dock = QtWidgets.QDockWidget('Layers', self)
         layer_dock.setAllowedAreas(
@@ -280,8 +287,7 @@ class MainWindow(GTK_MainWindow):
         # The Shape Editor
         self.shape_editor = ShapeEditor(
             surface=image_viewer,
-            canvas=self.overlay.canvas,
-            logger=self.logger
+            canvas=self.overlay.canvas
         )
         shape_editor_dock = QtWidgets.QDockWidget('Shape Editor', self)
         shape_editor_dock.setAllowedAreas(
@@ -293,7 +299,6 @@ class MainWindow(GTK_MainWindow):
 
         # Parameters
         self.parameters = Parameters(
-            logger=self.logger,
             parent=self,
             model=self.model
         )

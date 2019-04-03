@@ -9,19 +9,19 @@ from ginga.canvas.CanvasObject import get_canvas_types
 from qtpy import QtCore
 
 from ...core.region_mask import RegionMask
-from ...util.logger import make_logger
+from ...util.logger import make_null_logger
 from .shape_editor import image_shape_to_regionmask
 from .items import *
 
 from .util import EventDeferred
 
+# Configure logging
+logger = make_null_logger(__name__)
 
-__all__ = [
-    'OverlayView'
-]
+__all__ = ['OverlayView']
 
 
-class BaseOverlay(object):
+class BaseOverlay():
     """Base class for Overlays
 
     Parameters
@@ -29,13 +29,7 @@ class BaseOverlay(object):
     parent: `Overlay`
     """
 
-    logger = None
-
-    def __init__(self, parent=None, logger=None):
-        if logger is not None:
-            self.__class__.logger = logger
-        if self.__class__.logger is None:
-            self.__class__.logger = make_logger('Overlay')
+    def __init__(self, parent=None):
         self.canvas = None
         if parent is not None:
             self.parent = parent
@@ -81,8 +75,8 @@ class Overlay(BaseOverlay):
         The shape id on the ginga canvas.
     """
 
-    def __init__(self, parent=None, color='red', logger=None):
-        super(Overlay, self).__init__(logger=logger)
+    def __init__(self, parent=None, color='red'):
+        super(Overlay, self).__init__()
         self.canvas = None
         self.parent = parent
         self.color = color
@@ -124,7 +118,7 @@ class Overlay(BaseOverlay):
             Overlay: For non-leaf layers
             ginga shape: For leaf layers.
         """
-        self.logger.debug('Called: layer="{}"'.format(layer))
+        logger.debug('Called: layer="{}"'.format(layer))
 
         view = None
         if layer.is_available:
@@ -150,7 +144,7 @@ class Overlay(BaseOverlay):
             )):
                 view = self.add_table(layer)
 
-        self.logger.debug('Returned view="{}"'.format(view))
+        logger.debug('Returned view="{}"'.format(view))
         return view
 
     def add_child(self, overlay):
@@ -202,13 +196,13 @@ class Overlay(BaseOverlay):
         return region_item.view
 
     def add_table(self, layer):
-        self.logger.debug('Called.')
+        logger.debug('Called.')
         if not layer.is_available:
             return None
         table = layer.value
-        self.logger.debug('len(table)="{}"'.format(len(table)))
+        logger.debug('len(table)="{}"'.format(len(table)))
         container = self._dc.CompoundObject()
-        container.initialize(None, self.canvas.viewer, self.logger)
+        container.initialize(None, self.canvas.viewer, logger)
         for row in table:
             point = self._dc.Point(
                 x=row['xcentroid'],
@@ -283,11 +277,8 @@ class OverlayView(QtCore.QObject):
         The Model which will be viewed.
     """
 
-    def __init__(self, parent=None, model=None, logger=None):
+    def __init__(self, parent=None, model=None):
         super(OverlayView, self).__init__()
-        if logger is None:
-            logger = make_logger('OverlayView')
-        self.logger = logger
 
         self._defer_paint = QtCore.QTimer()
         self._defer_paint.setSingleShot(True)
@@ -310,7 +301,7 @@ class OverlayView(QtCore.QObject):
         self.canvas = canvas
         p_canvas = parent.get_canvas()
         p_canvas.add(self.canvas)
-        self._root = Overlay(self, logger=self.logger)
+        self._root = Overlay(self)
         self.paint()
 
     @property
@@ -322,15 +313,6 @@ class OverlayView(QtCore.QObject):
 
     @model.setter
     def model(self, model):
-        try:
-            logger = model.logger
-        except AttributeError:
-            """Model has no logger, ignore"""
-            pass
-        else:
-            if logger is not None:
-                self.logger = logger
-
         self._disconnect()
         self._model = model
         self._connect()
@@ -338,18 +320,18 @@ class OverlayView(QtCore.QObject):
 
     @EventDeferred
     def paint(self, *args, **kwargs):
-        self.logger.debug(
+        logger.debug(
             'Called: args="{}" kwargs="{}".'.format(args, kwargs)
         )
         self._paint(*args, **kwargs)
 
     def _paint(self, *args, **kwargs):
         """Show all overlays"""
-        self.logger.debug(
+        logger.debug(
             'Called: args="{}" kwargs="{}".'.format(args, kwargs)
         )
         try:
-            self.logger.debug('sender="{}"'.format(self.sender()))
+            logger.debug('sender="{}"'.format(self.sender()))
         except AttributeError:
             """No sender, ignore"""
             pass

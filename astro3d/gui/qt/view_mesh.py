@@ -5,8 +5,10 @@ from qtpy import (QtCore, QtWidgets)
 from qtpy.QtCore import Signal as pyqtSignal
 from vispy import scene
 
-from ...util.logger import make_logger
+from ...util.logger import make_null_logger
 
+# Configure logging
+logger = make_null_logger(__name__)
 
 __all__ = ['ViewMesh']
 
@@ -17,10 +19,6 @@ class ViewMesh(QtWidgets.QWidget):
     closed = pyqtSignal(bool)
 
     def __init__(self, *args, **kwargs):
-        logger = kwargs.pop('logger', None)
-        if logger is None:
-            logger = make_logger('astro3d Layer Manager')
-        self.logger = logger
         super(ViewMesh, self).__init__(*args, **kwargs)
         self.setLayout(QtWidgets.QVBoxLayout())
 
@@ -32,7 +30,7 @@ class ViewMesh(QtWidgets.QWidget):
         self.remove_mesh()
 
     def update_mesh(self, mesh, model3d):
-        self.logger.debug('Called.')
+        logger.debug('Called.')
 
         # Get the vertices and scale to unit level.
         mesh = mesh[:, 1:, :]

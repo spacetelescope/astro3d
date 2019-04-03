@@ -3,9 +3,7 @@ import six
 import warnings
 
 from ..util import signal_slot
-from ..util.logger import make_logger
 from ..util.register_leaf_classes import (RegisterLeafClasses)
-
 
 @six.add_metaclass(RegisterLeafClasses)
 class Signal(signal_slot.Signal):
@@ -16,16 +14,13 @@ class Signals(signal_slot.Signals):
     '''The signal container that allows autoregistring of a
     set of predefined signals.
     '''
-    def __init__(self, signal_class=Signal, logger=None):
+    def __init__(self, signal_class=Signal):
         super(Signals, self).__init__()
-        if logger is None:
-            logger = make_logger('Signals')
-        self.logger = logger
         if signal_class is not None:
             with warnings.catch_warnings():
                 warnings.simplefilter('ignore')
                 for signal in signal_class:
-                    self.add(signal, logger=logger)
+                    self.add(signal)
 
 
 # Specific Signal Definitions

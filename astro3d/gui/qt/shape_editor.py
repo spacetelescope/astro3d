@@ -13,8 +13,11 @@ from qtpy import (QtCore, QtGui, QtWidgets)
 from .items import (CatalogItem, ClusterItem, StarsItem)
 from .. import signaldb
 from ...core.region_mask import RegionMask
-from ...util.logger import make_logger
+from ...util.logger import make_null_logger
 from ...util.text_catalog import TEXT_CATALOG
+
+# Configure logging
+logger = make_null_logger(__name__)
 
 __all__ = ['ShapeEditor']
 
@@ -40,16 +43,9 @@ class ShapeEditor(QtWidgets.QWidget):
     ----------
     surface: `ginga.Canvas`
         The canvas to interact on.
-
-    logger: logging.Logger
-        The common logger.
     """
 
     def __init__(self, *args, **kwargs):
-        self.logger = kwargs.pop(
-            'logger',
-            make_logger('astro3d Shape Editor')
-        )
         self.surface = kwargs.pop('surface', None)
         canvas = kwargs.pop('canvas', None)
 
@@ -123,7 +119,7 @@ class ShapeEditor(QtWidgets.QWidget):
 
     @mode.setter
     def mode(self, new_mode):
-        self.logger.debug('new_mode = "{}"'.format(new_mode))
+        logger.debug('new_mode = "{}"'.format(new_mode))
 
         # Close off the current state.
         for mode in self.mode_frames:
@@ -149,7 +145,7 @@ class ShapeEditor(QtWidgets.QWidget):
             canvas_mode = 'paint'
         elif new_mode == 'catalog':
             canvas_mode = 'pick'
-        self.logger.debug('canvas_mode = "{}"'.format(canvas_mode))
+        logger.debug('canvas_mode = "{}"'.format(canvas_mode))
         self.canvas.set_draw_mode(canvas_mode)
 
         # Success. Remember the mode
@@ -360,7 +356,7 @@ class ShapeEditor(QtWidgets.QWidget):
                      source=None):
         """Change layer selection"""
 
-        self.logger.debug('selected_item = "{}"'.format(selected_item))
+        logger.debug('selected_item = "{}"'.format(selected_item))
 
         # If the selection was initiated by
         # selecting the object directly, there is

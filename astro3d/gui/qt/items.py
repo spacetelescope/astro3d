@@ -9,11 +9,14 @@ from astropy.table import Table
 from ginga.canvas.types.image import Image
 from qtpy import (QtCore, QtGui, QtWidgets)
 
-from ...util.logger import make_logger
+from ...util.logger import make_null_logger
 from ...core.image_utils import combine_region_masks
 from ...core.region_mask import RegionMask
 
 from .. import signaldb
+
+# Configure logging
+logger = make_null_logger(__name__)
 
 # Shortcuts
 QAction = QtWidgets.QAction
@@ -147,18 +150,13 @@ class LayerItem(QStandardItem):
         How this item is viewed.
     """
 
-    logger = None
-
     # Use sequence to create unique identifiers
     _sequence = count(1)
 
     def __init__(self, *args, **kwargs):
         self.value = kwargs.pop('value', None)
         self.view = kwargs.pop('view', None)
-        logger = kwargs.pop('logger', make_logger('LayerItem'))
         super(LayerItem, self).__init__(*args, **kwargs)
-        if LayerItem.logger is None:
-            LayerItem.logger = logger
 
     @property
     def value(self):
@@ -210,7 +208,7 @@ class LayerItem(QStandardItem):
         -------
         The clone.
         """
-        new = self.__class__(logger=self.logger)
+        new = self.__class__()
         if isinstance(self.view, Image):
             new.value = self.value
             new.view = None
@@ -304,7 +302,7 @@ class RegionBase(FixedMixin, CheckableItem):
 
     def add_region_interactive(self, mask_type):
         """Add a type"""
-        self.logger.debug('Called mask_type="{}"'.format(mask_type))
+        logger.debug('Called mask_type="{}"'.format(mask_type))
         type_item = self.types[mask_type]
         if not type_item.index().isValid():
             self.appendRow(type_item)
@@ -631,14 +629,14 @@ class CatalogItem(CheckableItem):
         try:
             table.remove_row(idx)
         except Exception as e:
-            self.logger.debug(e)
+            logger.debug(e)
         else:
-            self.logger.debug('removal successful! Signalling...')
+            logger.debug('removal successful! Signalling...')
             self.emitDataChanged()
 
     def key_callback(self, draw_obj, canvas_obj, event, coords):
         """Handle key-press callback"""
-        self.logger.debug(
+        logger.debug(
             'obj.idx="{}" event="{}" key="{}"'.format(
                 draw_obj.idx, event, event.key
             )
