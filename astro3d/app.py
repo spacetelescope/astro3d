@@ -6,12 +6,16 @@ import sys
 import logging
 from argparse import ArgumentParser
 
+from astropy import log as astropy_log
+
 from .util.logger import make_logger
 from .gui.qt.process import MeshThread
 from .gui import (Controller, MainWindow, Model, signaldb)
 from .gui.start_ui_app import start_ui_app
 
+# Configure logging
 logger = make_logger(__package__)
+logger.setLevel(logging.CRITICAL)
 
 
 class Application(Controller):
@@ -79,10 +83,18 @@ class Application(Controller):
             help='Turn on debugging information',
             action='store_true'
         )
+        parser.add_argument(
+            '-v', '--verbose',
+            help='Turn on basic informational messages',
+            action='store_true'
+        )
         args = parser.parse_args(argv)
 
-        if args.debug:
+        if args.verbose:
+            logger.setLevel(logging.INFO)
+        elif args.debug:
             logger.setLevel(logging.DEBUG)
+        astropy_log.setLevel(logger.level)
 
     def _create_signals(self):
         signaldb.logger = logger
