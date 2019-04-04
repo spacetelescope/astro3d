@@ -66,4 +66,4 @@ Using ``astro3d``
 .. toctree::
    :maxdepth: 2
 
-   high-level_API
+   astro3d/high-level_API
