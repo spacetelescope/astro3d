@@ -1,11 +1,16 @@
-# this contains imports plugins that configure py.test for astropy tests.
-# by importing them here in conftest.py they are discoverable by py.test
-# no matter how it is invoked within the source tree.
+"""
+This contains imports plugins that configure py.test for astropy tests.
+by importing them here in conftest.py they are discoverable by py.test
+no matter how it is invoked within the source tree.
+"""
 from os import chdir
 from pathlib import Path
 import pytest
 
-from astropy.tests.pytest_plugins import *
+## Uncomment the following if any of these modules are needed in later
+## uncommented code
+#from astropy.tests.plugins.display import PYTEST_HEADER_MODULES, TESTED_VERSIONS
+#from astropy.tests.helper import enable_deprecations_as_exceptions
 
 ## Uncomment the following line to treat all DeprecationWarnings as
 ## exceptions
