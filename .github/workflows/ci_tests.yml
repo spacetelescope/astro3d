@@ -40,9 +40,6 @@ jobs:
             python: '3.9'
             tox_env: 'codestyle'
           - os: ubuntu-latest
-            python: '3.9'
-            tox_env: 'bandit'
-          - os: ubuntu-latest
             python: '3.7'
             tox_env: 'py37-test-alldeps-astropylts-numpy118'
 
