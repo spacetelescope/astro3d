@@ -17,15 +17,15 @@ Requirements
 
 Astro3d requires:
 
-* `Python <https://www.python.org/>`_ 2.6 (>=2.6.5), 2.7, 3.3, or 3.4
+* `Python <https://www.python.org/>`_ 3.7 or later
 
-* `Numpy <https://numpy.org/>`_ 1.6 or later
+* `Numpy <https://numpy.org/>`_ 1.17 or later
 
 * `Scipy <https://scipy.org/>`_
 
 * `matplotlib <https://matplotlib.org/>`_
 
-* `Astropy`_ 1.0 or later
+* `Astropy`_ 4.0 or later
 
 * `Pillow <https://python-pillow.org/>`_
 
@@ -40,7 +40,7 @@ Obtaining the Source Package
 The latest development version of ``astro3d`` can be cloned from
 github using this command::
 
-    git clone git://github.com/STScI-SSB/astro3d.git
+    git clone git@github.com:spacetelescope/astro3d.git
 
 
 Installing from the Source Package
@@ -48,7 +48,7 @@ Installing from the Source Package
 
 To install from the root of the source package::
 
-    python setup.py install
+    pip install .
 
 
 Installing using pip
@@ -57,7 +57,7 @@ Installing using pip
 To install the current *development* version using `pip
 <https://pip.pypa.io/en/stable/>`_::
 
-    pip install git+https://github.com/STScI-SSB/astro3d
+    pip install git+https://github.com/spacetelescope/astro3d
 
 
 Using ``astro3d``
