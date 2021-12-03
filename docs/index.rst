@@ -17,21 +17,21 @@ Requirements
 
 Astro3d requires:
 
-* `Python <http://www.python.org/>`_ 2.6 (>=2.6.5), 2.7, 3.3, or 3.4
+* `Python <https://www.python.org/>`_ 2.6 (>=2.6.5), 2.7, 3.3, or 3.4
 
-* `Numpy <http://www.numpy.org/>`_ 1.6 or later
+* `Numpy <https://numpy.org/>`_ 1.6 or later
 
-* `Scipy <http://www.scipy.org/>`_
+* `Scipy <https://scipy.org/>`_
 
-* `matplotlib <http://matplotlib.org/>`_
+* `matplotlib <https://matplotlib.org/>`_
 
 * `Astropy`_ 1.0 or later
 
-* `Pillow <https://python-pillow.github.io/>`_ or `PIL <http://www.pythonware.com/products/pil/>`_
+* `Pillow <https://python-pillow.org/>`_
 
-* `PyQt4 <http://www.riverbankcomputing.co.uk/software/pyqt/download>`_
+* `PyQt5 <https://pypi.org/project/PyQt5/>`_
 
-* `photutils <https://photutils.readthedocs.org/en/latest/>`_
+* `photutils <https://photutils.readthedocs.io/en/latest/>`_
 
 
 Obtaining the Source Package
