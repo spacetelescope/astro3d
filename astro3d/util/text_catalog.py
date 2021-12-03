@@ -12,4 +12,4 @@ try:
 except NameError:
     _catalog_path = Path(__file__).parents[1] / 'data' / 'text_catalog.yaml'
     with open(_catalog_path, 'r') as fh:
-        TEXT_CATALOG = yaml.load(fh)
+        TEXT_CATALOG = yaml.safe_load(fh)
