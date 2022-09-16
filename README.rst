@@ -14,13 +14,6 @@ Requirements
 
 Installation
 ------------
-In general, the installation procecure follows the Astroconda
-installation directions https://astroconda.readthedocs.io
-
-Also note, all command line actions need to be done in the `bash` shell.
-One can always start a bash shell as follows::
-
-    $ bash
 
 Start a terminal window
 ^^^^^^^^^^^^^^^^^^^^^^^
@@ -28,8 +21,8 @@ Start a terminal window
 In whatever system you have, start a terminal window that will get you
 to the command line.
 
-Remember, you need to be in the `bash` shell. If not sure, start
-`bash`::
+Remember, you need to be in the ``bash`` shell. If not sure, start
+``bash``::
 
     $ bash
 
@@ -56,35 +49,31 @@ Accept all the defaults for any questions asked.
 Now, quit the terminal window you were in and start another one.
 Remember to start `bash` if necessary.
 
-Create Astroconda environment
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Create environment
+^^^^^^^^^^^^^^^^^^
 
-Setup for Astroconda by doing the following::
+Now we can create the ``astro3d`` Python environment::
 
-    $ conda config --add channels https://ssb.stsci.edu/astroconda
+    $ conda env create -n astro3d -f https://raw.githubusercontent.com/spacetelescope/stenv/main/stenv-latest.yml
 
-Now we can create the `astro3d` Python environment::
+The ``astro3d`` environment is now ready. To activate, do the following::
 
-    $ conda create -n astro3d stsci "python=3.7"
-
-The `astro3d` environment is now ready. To activate, do the following::
-
-    $ source activate astro3d
+    $ conda activate astro3d
 
 Always Do
 ^^^^^^^^^
 
 At this point, the environment is setup. From now on, always make sure
-you are running `bash` and in the `astro3d` environment whenever you
+you are running ``bash`` and in the ``astro3d`` environment whenever you
 need to start a new terminal window::
 
     $ bash
-    $ source activate astro3d
+    $ conda activate astro3d
 
-astro3d code install
-^^^^^^^^^^^^^^^^^^^^
+``astro3d`` code install
+^^^^^^^^^^^^^^^^^^^^^^^^
 
-If one has never installed `astro3d` or one wishes to get a fresh
+If one has never installed ``astro3d`` or one wishes to get a fresh
 install, do the following. Remember to start bash and activate the
 environment before doing this::
 
