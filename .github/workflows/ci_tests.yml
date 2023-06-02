@@ -2,13 +2,26 @@ name: CI Tests
 
 on:
   push:
+    branches:
+      - main
+    tags:
+      - '*'
   pull_request:
   schedule:
     # run every Monday at 6am UTC
     - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   TOXARGS: '-v'
+
+permissions:
+  contents: read
 
 jobs:
   ci-tests:
@@ -42,11 +55,11 @@ jobs:
 
     steps:
     - name: Check out repository
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
         fetch-depth: 0
     - name: Set up Python ${{ matrix.python }}
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python }}
     - name: Install base dependencies
