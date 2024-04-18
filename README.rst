@@ -56,14 +56,9 @@ Now we can create the ``astro3d`` Python environment. We will use the
 `stenv` environment, which is a conda environment that contains all the
 necessary packages for ``astro3d``.
 
-Please follow the instructions at
-https://stenv.readthedocs.io/en/latest/getting_started.html#choose-an-stenv-release
-to select an ``stenv`` release for your OS and Python version.
+Create the ``astro3d`` conda environment::
 
-After downloading the appropriate ``stenv`` release in the form of a
-YAML file, you can create the ``astro3d`` environment.
-
-    $ conda env create -n astro3d -f <my_stenv_file>.yaml
+    $ conda env create -n stenv -f https://raw.githubusercontent.com/spacetelescope/stenv/main/environment.yaml
 
 The ``astro3d`` environment is now ready. To activate, do the following::
 
