@@ -108,7 +108,7 @@ class RegionMask(object):
 
         fobj = fits.open(filename)
         header = fobj[0].header
-        mask = fobj[0].data.astype(np.bool)
+        mask = fobj[0].data.astype(bool)
         mask_type = header['MASKTYPE']
         region_mask = cls(mask, mask_type, required_shape=required_shape,
                           shape=shape)
