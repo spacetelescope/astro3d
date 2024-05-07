@@ -95,7 +95,7 @@ class ShapeEditor(QtWidgets.QWidget):
         # Initial canvas state
         canvas.enable_edit(True)
         canvas.enable_draw(True)
-        canvas.setSurface(self.surface)
+        canvas.set_surface(self.surface)
         canvas.register_for_cursor_drawing(self.surface)
         self._build_gui()
         self.mode = None
