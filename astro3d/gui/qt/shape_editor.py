@@ -109,7 +109,7 @@ class ShapeEditor(QtWidgets.QWidget):
     def enabled(self, state):
         self._enabled = state
         try:
-            self._canvas.ui_setActive(state)
+            self._canvas.ui_set_active(state)
         except AttributeError:
             pass
 
