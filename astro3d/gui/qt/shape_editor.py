@@ -229,6 +229,7 @@ class ShapeEditor(QtWidgets.QWidget):
             x=0., y=0., radius=max(brush_size / 2, 0.5),
             **self.draw_params
         )
+        logger.debug("brush: %s", dir(brush))
         if copy_from is not None:
             brush.x = copy_from.x
             brush.y = copy_from.y
@@ -265,8 +266,12 @@ class ShapeEditor(QtWidgets.QWidget):
         """Finalize the paint mask"""
         try:
             self.canvas.delete_object(self.brush)
-        except AttributeError:
+        except ValueError as exception:
+            # Cannot delete brush. Finish off anyways.
+            pass
+        except Exception as exception:
             """If no brush, we were not painting"""
+            logger.debug('Cannot delete brush %s because %s', self.brush, type(exception))
             return
 
         # If mode is paint_edit, there is no
@@ -336,7 +341,7 @@ class ShapeEditor(QtWidgets.QWidget):
         return kind
 
     def brush_move(self, x, y):
-        self.brush.move_to(x, y)
+        self.brush.move_to_pt((x, y))
         self.canvas.update_canvas(whence=3)
 
     def set_painting(self, state):
