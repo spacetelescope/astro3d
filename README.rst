@@ -58,7 +58,7 @@ necessary packages for ``astro3d``.
 
 Create the ``astro3d`` conda environment::
 
-    $ conda env create -n stenv -f https://raw.githubusercontent.com/spacetelescope/stenv/main/environment.yaml
+    $ conda env create -n astro3d -f https://raw.githubusercontent.com/spacetelescope/stenv/main/environment.yaml
 
 The ``astro3d`` environment is now ready. To activate, do the following::
 
