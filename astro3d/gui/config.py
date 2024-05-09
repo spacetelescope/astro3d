@@ -4,10 +4,7 @@ from __future__ import print_function
 
 from ast import literal_eval
 
-try:
-    from ConfigParser import ConfigParser as SystemConfigParser
-except:
-    from configparser import SafeConfigParser as SystemConfigParser
+from configparser import ConfigParser as SystemConfigParser
 from os.path import (abspath, dirname, expanduser)
 
 CONFIG_NAME = 'astro3d.cfg'

@@ -50,7 +50,7 @@ def mask_texture_image(texture_image, mask):
     if texture_image.shape != mask.shape:
         raise ValueError('texture_image and mask must have the same shape')
 
-    data = np.zeros_like(mask, dtype=np.float)
+    data = np.zeros_like(mask, dtype=float)
     data[mask] = texture_image[mask]
     return data
 

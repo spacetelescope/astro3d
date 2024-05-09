@@ -23,7 +23,7 @@ class ImageView(CanvasView):
         self.set_zoom_algorithm('rate')
         self.set_zoomrate(1.4)
         self.set_bg(0.2, 0.2, 0.2)
-        self.ui_setActive(True)
+        self.ui_set_active(True)
 
         bd = self.get_bindings()
         bd.enable_all(True)

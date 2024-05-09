@@ -116,14 +116,14 @@ class Parameters(QtWidgets.QScrollArea):
         gasspiral_widget, gasspiral_bunch = Widgets.build_info(captions)
         self.children.update(gasspiral_bunch)
 
-        gasspiral_bunch.gas_percentile.set_limits(0., 100.)
+        gasspiral_bunch.gas_percentile.set_limits(0, 100)
         gasspiral_bunch.gas_percentile.set_value(55)
         gasspiral_bunch.gas_percentile.set_tooltip(
             'The percentile of values above which'
             ' are assigned to the Gas mask'
         )
 
-        gasspiral_bunch.spiral_percentile.set_limits(0., 100.)
+        gasspiral_bunch.spiral_percentile.set_limits(0, 100)
         gasspiral_bunch.spiral_percentile.set_value(75)
         gasspiral_bunch.spiral_percentile.set_tooltip(
             'The percential of values above which are'
@@ -154,15 +154,15 @@ class Parameters(QtWidgets.QScrollArea):
         gasdust_widget, gasdust_bunch = Widgets.build_info(captions)
         self.children['gasdust'] = gasdust_bunch
 
-        gasdust_bunch.gas_percentile.set_limits(0., 100.)
-        gasdust_bunch.gas_percentile.set_value(75.)
+        gasdust_bunch.gas_percentile.set_limits(0, 100)
+        gasdust_bunch.gas_percentile.set_value(75)
         gasdust_bunch.gas_percentile.set_tooltip(
             'The percentile of values above which'
             ' are assigned to the Gas mask'
         )
 
-        gasdust_bunch.dust_percentile.set_limits(0., 100.)
-        gasdust_bunch.dust_percentile.set_value(55.)
+        gasdust_bunch.dust_percentile.set_limits(0, 100)
+        gasdust_bunch.dust_percentile.set_value(55)
         gasdust_bunch.dust_percentile.set_tooltip(
             'The percentile of pixel values in the weighted data above'
             'which (and below gas_percentile) to assign to the "dust"'

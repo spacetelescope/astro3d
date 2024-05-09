@@ -1,6 +1,6 @@
 """Interface between configuration store and widgets"""
 from ast import literal_eval
-from collections import MutableMapping
+from collections.abc import MutableMapping
 from copy import copy
 
 from ginga.gw.Widgets import (
