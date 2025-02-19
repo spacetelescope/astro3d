@@ -3,10 +3,9 @@
 A package to create a 3D model from an astronomical image.
 """
 
-# Packages may add whatever they like to this file, but should keep this
-# content at the top.
-# ----------------------------------------------------------------------------
-from ._astropy_init import *  # noqa
-# ----------------------------------------------------------------------------
-
 from .core.model3d import *  # noqa
+
+try:
+    from .version import version as __version__
+except ImportError:
+    __version__ = ''
